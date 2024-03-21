@@ -1,0 +1,41 @@
+\documentclass{ctbook}
+\usepackage{mybook}
+\usepackage{utils}
+
+\addbibresource{biblio/cs.bib}
+
+% 设置标题，作者与时间
+\title{嵌入式知识体系总结}
+\author{王伯榕}
+\date{2024/03/21}
+
+\begin{document}
+
+% In LaTeX, the \frontmatter command is used to switch the page
+% numbering style to lowercase Roman numerals (i, ii, iii, etc.)
+% and to disable chapter numbering. This is typically used for
+% the front matter of a document, such as the title page, abstract,
+% table of contents, list of figures, list of tables, and any other
+% preliminary sections that come before the main content of the document.
+\frontmatter % only for book
+
+\maketitle
+
+\input{preface}
+
+\tableofcontents
+
+% Note that after the \frontmatter command, you can include the front
+% matter sections like the abstract, table of contents, etc. The main
+% content of the document should be placed after the \mainmatter command.
+% This will reset the page numbering to Arabic numerals (1, 2, 3, etc.)
+% and enable chapter numbering.
+\mainmatter
+
+\input{part-software}
+\input{part-hardware}
+
+\clearpage
+\printbibliography[heading=bibintoc, title=参考文献]
+
+\end{document}

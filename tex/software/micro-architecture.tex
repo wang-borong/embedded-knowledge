@@ -1,0 +1,125 @@
+\chapter{微处理器体系架构}
+
+如果暂时撇开硬件不谈，可以说微处理器体系架构属于嵌入式开发的最底层的硬件知识。
+我暂时还说不清楚这部分知识属于 EE，还是 CS。
+但是，可以肯定我们从处理器架构手册中获取的芯片运行原理等信息与处理器的开发有交集，
+只是说处理器的开发需要更加详尽且完善的知识体系，而紧贴处理器硬件的软件开发也需要这部分原理知识以便正确且高效的使用相关的处理器。
+
+微处理器体系架构方面的知识建立了处理器硬件与软件的桥梁，是嵌入式开发所绕不开的。
+所以，我们从微处理器体系架构开始，逐步的完善并建立嵌入式开发的基础知识体系。
+
+本章主要讲述两种微处理器架构，一种是目前占主导市场的 ARMv8 架构，两外一种则是开源的 RISC-V 指令集架构。
+
+\section{ARMv8}
+
+ARM 公司在 2013 年发布了它的 64-bit ARMv8 架构。
+ARMv8 实现了 32-bit ARMv7 的兼容。
+做出来以下重要升级：\footnote{该部分借鉴 \url{https://armv8-doc.readthedocs.io/en/latest/02.html\#armv8-a}，并且后续的整理也会借鉴该翻译成果，在此对付出精力的翻译人员予以感谢与尊重。
+原版手册是 {ARM® Cortex®-A Series Programmer’s Guide for ARMv8-A}\cite{armpg}}
+
+\begin{description}
+    \item[Large physical address] 更大的物理内存，使处理器能够访问超过 4GB 的物理内存。
+    \item[64-bit virtual addressing] 使虚拟内存突破 4GB 限制。
+    这对于使用内存映射文件 I/O 或稀疏寻址的现代桌面和服务器软件很重要。
+    \item[Automatic event signaling] 可以实现节能、高性能的自旋锁。
+    \item[Larger register files] 31 个 64 位通用寄存器可提高性能并减少堆栈使用。
+    \item[Efficient 64-bit immediate generation] 对 literal pool 的需求较少
+    \item[Large PC-relative addressing range] 一个 +/‑4GB 的寻址范围，用于在共享库和与位置无关的可执行文件中进行有效的数据寻址。
+    \item[Additional 16KB and 64KB translation granules] 降低了翻译后备缓冲区(TLB) 未命中率和页面遍历深度。
+    \item[New exception model] 降低了操作系统和管理程序软件的复杂性。
+    \item[Efficient cache management] 用户空间缓存操作提高了动态代码生成效率。
+    使用数据缓存零指令快速清除数据缓存。
+    \item[Hardware-accelerated cryptography] 提供 3 到 10 倍更好的软件加密性能。这对于小粒度解密和加密非常有用，因为太小而无法有效地卸载到硬件加速器，例如 https。
+    \item[Load-Acquire, Store-Release instructions] 专为 C++11、C11、Java 内存模型而设计。
+    它们通过消除显式内存屏障指令来提高线程安全代码的性能。
+    \item[NEON double-precision floating-point advanced SIMD] 使得 SIMD 矢量化能够应用于更广泛的算法集，例如科学计算、高性能计算(HPC) 和超级计算机。
+\end{description}
+
+\subsection{Contex-A57 处理器}
+
+目前 ARM 处理器已经更新到 X2，但是对于学习它的体系架构来说，A57 或 A53 已经足够适用，也足够经典。
+我们将手册中的框架图拿过来感性的认识处理器的内部结构。
+
+Cortex‑A57 处理器 Cortex‑A57 处理器面向移动和企业计算应用，包括计算密集型 64 位应用，例如高端计算机、平板电脑和服务器产品。
+它可以与 Cortex‑A53 处理器一起使用到 ARM big.LITTLE 配置中，以实现可扩展的性能和更高效的能源使用。
+
+Cortex‑A57 处理器具有与其他处理器的高速缓存一致性互操作性，包括用于 GPU 计算的 ARM Mali™ 系列图形处理单元(GPU)，并为高性能企业应用程序提供可选的可靠性和可扩展性功能。
+它提供了比 ARMv7 架构的 Cortex‑A15 处理器更高的性能，并具有更高的能效水平。
+加密扩展的包含将加密算法的性能提高了 10 倍于上一代处理器。
+
+\anchorfig[caption={Contex-A57}, label={fig:contex-a57}, width=0.8]{A57}
+
+Cortex‑A57 处理器完全实现了 ARMv8‑A 架构。它支持多核操作，在单个集群中具有一到四核多处理。
+通过 AMBA5 CHI 或 AMBA 4 ACE 技术，可以实现多个一致的 SMP 集群。
+可通过 CoreSight 技术进程调试和跟踪。
+
+Cortex‑A57 处理器具有以下特性：
+
+\begin{itemize}
+  \item 乱序，15+阶段流水线。
+  \item 省电功能包括路径预测、标记减少和缓存查找抑制。
+  \item 通过重复执行资源增加峰值指令吞吐量。具有本地化解码、3 宽解码带宽的功率优化指令解码。
+  \item 性能优化的 L2 缓存设计使集群中的多个核心可以同时访问 L2。
+\end{itemize}
+
+\subsection{ARMv8 运行级}
+
+在 ARMv8 中，执行发生在四个异常级别之一。
+异常级别决定特权级别，因此在 $EL_n$ 执行对应于特权 $PL_n$。
+更大的 n 值的异常级别处于更高的异常级别。
+
+异常级别提供了适用于 ARMv8 架构的所有操作状态的软件执行权限的逻辑分离。
+它类似于并支持计算机科学中常见的分层保护域的概念。
+
+\begin{description}
+    \item[EL0] Normal user applications.
+    \item[EL1] Operating system kernel typically described as privileged.
+    \item[EL2] Hypervisor.
+    \item[EL3] Low-level firmware, including the Secure Monitor.
+\end{description}
+
+异常级别之间可以转换，但是要遵循以下规则：
+
+\begin{itemize}
+  \item 移动到更高的异常级别，例如从 EL0 到 EL1，表示软件增加执行特权。
+  \item 不能将异常处理到较低的异常级别。
+  \item EL0 级别没有异常处理，必须在更高的异常级别处理异常
+  \item 异常导致程序流程发生变化。异常处理程序的执行以高于 EL0 的异常级别从与所采取的异常相关的已定义向量开始。
+    例外情况包括： IRQ 和 FIQ 等中断、内存系统中止、未定义的指令、系统调用。
+    这些允许非特权软件对操作系统 安全监视器或管理程序陷阱。
+  \item 通过执行ERET指令来结束异常处理并返回到上一个异常级别。
+  \item 从异常返回可以保持相同的异常级别或进入较低的异常级别。
+    它不能移动到更高的异常级别。
+  \item 安全状态确实会随着异常级别的变化而变化，除非从 EL3 重新调整到非安全状态。
+\end{itemize}
+
+
+ARMv8 架构定义了两种执行状态，AArch64和AArch32。
+每个状态分别用于描述使用 64 位宽通用寄存器或 32 位宽通用寄存器的执行。
+虽然 ARMv8 AArch32 保留了 ARMv7 对特权的定义，但在 AArch64 中，特权级别由异常级别决定。
+因此，在 $EL_n$ 的执行对应于特权 $PL_n$。
+
+当处于 AArch64 状态时，处理器执行 A64 指令集。
+当处于 AArch32 状态时，处理器可以执行 A32（在早期版本的架构中称为 ARM）或 T32 (Thumb) 指令集。
+
+\subsection{Registers}
+
+\subsection{ISA}
+
+\subsection{Caches}
+
+\subsection{MMU}
+
+\subsection{Memory ordering}
+
+\subsection{SMP}
+
+\subsection{Others}
+
+\section{RISC-V}
+
+\subsection{Privileged Architecture}
+
+\subsection{Unprivileged ISA}
+
+\section{内存层级}
