@@ -76,6 +76,9 @@
 
 % ctex settings
 \ctexset{
+  part = {
+    format+ = \zihao{2} \color{mybook-basis-color}
+  },
   chapter = {
     format+ = \zihao{-2} \color{mybook-basis-color}
   },
@@ -441,18 +444,6 @@
 \thispagestyle{empty}%
 \newpage%
 \if@twocolumn\hbox{}\newpage\fi\fi\fi}
-
-\if@twoside
-\else
-\geometry{
-  top=1in, bottom=1in,
-  % left=1in, right=1in,
-  left=2cm, right=2cm,
-  headheight=1in,
-  headsep=4mm,
-  footskip=12mm
-}
-\fi
 
 \definecolor{mybook-bg-color-1}{RGB}{243,102,25} % Define the orange color used for highlighting throughout the book
 \newcommand{\subtitle}[1]{\gdef\@subtitle{#1}}

@@ -1,4 +1,4 @@
-\documentclass{ctbook}
+\documentclass[oneside]{ctbook}
 \usepackage{mybook}
 \usepackage{utils}
 
@@ -21,8 +21,6 @@
 
 \maketitle
 
-\input{preface}
-
 \tableofcontents
 
 % Note that after the \frontmatter command, you can include the front
@@ -31,6 +29,8 @@
 % This will reset the page numbering to Arabic numerals (1, 2, 3, etc.)
 % and enable chapter numbering.
 \mainmatter
+
+\input{preface}
 
 \input{part-software}
 \input{part-hardware}
