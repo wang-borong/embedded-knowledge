@@ -1,0 +1,22 @@
+[
+  {"bits": 1, "name": "M"},
+  {"bits": 1, "name": "A"},
+  {"bits": 1, "name": "C"},
+  {"bits": 1, "name": "SA"},
+  {"bits": 2 },
+  {"bits": 5 },
+  {"bits": 1 },
+  {"bits": 1, "name": "I"},
+  {"bits": 3 },
+  {"bits": 1 },
+  {"bits": 1 },
+  {"bits": 1 },
+  {"bits": 1, "name": "WXN"},
+  {"bits": 2 },
+  {"bits": 2 },
+  {"bits": 1 },
+  {"bits": 1, "name": "EE"},
+  {"bits": 2 },
+  {"bits": 2 },
+  {"bits": 2 }
+]
