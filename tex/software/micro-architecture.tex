@@ -219,7 +219,7 @@ EL0 永远只能访问 SP\_EL0。
   \begin{center}
     \caption{AArch64 SP 选项}
     \label{tbl:a64_sp_opt}
-    \begin{tblr}{ccc}
+    \begin{tblr}{cc}
       \hline[1pt]
       Exception Level & Options \\
       \hline
@@ -401,7 +401,7 @@ EL1 中其他位，SCTLR\_EL1.E0E 控制 EL0 的数据大小端的设置。
 
 操作数使用 H (Half)、S (Single) 和 D (Double) 分别用来使用 V 寄存器的低 16、32 和 64 位。
 
-\subsection{ISA}
+\subsection{ISA 概述}
 
 ARMv8 架构中引入的最重要的变化之一是增加了 64 位指令集。
 该指令集补充了现有的 32 位指令集架构。
@@ -416,7 +416,7 @@ ARMv8 架构还包括对 32 位指令集（A32 和 T32）的一些增强性功�
 然而，使用这些功能的代码与旧的 ARMv7 实现不兼容。
 然而，A64 指令集中的指令操作码长度仍然是 32 位，而不是 64 位。
 
-\subsubsection{ARMv8 指令集}
+\subsubsection{ARMv8 指令集简介}
 
 新的 A64 指令集与 A32 类似，都是 32 bit 宽度，并且语法类似。
 该指令集使用通用的命名，原先的 32-bit 指令集则成为 A32 和 T32（16-bit 指令，以性能换空间）。
@@ -424,7 +424,7 @@ ARMv8 架构还包括对 32 位指令集（A32 和 T32）的一些增强性功�
 
 A64 指令集有两种整型指令形式，即通用寄存器保存 32-bit 或是 64-bit 值。
 当查看指令中的寄存器名称时，如果是 X 开头则使用的是 64-bit 值；
-W开头则是 32-bit 值。
+W 开头则是 32-bit 值。
 当使用 32-bit 形式时，会有以下体现：
 \begin{itemize}
   \item 右移和旋转注入在 31 位，而非 63 位。
@@ -447,7 +447,7 @@ W开头则是 32-bit 值。
   \item[增加相对 PC 的偏移地址]
   \item[支持未对齐地址]
   \item[批量传输]
-  \item[加载/存储]
+  \item[加载 / 存储]
   \item[对齐检查]
 \end{description}
 
@@ -455,6 +455,237 @@ W开头则是 32-bit 值。
 下面我们以手册中的切换图~\ref{fig:state_changing} 来直观感受切换方式。
 
 \anchorfig[caption={Switching between instruction sets}, label={fig:state_changing}, width=0.8]{state_changing}
+
+\subsection{A64 指令集}
+
+一般情况下我们只需要记住指令的助记符即可，不需要在意更底层的指令编码，指令编码的事情留给汇编器来完成。
+
+我们将指令集按照其功能分类，有如下几类指令：
+
+\begin{itemize}
+  \item 数据处理指令
+    % \begin{itemize}
+    %   \item 算术与逻辑运算指令
+    %   \item 乘法与除法指令
+    %   \item 移位指令
+    %   \item 位和字节操作指令
+    %   \item 状态位操作指令
+    % \end{itemize}
+  \item 内存访问指令
+  \item 流程控制指令
+  \item 系统控制及其它指令
+    % \begin{itemize}
+    %   \item 异常处理指令
+    %   \item 系统寄存器操作指令
+    %   \item Debug 指令
+    %   \item Hint 指令
+    %   \item NEON 指令
+    %   \item 浮点指令
+    %   \item 加密算法指令
+    % \end{itemize}
+\end{itemize}
+
+\subsubsection{数据处理指令}
+
+\paragraph{算术与逻辑运算指令}
+
+  \begin{table}[H]
+    \begin{center}
+      \caption{算术和逻辑运算指令}
+      \label{tbl:a64-isa-al}
+      \begin{tblr}{c>{\centering\arraybackslash}X}
+        \hline[1pt]
+        类型 & 指令 \\
+        \hline
+        算术 & ADD, SUB, ADC, SBC, NEG \\
+        逻辑 & AND, BIC, ORR, ORN, EOR, EON \\
+        比较 & CMP, CMN, TST \\
+        转移 & MOV, MVN \\
+        \hline[1pt]
+      \end{tblr}
+    \end{center}
+  \end{table}
+
+另外，有些支持后缀带 S，已表明该指令会更新状态 flags。
+可以配合跳转指令使用。
+注意，CMP、CMN 和 TST 不带后缀 S。
+
+\paragraph{乘法与除法指令}
+
+  \begin{table}[H]
+    \begin{center}
+      \caption{乘法与除法指令}
+      \label{tbl:a64-isa-md}
+      \begin{tblr}{c>{\centering\arraybackslash}X}
+        \hline[1pt]
+        指令 & 说明 \\
+        \hline
+        & \textbf{乘法} \\
+        MADD & Multiply add \\
+        MNEG & Multiply negate \\
+        MSUB & Multiply subtract \\
+        MUL & Multiply \\
+        SMADDL & Signed multiply-add long \\
+        SMNEGL & Signed multiply-negate long \\
+        SMSUBL & Signed multiply-subtract long \\
+        SMULH & Signed multiply returning high half \\
+        SMULL & Signed multiply long \\
+        UMADDL & Unsigned multiply-add long \\
+        UMNEGL & Unsigned multiply-negate long \\
+        UMSUBL & Unsigned multiply-subtract long \\
+        UMULH & Unsigned multiply returning high half \\
+        UMULL & Unsigned multiply long \\
+        \hline
+        & \textbf{除法} \\
+        SDIV & Signed divide \\
+        UDIV & Unsigned divide \\
+        \hline[1pt]
+      \end{tblr}
+    \end{center}
+  \end{table}
+
+\paragraph{移位指令}
+
+  \begin{table}[H]
+    \begin{center}
+      \caption{移位指令}
+      \label{tbl:a64-isa-so}
+      \begin{tblr}{c>{\centering\arraybackslash}X}
+        \hline[1pt]
+        指令 & 说明 \\
+        \hline
+        & \textbf{移位} \\
+        ASR & Arithmetic shift right \\
+        LSL & Logical shift left \\
+        LSR & Logical shift right \\
+        ROR & Rotate right \\
+        \hline
+        & \textbf{转移} \\
+        MOV & Move \\
+        MVN & Bitwise NOT \\
+        \hline[1pt]
+      \end{tblr}
+    \end{center}
+  \end{table}
+
+下图形象展示了移位指令的动作。
+
+\anchorfig[caption={移位操作}, label={fig:shift-ops}, width=1]{shift-ops}
+
+\paragraph{位和字节操作指令}
+
+\begin{stblr}
+  {位和字节操作指令}
+  {a64-isa-bB}
+  {c>{\centering\arraybackslash}X}
+  \hline[1pt]
+  指令 & 说明 \\
+  \hline
+  BFI rd, rn, \#p, \#n & $rd_{p+n-1:p} = rn_{n-1:0}$ \\
+  BFXIL rd, rn, \#p, \#n & $rd_{n−1:0} = rn_{p+n−1:p}$ \\
+  CLS rd, rn & $rd = CountLeadingOnes(rn)$ \\
+  CLZ rd, rn & $rd = CountLeadingZeros(rn)$ \\
+  EXTR rd, rn, rm, \#p & $rd = rn_{p−1:0}:rm_{N0}$ \\
+  RBIT rd, rn & $rd = ReverseBits(rn)$ \\
+  REV rd, rn & $rd = BSwap(rn)$ \\
+  REV16 rd, rn & $for(n=0..1|3) rd_{Hn}=BSwap(rn_{Hn})$ \\
+  REV32 Xd, Xn & $Xd=BSwap(Xn_{63:32}):BSwap(Xn_{31:0})$ \\
+  \{S,U\}BFIZ rd, rn, \#p, \#n & $rd = rn^?_{n−1:0} << p$ \\
+  \{S,U\}BFX rd, rn, \#p, \#n & $rd = rn^?_{p+n−1:p}$ \\
+  \{S,U\}XT\{B,H\} rd, Wn & $rd = Wn^?_{N0}$ \\
+  SXTW Xd, Wn & $Xd = Wn^±$ \\
+  \hline[1pt]
+\end{stblr}
+
+\paragraph{状态位操作指令}
+
+A64 支持处理器状态位有 NZCV，分别位 Negative、Zero、Carry 和 Overflow。
+C flag 在无符号数操作溢出时被设置，而 V 类似，但是是在有符号数操作溢出时被设置。
+
+\begin{ltblr}[caption={Condition codes}, label={tbl:condcode}]
+  {colspec={cc>{\centering\arraybackslash}X>{\centering\arraybackslash}Xc}, width=1\textwidth}
+  \hline[1pt]
+  Code & Encoding & Meaning (when set by CMP) & Meaning (when set by FCMP) & Condition flags \\
+  \hline
+  EQ & 0b0000 & Equal to. & Equal to. & Z =1 \\
+  NE & 0b0001 & Not equal to. & Unordered, or not equal to. & Z = 0 \\
+  CS & 0b0010 & Carry set (identical to HS). & Greater than, equal to, or unordered (identical to HS). & C = 1 \\
+  HS & 0b0010 & Greater than, equal to (unsigned) (identical to CS). & Greater than, equal to, or unordered (identical to CS). & C = 1 \\
+  CC & 0b0011 & Carry clear (identical to LO). & Less than (identical to LO). & C = 0 \\
+  LO & 0b0011 & Unsigned less than (identical to CC). & Less than (identical to CC). & C = 0 \\
+  MI & 0b0100 & Minus, Negative. & Less than. & N = 1 \\
+  PL & 0b0101 & Positive or zero. & Greater than, equal to, or unordered. & N = 0 \\
+  VS & 0b0110 & Signed overflow. & Unordered. (At least one argument was NaN). & V = 1 \\
+  VC & 0b0111 & No signed overflow. & Not unordered. (No argument was NaN). & V = 0 \\
+  HI & 0b1000 & Greater than (unsigned). & Greater than or unordered. & (C = 1) \&\& (Z = 0) \\
+  LS & 0b1001 & Less than or equal to (unsigned). & Less than or equal to. & (C = 0) || (Z = 1) \\
+  GE & 0b1010 & Greater than or equal to (signed). & Greater than or equal to. & N==V \\
+  LT & 0b1011 & Less than (signed). & Less than or unordered. & N!=V \\
+  GT & 0b1100 & Greater than (signed). & Greater than. & (Z==0) \&\& (N==V) \\
+  LE & 0b1101 & Less than or equal to (signed). & Less than, equal to or unordered. & (Z==1) || (N!=V) \\
+  AL & 0b1110 & Always executed. & Default. Always executed. & Any \\
+  NV & 0b1111 & Always executed. & Always executed. & Any \\
+  \hline[1pt]
+\end{ltblr}
+
+有一小部份的条件数据处理指令。
+这些指令是无条件执行的，但使用条件标志作为指令的额外输入。
+提供这组指令是为了取代ARM代码中条件执行的常见用法。
+
+\noindent \textbf{加/减}
+
+例如，用于多精度算术和校验和的传统ARM指令。
+
+\noindent \textbf{带有可选增量、否定或反转的条件选择}
+
+有条件地在一个源寄存器和第二个增量、否定、倒置或未修改的源寄存器之间进行选择。
+
+这些是A32和T32中单个条件指令最常见的用途。典型的用途包括有条件计数或计算有符号数量的绝对值。
+
+\noindent \textbf{条件操作}
+
+有别于 A32 和 T32（大多数指令可以使用条件码预测），A64 只有流程控制类的跳转指令才会使用到条件码。
+A64 中使用到条件码的指令，大致可以总结为：
+  \begin{description}
+    \item[条件选择（移动）] 包括 CSEL、CSINC、CSINV 和 CSNEG。
+      \begin{itemize}
+        \item CSEL 根据一个条件在两个寄存器之间进行选择。
+          无条件指令，然后是条件选择，可以取代简短的条件序列。
+        \item CSINC 根据一个条件在两个寄存器之间进行选择。
+          返回第一个源寄存器或第二个源寄存器增加一个。
+        \item CSINV 根据条件在两个寄存器之间进行选择。
+          返回第一个源寄存器或倒置的第二个源寄存器。
+        \item CSNEG 根据条件在两个寄存器之间进行选择。
+          返回第一个源寄存器或被否定的第二个源寄存器。
+      \end{itemize}
+    \item[条件设置] 有条件地在 0 和 1（CSET）或 0 和 -1（CSETM）之间进行选择。
+      例如，用于在一般寄存器中将条件标志设置为布尔值或掩码。
+    \item[条件比较]（CMP 和 CMN）如果原始条件为真，则将条件标志设置为比较结果。
+      如果不是真，条件标志将设置为指定的条件标志状态。
+      条件比较指令对于表示嵌套或复合比较非常有用。
+  \end{description}
+
+\subsubsection{内存访问指令}
+
+\subsubsection{流程控制指令}
+
+\subsubsection{系统控制及其它指令}
+
+    % \begin{itemize}
+    %   \item 异常处理指令
+    %   \item 系统寄存器操作指令
+    %   \item Debug 指令
+    %   \item Hint 指令
+    %   \item NEON 指令
+    %   \item 浮点指令
+    %   \item 加密算法指令
+    % \end{itemize}
+
+\subsection{浮点与 NEON}
+
+\subsection{ABI}
+
+\subsection{异常处理}
 
 \subsection{Caches}
 
