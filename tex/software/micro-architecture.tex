@@ -48,7 +48,7 @@ Cortex‑A57 处理器具有与其他处理器的高速缓存一致性互操作�
 它提供了比 ARMv7 架构的 Cortex‑A15 处理器更高的性能，并具有更高的能效水平。
 加密扩展的包含将加密算法的性能提高了 10 倍于上一代处理器。
 
-\anchorfig[caption={Contex-A57}, label={fig:contex-a57}, width=0.8]{A57}
+\Figure[caption={Contex-A57}, label={fig:contex-a57}, width=0.8]{A57}
 
 Cortex‑A57 处理器完全实现了 ARMv8‑A 架构。
 它支持多核操作，在单个集群中具有一到四核多处理。
@@ -326,8 +326,8 @@ EL0 异常级具有最低的权限，并且只有极少数的系统系统器可�
 这个寄存器在 EL0 下拥有更多的可获取 bit，更高的异常级则更少。
 
 % npx bit-field -i <json> --fontsize=9 > figures/<bit_field>.svg
-\anchorfig[caption={SCTLR BIT FIELD EL1}, label={fig:sctlr-bit-field-el1}, width=1]{sctlr-bit-field-el1}
-\anchorfig[caption={SCTLR BIT FIELD EL2/3}, label={fig:sctlr-bit-field-el23}, width=1]{sctlr-bit-field-el23}
+\Figure[caption={SCTLR BIT FIELD EL1}, label={fig:sctlr-bit-field-el1}, width=1]{sctlr-bit-field-el1}
+\Figure[caption={SCTLR BIT FIELD EL2/3}, label={fig:sctlr-bit-field-el23}, width=1]{sctlr-bit-field-el23}
 
 \begin{description}
   \item[UCI] 设置该域将使能 AArch64 下的 EL0 异常级对 DC CVAU、DC CIVAC、DC CVAC 和 IC IVAU 指令的访问权限。
@@ -454,7 +454,7 @@ W 开头则是 32-bit 值。
 在问题~\ref{pb:state_changing} 中，我们分析了如何状态切换。
 下面我们以手册中的切换图~\ref{fig:state_changing} 来直观感受切换方式。
 
-\anchorfig[caption={Switching between instruction sets}, label={fig:state_changing}, width=0.8]{state_changing}
+\Figure[caption={Switching between instruction sets}, label={fig:state_changing}, width=0.8]{state_changing}
 
 \subsection{A64 指令集}
 
@@ -570,7 +570,7 @@ W 开头则是 32-bit 值。
 
 下图形象展示了移位指令的动作。
 
-\anchorfig[caption={移位操作}, label={fig:shift-ops}, width=1]{shift-ops}
+\Figure[caption={移位操作}, label={fig:shift-ops}, width=1]{shift-ops}
 
 \paragraph{位和字节操作指令}
 
@@ -632,17 +632,17 @@ C flag 在无符号数操作溢出时被设置，而 V 类似，但是是在有�
 这些指令是无条件执行的，但使用条件标志作为指令的额外输入。
 提供这组指令是为了取代ARM代码中条件执行的常见用法。
 
-\blockdesc{加/减}
+\BlockDesc{加/减}
 
 例如，用于多精度算术和校验和的传统ARM指令。
 
-\blockdesc{带有可选增量、否定或反转的条件选择}
+\BlockDesc{带有可选增量、否定或反转的条件选择}
 
 有条件地在一个源寄存器和第二个增量、否定、倒置或未修改的源寄存器之间进行选择。
 
 这些是A32和T32中单个条件指令最常见的用途。典型的用途包括有条件计数或计算有符号数量的绝对值。
 
-\blockdesc{条件操作}
+\BlockDesc{条件操作}
 
 有别于 A32 和 T32（大多数指令可以使用条件码预测），A64 只有流程控制类的跳转指令才会使用到条件码。
 A64 中使用到条件码的指令，大致可以总结为：

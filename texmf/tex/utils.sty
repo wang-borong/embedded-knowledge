@@ -8,34 +8,34 @@
 
 \RequirePackage{pgfkeys}
 \pgfkeys{
- /anchorfig/.is family, /anchorfig,
- caption/.estore in = \anchorfigCap,
- label/.estore in = \anchorfigLab,
+ /ufig/.is family, /ufig,
+ caption/.estore in = \ufigCap,
+ label/.estore in = \ufigLab,
  width/.initial = 1,
  caption/.initial = {},
  label/.initial = {},
 }
 % 插入图片命令
-% 使用方法：\anchorfig[options]{fig name}
-\newcommand{\anchorfig}[2][]{%
-  \pgfkeys{/anchorfig, caption = {}, label = {}} % clear last
-  \pgfkeys{/anchorfig, #1}%
+% 使用方法：\Figure[options]{fig name}
+\newcommand{\Figure}[2][]{%
+  \pgfkeys{/ufig, caption = {}, label = {}} % clear last
+  \pgfkeys{/ufig, #1}%
 
   \begin{figure}[H]
     \centering % 图片居中
-    \includegraphics[width = \pgfkeysvalueof{/anchorfig/width}\textwidth]{#2} % 插入图片并设定宽度
-    \ifx\anchorfigCap\empty
+    \includegraphics[width = \pgfkeysvalueof{/ufig/width}\textwidth]{#2} % 插入图片并设定宽度
+    \ifx\ufigCap\empty
     \else
-    \caption{\anchorfigCap} % 设置标题
+    \caption{\ufigCap} % 设置标题
     \fi
-    \ifx\anchorfigLab\empty
+    \ifx\ufigLab\empty
     \else
-    \label{\anchorfigLab} % 设置标签，方便引用
+    \label{\ufigLab} % 设置标签，方便引用
     \fi
   \end{figure}
 }
 
-\newcommand{\blockdesc}[1]{\vspace{0.5em}{\noindent\color{mybook-basis-color}\textbf{#1}}}
+\newcommand{\BlockDesc}[1]{\vspace{0.5em}{\noindent\color{mybook-basis-color}\textbf{#1}}}
 
 \RequirePackage{tabularray}
 % tabularray longtblr settings {
