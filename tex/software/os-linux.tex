@@ -3,7 +3,9 @@
 \section{OS 原理}
 
 \subsection{内存管理}
+
 \subsection{进程与线程}
+
 \subsubsection{调度}
 
 调度算法：
@@ -16,26 +18,58 @@
   \item Multilevel Feedback Queue
 \end{itemize}
 
-
 \subsubsection{IPC}
+
 \subsubsection{同步}
+
 \subsection{网络}
+\subsubsection{TCP/IP 协议栈总结}
+
 \subsection{文件系统}
+
 \subsection{安全管理}
+
 \subsection{系统调用}
 
-\section{Linux}
+\section{Linux 内核}
 
 \subsection{启动}
+\subsubsection{启动流程分析}
+
 \subsection{内存管理}
+
 \subsection{task}
+
 \subsection{网络}
-\subsection{驱动架构}
+
+\subsection{驱动架构及子系统}
+\subsubsection{UART}
+
+\subsubsection{Timer}
+
+\subsubsection{WDT}
+
+\subsubsection{I2C/I3C}
+
+\subsubsection{SPI/QSPI}
+
+\subsubsection{RS232/RS422/RS485}
+
+\subsubsection{CAN}
+
+\subsubsection{Ethernet}
+
+\subsubsection{USB}
+
+\subsubsection{PCI/PCIe}
+
 \subsection{文件系统}
 
-\subsection{Linux 应用开发}
+\subsubsection{ext2 简介}
 
-\subsubsection{文件及 IO}
+\section{Linux 应用开发}
+
+\subsection{文件及 IO}
 
 一切皆文件，所有在 Linux/UNIX 系统上打开的文件都用文件描述符表示，并且描述符是非零的。
 当我们创建或打开一个文件，内核会返回一个文件描述符给到当前进程。
@@ -48,7 +82,7 @@
 Linux 系统对文件描述符的限制数量是 1024（soft limit），hard limit 为 524288。
 然而我们可以通过修改 /etc/security/limits.conf 来修改类似的 limit。
 
-\paragraph{打开文件}
+\BlockDesc{打开文件}
 
 \begin{lstlisting}[language=C]
   #include <fcntl.h>
@@ -57,7 +91,10 @@ Linux 系统对文件描述符的限制数量是 1024（soft limit），hard lim
   /* Both return: file descriptor if OK, −1 on error */
 \end{lstlisting}
 
-\subsubsection{网络}
-\subsubsection{进程}
-\subsubsection{线程}
-\subsubsection{异常处理}
+\subsection{网络}
+
+\subsection{进程}
+
+\subsection{线程}
+
+\subsection{异常处理}

@@ -1,5 +1,6 @@
 LATEXMK := latexmk
 FIGENERATOR := python3 tool/figure-generator.py
+BITFIELD := npx bit-field
 CONTFORM := perl tool/content-formatter.pl
 PANDOCMK := tool/pandoc.mk
 # set metadata file for pandoc (located in pandoc/data/metadata)
@@ -18,7 +19,7 @@ TOPTEXES ?= main.tex
 TEXES := $(shell find . -name "*.tex" | sort)
 
 FIGSRC := $(wildcard drawio/*.drawio)
-FIGSRC += $(wildcard diagascode/*)
+FIGSRC += $(wildcard dac/*)
 SVGSRC := $(wildcard figure/*.svg)
 
 TARGET ?= 嵌入式知识体系总结
@@ -50,8 +51,9 @@ format: $(TEXES)
 
 figures: $(FIGSRC) $(SVGSRC)
 	@mkdir -p figures
+	@for json in dac/*.json; do $(BITFIELD) --fontsize=9 -i $$json > figures/$$(basename $${json%%.*}).svg; done
+	$(FIGENERATOR) -c $(SVGSRC) figures/*.svg
 	$(FIGENERATOR) $(FIGSRC)
-	$(FIGENERATOR) -c $(SVGSRC)
 
 view: pdf
 	@$(LATEXMK) -f -pvc -view=pdf $(BUILDIR)/$(TARGET) $(NOINFO) &
