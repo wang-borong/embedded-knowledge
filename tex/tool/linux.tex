@@ -4,6 +4,33 @@
 
 \subsection{系统安装（Arch）}
 
+\BlockDesc{输入法}
+
+通过如下命令安装 fcitx5 输入法：
+
+\begin{lstcode}[numbers=none]
+  sudo pacman -S fcitx5 fcitx5-pinyin-moegirl \
+        fcitx5-configtool fcitx5-gtk \
+        fcitx5-qt fcitx5-chinese-addons
+\end{lstcode}
+
+安装完 fcitx5 输入法需要配置添加中文拼音输入。
+开启 fcitx5，然后右击打开配置，把只显示当前语言的勾选去掉，即可通过搜索 pinyin 来添加拼音输入。
+
+\BlockDesc{配置环境变量，解决有些桌面应用无法调出 fcitx5 的问题}
+
+将如下环境变量配置到 \lstinline{/etc/environment} 中。
+
+\begin{lstcode}[numbers=none]
+  GTK_IM_MODULE=fcitx
+  QT_IM_MODULE=fcitx
+  XMODIFIERS=@im=fcitx
+  SDL_IM_MODULE=fcitx
+  GLFW_IM_MODULE=ibus
+\end{lstcode}
+
+配置完成后需要注销并重新登录，输入法即可生效，默认 ctrl+space 切换输入法。
+
 \subsection{字体配置}
 
 字体的配置是通过 fontconfig，我们使用的配置如下\footnote{关于 fontconfig 的配置解析我们不准备展开，互联网上的资源很多，我们在此只关注其使用。并且下面的配置也是来源于互联网。}：
@@ -272,7 +299,19 @@
 \subsection{GNU 调试工具集}
 
 \section{文档}
-\subsection{LaTex}
+
+\subsection{\LaTeX}
+
+本文档以 \LaTeX 构建，\LaTeX 是专业的排版工具，很适合撰写大型学术型文档。
+
+\BlockDesc{安装}
+
+通过如下命令，安装 \LaTeX 工具：
+
+\begin{lstcode}[numbers=none]
+  sudo pacman -S texlive texlive-langchinese biber
+\end{lstcode}
+
 \subsection{MSWord}
 
 \section{作图}
