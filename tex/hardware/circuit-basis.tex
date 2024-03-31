@@ -4,7 +4,173 @@
 
 \section{KCL/KVL}
 
-\section{戴维南/诺顿等效}
+\section{电路网络分析方法}
+
+\subsection{节点法}
+
+节点法可以说是诸多方法中最为强大的方法，该方法基于元件定律（如欧姆定律）、KCL 和 KVL 的组合的一种电路的基本求解方法，务必完全掌握。
+
+节点法的步骤为：
+\begin{enumerate}
+  \item 选择可以为地（0 电势）的参考点，所有电压的测算都相对该节点。
+  \item 标注其余节点关于地节点的点位。
+    将任何通过独立电压源或受控电压源连接到地节点的节点电势标注为电源的实际电压值。
+    其余节点的电压构成待求解的未知量来标注。
+  \item 为每个未知的节点列写 KCL 方程（地节点和连接电压至地的节点不要列写），根据 KVL 和元件定律用节点电压和元件参数来直接表示电流（因此，可以省略支路电流的标注）。
+  \item 求解上步所得的方程，求得未知的节点电压。可以说，这是分析过程中最困难的一步。
+  \item 得到节点的电压后，将节点电压带入到支路中求解支路电压和支路电流。
+    即，通过节点电压和 KVL 来确定所需的支路电压。
+    最后，通过支路电压、元件定律和 KCL 来确定所需的支路电流。
+\end{enumerate}
+
+\subsection{叠加定理}
+
+\subsubsection{独立电源}
+
+我们从如下的假设电路中推导叠加定理，由于该电路中含有 3 个电源，所以相对于单电源的电路更加复杂。
+
+\begin{figure}[H]
+  \begin{center}
+  \begin{circuitikz}[american,scale=0.8]
+    \draw (4,0) node[ground] {}
+
+    (0,4) to[V=$V_1$] (0,0)
+    (0,4) to[R=$R_1$, -*]
+    (4,4) to[R=$R_2$]
+    (4,2) to[V=$V_2$]
+    (4,0) -- (0,0)
+
+    (4,4) to[R=$R_3$, -*]
+    (8,4) to[R=$R_4$]
+    (8,0) -- (4,0)
+
+    (12,0) to[I=I] (12,4)
+    (8,4) -- (12,4)
+    (12,0) -- (8,0)
+
+    {[anchor=south] (0,4) node {1} (4,4) node {$e_1$} (8,4) node {$e_2$} [anchor=south east](4,0) node {2}};
+  \end{circuitikz}
+  \end{center}
+  \caption{带有 3 个独立电源的电路}\label{fig:3-sources-circuit}
+\end{figure}
+
+\begin{enumerate}
+  \item 运用节点法，选定地节点，由于节点 2 是元件交汇最多的点，所以我们选定它作为地节点。
+  \item 标注其余的节点，节点 1 经过电压源与地节点相连，所以 1 节点为 $V$，其余节点电压标为 $e_1$ 和 $e_2$。
+  \item 基于未知节点 $e_1$ 和 $e_2$ 列 KCL 方程。
+    \begin{subequations}
+      \begin{align}
+        (V_1 - e_1)G_1 + (V_2 - e_1)G_2 + (e_2 - e_1)G_3 &= 0 \\
+        (e_1 - e_2)G_3 - e_2G_4 + I &= 0
+      \end{align}
+    \end{subequations}
+    将电源项都移到左边：
+    \begin{subequations}
+      \begin{align}
+        V_1G_1 + V_2G_2 &= e_1(G_1 + G_2 + G_3) - e_2G_3 \\
+        I &= -e_1G_3 + e_2(G_3 + G_4)
+      \end{align}
+    \end{subequations}
+  \item 求解上列方程。
+    获取 $e_1$ 为：
+    \begin{equation}
+      e_1 = \frac{V_1G_1(G_3 + G_4) + V_2G_2(G_3 + G_4) + IG_3}{G_1G_3 + G_1G_4 + G_2G_3 + G_2G_4 + G_3G_4} \label{eq:c6-sp-e1}
+    \end{equation}
+\end{enumerate}
+
+注意到上面的公式~\ref{eq:c6-sp-e1} 具有一定的结构特点：
+\begin{itemize}
+  \item 所有分母均具有相同的符号。
+    隐私对于任何非零电导值而言，分母不能为 0。
+  \item 等号右边的每一项均为一个电源项与一个电阻性（或电导性）参数的乘积。
+    没有电源项之间的乘积。
+\end{itemize}
+
+从数学上看，根据线性性质，将公式~\ref{eq:c6-sp-e1} 的后两个电源项置零不会改变第一项。
+但是我们需要将其转成电路上的表达，数学上将 $V_2$ 置零，则电路中的电源 $V_2$ 的电压为 0。
+根据定义，无论流经一个电压源的电流是多少，其电压为 0，即它成为短路。
+同样，电流源为 0，则它成为断路。
+那么，我们每次分别将电路~\ref{fig:3-sources-circuit} 中的两个电源置零，则得到如下电路。
+
+\begin{figure}[H]
+  \centering
+  \begin{minipage}[c]{0.8\textwidth}
+    \centering
+    \begin{circuitikz}[american,scale=0.8]
+      \draw (4,0) node[ground] {}
+
+      (0,4) to[V=$V_1$] (0,0)
+      (0,4) to[R=$R_1$]
+      (4,4) to[R=$R_2$] (4,0)
+      (4,0) -- (0,0)
+
+      (4,4) to[R=$R_3$, *-*]
+      (8,4) to[R=$R_4$]
+      (8,0) -- (4,0)
+
+      (8,0) to[short, -o] ++(4,0)
+      (8,4) to[short, -o] ++(4,0)
+
+      {[anchor=south] (4,4) node {$e_{1A}$} (8,4) node {$e_{2A}$}};
+    \end{circuitikz}
+    \subcaption{$V_2$ 和 $I$ 置零} \label{fig:subcircuit-a}
+  \end{minipage}
+
+  \begin{minipage}[c]{0.8\textwidth}
+    \centering
+
+    \begin{circuitikz}[american,scale=0.8]
+      \draw (4,0) node[ground] {}
+
+      (0,4) -- (4,4)
+      (0,4) to[R=$R_1$] (0,0)
+      (4,4) to[R=$R_2$]
+      (4,2) to[V=$V_2$]
+      (4,0) -- (0,0)
+
+      (4,4) to[R=$R_3$, *-]
+      (8,4) to[R=$R_4$]
+      (8,0) -- (4,0)
+
+      (8,0) to[short, -o] ++(4,0)
+      (8,4) to[short, -o] ++(4,0)
+
+      {[anchor=south] (4,4) node {$e_{1B}$}};
+    \end{circuitikz}
+    \subcaption{$V_1$ 和 $I$ 置零} \label{fig:subcircuit-b}
+  \end{minipage}
+
+  \begin{minipage}[c]{0.8\textwidth}
+    \centering
+
+    \begin{circuitikz}[american,scale=0.8]
+      \draw (4,0) node[ground] {}
+
+      (0,4) -- (4,4)
+      (0,4) to[R=$R_1$] (0,0)
+      (4,4) to[R=$R_2$]
+      (4,2) to[V=$V_2$]
+      (4,0) -- (0,0)
+
+      (8,4) to[R=$R_3$, i=$I$, -*] (4,4)
+      (8,4) to[R=$R_4$]
+      (8,0) -- (4,0)
+
+      (12,0) to[I=I] (12,4)
+      (8,4) -- (12,4)
+      (12,0) -- (8,0)
+
+      {[anchor=south] (4,4) node {$e_{1C}$}};
+    \end{circuitikz}
+    \subcaption{$V_1$ 和 $V_2$ 置零} \label{fig:subcircuit-c}
+  \end{minipage}
+
+  \caption{子电路} \label{fig:subcircuits}
+\end{figure}
+
+\subsubsection{受控电源}
+
+\subsection{戴维南/诺顿等效}
 
 \section{RLC}
 
