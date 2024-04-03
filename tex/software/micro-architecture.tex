@@ -785,7 +785,7 @@ A64 可用的寻址模式与 A32 和 T32 中的相似。
 \begin{stblr}
   {偏移寻址}
   {offset-addressing}
-  {cc}
+  {c>{\centering\arraybackslash}X}
   \hline[1pt]
   Example instruction & Description \\
   \hline
@@ -824,7 +824,7 @@ void example_dup(int32_t a[], int32_t length) {
 \begin{stblr}
   {索引寻址}
   {index-addressing}
-  {cc}
+  {c>{\centering\arraybackslash}X}
   \hline[1pt]
   Example instruction & Description \\
   \hline
@@ -1005,23 +1005,199 @@ Monitor 也可能虚假的被清除，例如 cache 排除操作（evictions）�
 
 \subsubsection{流程控制指令}
 
+A64 指令集提供一些不同类型的跳转指令（见下表~\ref{tbl:a64-isa-branch}）。
+相对于当前地址偏移的简单跳转指令则使用 B 指令。
+简单的无条件相对跳转指令可以基于当前地址前后跳跃 128MB。
+含有条件码后缀的简单的有条件相对跳转指令的跳转范围只有 $\pm1MB$。
+当函数（subroutine）调用时，则需要使用 BL 指令保存返回地址到 link 寄存器（X30）。
+这个指令则没有有条件的跳转类型。
+除了会保存返回地址（BL 指令的下一条指令）到寄存器（X30）外，BL 指令功能类似 B 指令。
+
+\begin{stblr}
+  {流程控制指令}
+  {a64-isa-branch}
+  {c>{\centering\arraybackslash}X}
+  \hline[1pt]
+  & Branch 指令 \\
+  \hline
+  \lstinline!B (offset)! & Program relative branch forward or back 128MB. A conditional version, for example B.EQ, has a 1MB range. \\
+  \lstinline!BL (offset)! & As B but store the return address in X30, and hint to branch prediction logic that this is a function call. \\
+  \lstinline!BR Xn! & Absolute branch to address in Xn. \\
+  \lstinline!BLR Xn! & As BR but store the return address in X30, and hint to branch prediction logic that this is a function call. \\
+  \lstinline!RET{Xn}! & As BR, but hint to branch prediction logic that this is a function return. Returns to the address in X30 by default, but a different register can be specified. \\
+  \hline
+  & Conditional branch 指令 \\
+  \hline
+  \lstinline!CBZ Rt, label! & Compare and branch if zero. If Rt is zero, branch forward or back up to 1MB. \\
+  \lstinline!CBNZ Rt, label! & Compare and branch if non-zero. If Rt is not zero, branch forward or back up to 1MB. \\
+  \lstinline!TBNZ Rt, bit, label! & Test and branch if zero. Branch forward or back up to 32kB. \\
+  \lstinline!TBNZ Rt, bit, label! & Test and branch if non-zero. Branch forward or back up to 32kB. \\
+  \hline[1pt]
+\end{stblr}
+
+除了相对 PC 的跳转指令外，A64 指令集也包含了两个绝对跳转指令。
+\lstinline!BR Xn! 指令执行一个到 Xn 寄存器的绝对跳转。
+同时，\lstinline!BLR Xn! 也是类似的绝对跳转功能，但是它会保存返回地址到 link 寄存器 X30 中。
+\lstinline!RET! 指令行为上类似 \lstinline!BR Xn!，但是它会暗示跳转预测逻辑它执行的是一个函数返回。
+尽管 \lstinline!RET! 指令可以指定其它跳转目的寄存器，但是它默认使用 X30 所保存的跳转目的地址。
+
+A64 指令集还包括一些特别的条件跳转指令。
+这些指令能在一些情况下提高代码的密度，因为在这些情况下没必要做明确的比较。
+
+\begin{itemize}
+  \item \lstinline!CBZ Rt, label! \quad Compare and branch if zero
+  \item \lstinline!CBNZ Rt, label! \quad Compare and branch if not zero
+\end{itemize}
+
+这些指令先将 32-bit 或 64-bit 源寄存器与 0 进行比较，然后执行条件跳转。
+跳转的偏移范围是 $\pm1MB$。
+这些指令不会读或写状态码（NZCV）。
+
+有两个类似的检测并跳转的指令：
+
+\begin{itemize}
+  \item \lstinline!TBZ Rt, bit, label! \quad Test and branch if Rt<bit> zero
+  \item \lstinline!TBNZ Rt, bit, label! \quad Test and branch if Rt<bit> is not zero
+\end{itemize}
+
+这些指令检测由立即数指定的 bit 位与源寄存器中的 bit 位是否满足条件（Z 或 NZ），然后通过检测结果跳转。
+这个跳转指令的偏移范围是 $\pm32KB$。
+这两个指令与 CBZ/CBNZ 一样不会读写状态码（NZCV）。
+
 \subsubsection{系统控制及其它指令}
 
-    % \begin{itemize}
-    %   \item 异常处理指令
-    %   \item 系统寄存器操作指令
-    %   \item Debug 指令
-    %   \item Hint 指令
-    %   \item NEON 指令
-    %   \item 浮点指令
-    %   \item 加密算法指令
-    % \end{itemize}
+\BlockDesc{异常处理指令}
 
-\subsection{浮点与 NEON}
+A64 有三个异常处理指令用于产生一个异常。
+这些指令用于产生一个高异常级的代码调用，分别是 OS （EL1）、Hypervisor （EL2）和 Secure Monitor （EL3）：
+
+\begin{itemize}
+  \item \lstinline!SVC \#imm16! \quad Supervisor 调用，允许应用程序调用内核代码。
+  \item \lstinline!HVC \#imm16! \quad Hypervisor 调用，允许 OS 代码 调用 hypervisor (EL2)。
+  \item \lstinline!SMC \#imm16! \quad Secure Monitor 调用，允许 OS 或 hypervisor 调用 Secure Monitor (EL3)。
+\end{itemize}
+
+立即数存放 \textit{Exception Syndrome Register} 里的 handler 中。
+这是一个从 ARMv7 的改动，ARMv7 的立即数需要由所调用指令的 opcode 确定。
+详情请看章节~\ref{sec:exception}。
+
+若要从异常返回，则使用 \lstinline!ERET! 指令。
+该指令从过将 SPSR\_ELn 寄存器复制到 PSTATE 来恢复处理器状态，并且跳转到保存在 ELR\_ELn 中的地址继续运行。
+
+\BlockDesc{系统寄存器访问指令}
+
+有两条可以访问系统寄存器的指令：
+\begin{itemize}
+  \item \lstinline!MRS Xt, <system register>! \quad 读取系统寄存器的值到通用寄存器。
+
+    例如 \lstinline!MRS X4, ELR_EL1 // Copies ELR_EL1 to X4!
+  \item \lstinline!MSR <system register>, Xt! \quad 写入通用寄存器中的配置值到系统寄存器。
+
+    例如 \lstinline!MSR SPSR_EL1, X0 // Copies X0 to SPSR_EL1!
+\end{itemize}
+
+MSR 或 MRS 也可以单独获取 PSTATE 寄存器中的 field。
+例如，选择关联于 EL0 的 Stack Pointer 或当前的异常级：
+
+\begin{lstcode}[numbers=none]
+  // A value of 0 or 1 in this register is used to select
+  // between using EL0 stack pointer or the current exception
+  // level stack pointer
+  MSR SPSel, #imm
+\end{lstcode}
+
+这两个指令有一些特殊的形式可以用于清除或设置独立的异常掩码位：
+
+\begin{lstcode}[numbers=none]
+  MSR DAIFClr, #imm4
+  MSR DAIFSet, #imm4
+\end{lstcode}
+
+\BlockDesc{Debug 指令}
+
+A64 有两个调试相关的指令：
+
+\begin{lstcode}[numbers=none]
+  // Enters monitor mode debug, where there is on-chip debug monitor
+  // code
+  BRK #imm16
+  // Enters halt mode debug, where external debug hardware is connected
+  HLT #imm16
+\end{lstcode}
+
+\BlockDesc{Hint 指令}
+
+HINT 指令可以被合理的视作 NOP，但是注意这些指令受特定实现的影响。
+
+
+\begin{stblr}
+  {Hint 指令}
+  {a64-isa-hint}
+  {c>{\centering\arraybackslash}X}
+  \hline[1pt]
+  指令 & 说明 \\
+  \hline
+  NOP & No operation - not guaranteed to take time to execute \\
+  YIELD & Hint that the current thread is performing a task that can be swapped out \\
+  WFE & Wait for Event \\
+  WFI & Wait for interrupt \\
+  SEV & Send Event \\
+  SEVL & Send Event Local \\
+  \hline[1pt]
+\end{stblr}
+
+\BlockDesc{NEON 指令}
+
+NEON 指令在 A64 下也有很大加强，有些加强至关重要。
+章节~\ref{sec:floating-neon} 有更多的说明细节，下面简单列出 NEON 在 A64 下的改进：
+
+\begin{itemize}
+  \item 支持双精度浮点类型，向量化 C 代码下的双精度浮点类型。
+  \item 新增将标量数据存储到 NEON 寄存器的指令。
+  \item 新增插入和提取向量元素的指令。
+  \item 新增类型转换和饱和整型算术运算指令。
+  \item 新增浮点数值正规化（normalization）指令。
+  \item 新增向量 reduction、summation 和获取最大最小值的 cross-lane 指令。
+\end{itemize}
+
+已经扩展了诸如比较、加法、查找绝对值和否定（negate）等指令，得以操作 64-bit 元素。
+
+\BlockDesc{浮点指令}
+
+A64 提供了一些类似 ARMv7 VFPv4 扩展的浮点指令，这些指令提供了对标量浮点值之间的单精度和双精度数学运算。
+以下列举了一些改进和新特性：
+
+\begin{itemize}
+  \item 浮点比较直接设置状态码（NZCV）。
+    A64 下不用在特意转换浮点 flag 为整型 flag。
+  \item 添增了关于 IEEE754-2008 标准的指令，例如计算一对数字的最小值和最大值。
+  \item 转换整型数据到浮点型时，可以明确指定为 rounding 模式。
+    在特别的 rounding 模式下进行的简单转换，已不再需要设置全局 FPCR flag。
+    ARMv8 的 A32 和 T32 也支持其中一些选项。
+  \item 新增 64-bit 整型到浮点型格式转换指令。
+  \item A64 下，直接在整型寄存器中进行涉及整型的浮点操作。
+    进行转换操作时，已不再需要手动转换整型值和浮点值以及整型寄存器。
+\end{itemize}
+
+\BlockDesc{加密算法指令}
+
+可以通过添加可选的加密算法指令扩展来极大的提升关于 AES 加密、SHA1 和 SHA256 hashing 等任务的效率。
+
+\subsection{浮点与 NEON} \label{sec:floating-neon}
 
 \subsection{ABI}
 
-\subsection{异常处理}
+\subsection{异常处理} \label{sec:exception}
+
+\BlockDesc{The Exception Syndrome Register}
+
+% The Exception Syndrome Register, ESR_ELn, contains information which allows the exception handler to determine the reason for the exception. It is updated only for synchronous exceptions and SError. It is not updated for IRQ or FIQ as these interrupt handlers typically obtain status information from registers in the Generic Interrupt Controller (GIC). (See The Generic Interrupt Controller.) The bit coding for the register is:
+%
+% Bits [31:26] of ESR_ELn indicate the exception class which allows the handler to distinguish between the various possible exception causes (such as unallocated instruction, exceptions from MCR/MRC to CP15, exception from FP operation, SVC, HVC or SMC executed, Data Aborts, and alignment exceptions).
+%
+% Bit [25] indicates the length of the trapped instruction (0 for a 16-bit instruction or 1 for a 32-bit instruction) and is also set for certain exception classes.
+%
+% Bits [24:0] form the Instruction Specific Syndrome (ISS) field containing information specific to that exception type. For example, when a system call instruction (SVC, HVC or SMC) is executed, the field contains the immediate value associated with the opcode such as 0x123456 for SVC 0x123456.
 
 \subsection{Caches}
 
