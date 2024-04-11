@@ -14,9 +14,11 @@
 
 ARM 公司在 2013 年发布了它的 64-bit ARMv8 架构。
 ARMv8 实现了 32-bit ARMv7 的兼容。
-做出了以下重要升级：\footnote{该部分借鉴 \url{https://armv8-doc.readthedocs.io/en/latest/02.html\#armv8-a}，并且后续的整理也会借鉴该翻译成果，在此对付出精力的翻译人员予以感谢与尊重。
-但是必须要注意该翻译存在错误。
-原版手册是 {ARM® Cortex®-A Series Programmer’s Guide for ARMv8-A}\cite{armpg}}
+做出了以下重要升级：\footnote{
+  该部分借鉴 \url{https://armv8-doc.readthedocs.io/en/latest/02.html\#armv8-a}，并且后续的整理也会借鉴该翻译成果，在此对付出精力的翻译人员予以感谢与尊重。
+  但是必须要注意该翻译存在错误。
+  原版手册是 {ARM® Cortex®-A Series Programmer’s Guide for ARMv8-A}\cite{armpg}
+}
 
 \begin{description}
     \item[Large physical address] 更大的物理内存，使处理器能够访问超过 4GB 的物理内存。
@@ -49,7 +51,7 @@ Cortex‑A57 处理器具有与其他处理器的高速缓存一致性互操作�
 它提供了比 ARMv7 架构的 Cortex‑A15 处理器更高的性能，并具有更高的能效水平。
 加密扩展的包含将加密算法的性能提高了 10 倍于上一代处理器。
 
-\Figure[caption={Contex-A57}, label={fig:contex-a57}, width=0.8]{A57}
+\Figure[caption={Contex-A57}, label={fig:contex-a57}, width=0.7]{A57}
 
 Cortex‑A57 处理器完全实现了 ARMv8‑A 架构。
 它支持多核操作，在单个集群中具有一到四核多处理。
@@ -383,7 +385,14 @@ EL0 异常级具有最低的权限，并且只有极少数的系统系统器可�
 \end{description}
 
 \begin{probsolu}[title={Problem and Solution \theprob}]{
-    手册上写的 Explicit data access 怎么理解？（从 Linux 代码中找到答案）}
+    手册上写的 Explicit data access 怎么理解？}
+
+  “Explicit data access” 是指在编程中明确地访问数据的操作。
+  这意味着程序员直接指定要访问的数据和操作，而不依赖于编译器或运行时系统的隐式处理。
+
+  这种方式通常用于对内存中的数据进行读取、写入或者其他操作。
+  与之相对应的是隐式访问方式，其中编译器或者运行时系统负责管理数据的访问。
+  在隐式访问中，程序员通常只需指定数据的名称，而无需关心数据的存储位置或者具体的访问方式。
 
 \end{probsolu}
 
@@ -465,7 +474,11 @@ W 开头则是 32-bit 值。
 
 一般情况下我们只需要记住指令的助记符即可，不需要在意更底层的指令编码，指令编码的事情留给汇编器来完成。
 
-我们将指令集按照其功能分类，有如下几类指令：\footnote{关于指令集的快速参考可以使用 \url{https://courses.cs.washington.edu/courses/cse469/19wi/arm64.pdf}}
+我们将指令集按照其功能分类，有如下几类指令：\footnote{
+  关于指令集的快速参考可以使用 \url{
+    https://courses.cs.washington.edu/courses/cse469/19wi/arm64.pdf
+  }
+}
 
 \begin{itemize}
   \item 数据处理指令
@@ -918,7 +931,7 @@ A64 的 LDTR 和 STTR 指令用于非特权级的数据加载和存储操作。
 
 \paragraph{预取内存访问}
 
-\textit{Prefetch from Memory} （PRFM）指令向代码提供了一个给内存系统暗示的功能，暗示内存系统一个特定的地址将很快就会被当前程序用到。
+\textit{Prefetch from Memory}（PRFM）指令向代码提供了一个给内存系统暗示的功能，暗示内存系统一个特定的地址将很快就会被当前程序用到。
 该功能的效果\textbf{由具体实现定义}，典型的实现是将数据或指令加载到 Cache 中。
 
 该指令的语法为：
@@ -930,7 +943,7 @@ A64 的 LDTR 和 STTR 指令用于非特权级的数据加载和存储操作。
 \begin{description}
   \item[Type] PLD 或 PST (prefetch for load or store)。
   \item[Target] L1、L2 或 L3（以那个 Cache 为目的）。
-  \item[Policy] KEEP 或 STRM （保持在 cache 中，还是作为数据流）。
+  \item[Policy] KEEP 或 STRM（保持在 cache 中，还是作为数据流）。
 \end{description}
 
 例如，PLDL1KEEP。
@@ -976,10 +989,13 @@ ARMv7 和 ARMv8 都提供了不同的 barrier 操作支持。
 这些操作会在~\ref{sec:memory-ordering} 更加详尽的描述。
 
 \begin{itemize}
-  \item Data Memory Barrier (DMB)。该指令强制所有按照程序顺序的早期内存访问变成全局可见后才会执行后续的访问操作。
-  \item Data Synchronization Barrier (DSB)。在程序运行之前，所有挂起的加载和存储指令、Cache 维护指令和所有 TLB 维护指令都必须先完成。
+  \item Data Memory Barrier (DMB)。
+  该指令强制所有按照程序顺序的早期内存访问变成全局可见后才会执行后续的访问操作。
+  \item Data Synchronization Barrier (DSB)。
+    在程序运行之前，所有挂起的加载和存储指令、Cache 维护指令和所有 TLB 维护指令都必须先完成。
     DSB 类似 DMB，但是附加了其它属性。
-  \item Instruction Synchronization Barrier (ISB)。这个指令刷新 CPU 的流水线和预取 buffer，致使 ISB 后续的指令需要从缓存或内存中预取（或重新预取）。
+  \item Instruction Synchronization Barrier (ISB)。
+    这个指令刷新 CPU 的流水线和预取 buffer，致使 ISB 后续的指令需要从缓存或内存中预取（或重新预取）。
 \end{itemize}
 
 ARMv8 介绍了关于释放一致性模型的单侧 fence 操作。
@@ -999,7 +1015,7 @@ LDXRP 和 STXRP 指令对提供以允许代码自动更新一个跨越两个寄�
 这对指令与 Load Acquire/Store Release 指令对一样，只支持基地址寄存器寻址方式。
 不同于 ARMv7 异常入口或返回也能够清除 monitor，CLREX 指令在 ARMv8 下专门用于清除 monitor。
 Monitor 也可能虚假的被清除，例如 cache 排除操作（evictions）或其它一些与该操作无关的原因。
-软件必须要避免在LDXR 和 STXR 指令对之间含有内存访问、系统控制寄存器更新或缓存维护指令。
+软件必须要避免在 LDXR 和 STXR 指令对之间含有内存访问、系统控制寄存器更新或缓存维护指令。
 
 另外，还有一对 Acquire/Store Release 相关的互斥指令是 LDAXR 和 STLXR。
 详见同步章节。
@@ -1070,7 +1086,7 @@ A64 指令集还包括一些特别的条件跳转指令。
 \BlockDesc{异常处理指令}
 
 A64 有三个异常处理指令用于产生一个异常。
-这些指令用于产生一个高异常级的代码调用，分别是 OS （EL1）、Hypervisor （EL2）和 Secure Monitor （EL3）：
+这些指令用于产生一个高异常级的代码调用，分别是 OS（EL1）、Hypervisor（EL2）和 Secure Monitor（EL3）：
 
 \begin{itemize}
   \item \lstinline!SVC \#imm16! \quad Supervisor 调用，允许应用程序调用内核代码。
@@ -1171,7 +1187,7 @@ A64 提供了一些类似 ARMv7 VFPv4 扩展的浮点指令，这些指令提供
 \begin{itemize}
   \item 浮点比较直接设置状态码（NZCV）。
     A64 下不用在特意转换浮点 flag 为整型 flag。
-  \item 添增了关于 IEEE754-2008 标准的指令，例如计算一对数字的最小值和最大值。
+  \item 添增了关于 IEEE754 - 2008 标准的指令，例如计算一对数字的最小值和最大值。
   \item 转换整型数据到浮点型时，可以明确指定为 rounding 模式。
     在特别的 rounding 模式下进行的简单转换，已不再需要设置全局 FPCR flag。
     ARMv8 的 A32 和 T32 也支持其中一些选项。
@@ -1195,7 +1211,7 @@ AArch64 的 NEON 架构使用 32 个 128-bit 寄存器，是 ARMv7 的两倍。
 浮点指令也使用同样的寄存器。
 所有编译的代码和子程序都遵循 EABI，EABI 定义了在特殊的子程序中哪些寄存器可以被写入使用（corrupt，可以被破坏意为能被写入使用），哪些寄存器需要保留。
 编译器可以自由的在代码任意点使用 NEON/VFP 寄存器保存浮点数和 NEON 数据。
-所有的标准的 ARMv8 实现都需要包括浮点和 NEON。 
+所有的标准的 ARMv8 实现都需要包括浮点和 NEON。
 但是，面向特殊用途的实现中可以采取以下组合：
 \begin{itemize}
   \item 不实现 NEON 或浮点
@@ -1212,14 +1228,16 @@ AArch64 NEON 是基于 AArch32 NEON，包括以下改动：
     单精度的浮点数使用 128-bit 寄存器的低 32 位，双精度数使用用低 64 位。
   \item 去掉 V 前缀。
   \item 向向量寄存器中写入小于等于 64 bit 的数据，寄存器的高位则被清零。
-  \item AArch64 下不存在使用通用寄存器的 SIMD 或饱和运算指令\footnote{饱和指令（Saturating instructions）是一类特殊的指令，用于执行饱和运算。
-    饱和运算是一种数学运算，它限制结果在一个特定的范围内，超出范围的值将被截断或限制在范围边界上。
+  \item AArch64 下不存在使用通用寄存器的 SIMD 或饱和运算指令\footnote{
+      饱和指令（Saturating instructions）是一类特殊的指令，用于执行饱和运算。
+      饱和运算是一种数学运算，它限制结果在一个特定的范围内，超出范围的值将被截断或限制在范围边界上。
 
-    例如，在使用8位无符号整数表示的情况下，如果一个运算结果大于255（即超出了8位无符号整数的范围），则饱和运算将结果限制为255。
-    类似地，如果结果小于0，则饱和运算将结果限制为0。
+      例如，在使用 8 位无符号整数表示的情况下，如果一个运算结果大于 255（即超出了 8 位无符号整数的范围），则饱和运算将结果限制为 255。
+      类似地，如果结果小于 0，则饱和运算将结果限制为 0。
 
-    饱和指令通常用于数字信号处理（DSP）和媒体处理等应用中，这些应用对数据精度和动态范围有严格的要求。
-    使用饱和指令可以确保结果不会溢出，并且可以避免由于溢出而引起的意外行为或失真。}。
+      饱和指令通常用于数字信号处理（DSP）和媒体处理等应用中，这些应用对数据精度和动态范围有严格的要求。
+      使用饱和指令可以确保结果不会溢出，并且可以避免由于溢出而引起的意外行为或失真。
+    }。
     这些操作全部使用 NEON 寄存器。
   \item 新增 lane 插入和提取指令以支持新的寄存器 pack 模式。
   \item 添加额外的指令用于生产或消费 128-bit 向量寄存器的高 64 bit。
@@ -1227,7 +1245,9 @@ AArch64 NEON 是基于 AArch32 NEON，包括以下改动：
   \item 新增向量 reduction 操作集，提供 across-lane 加法、最小值和最大值操作。
   \item 扩展一些已有的指令以支持 64-bit 整数。
     例如：比较、加法、取绝对值和否定等指令，并且包括 staturating 版本。
-  \item 扩展饱和指令，以便在无符号累加和有符号累加之间进行转换（to include Unsigned Accumulate into Signed, and Signed into Unsigned Accumulate）。\footnote{表明饱和指令现在具有更多的灵活性，可以在有符号累加和无符号累加之间进行转换，并在结果溢出时执行饱和处理，以确保结果在指定的范围内。}
+  \item 扩展饱和指令，以便在无符号累加和有符号累加之间进行转换（to include Unsigned Accumulate into Signed, and Signed into Unsigned Accumulate）。\footnote{
+      表明饱和指令现在具有更多的灵活性，可以在有符号累加和无符号累加之间进行转换，并在结果溢出时执行饱和处理，以确保结果在指定的范围内。
+    }
   \item AArch64 NEON 现已支持双精度类型的浮点数和完整的 IEEE754 操作，包括 rounding 模式、非规范化数字和 NaN 处理。
 \end{itemize}
 
@@ -1236,16 +1256,23 @@ AArch64 加强了浮点功能，改动如下（相对于 ARMv7）：
 \begin{itemize}
   \item 前缀 V 替换成 F。
   \item 先已支持 IEEE754 浮点标准定义的单精度（32-bit）和双精度（64-bit）浮点向量数据类型和运算。
-    遵循 FPCR 寄存器中指定的舍入模式来执行浮点数运算\footnote{"Honoring the FPCR Rounding Mode field" 表示处理器或者软件库遵循浮点控制寄存器（Floating Point Control Register，FPCR）中的舍入模式字段（Rounding Mode field）。
+    遵循 FPCR 寄存器中指定的舍入模式来执行浮点数运算\footnote{
+      “Honoring the FPCR Rounding Mode field” 表示处理器或者软件库遵循浮点控制寄存器（Floating Point Control Register，FPCR）中的舍入模式字段（Rounding Mode field）。
 
-    在 IEEE 754 浮点数标准中，舍入模式指定了在进行浮点数运算时如何处理结果的舍入方式。
-    常见的舍入模式包括向最接近的偶数舍入、向正无穷大舍入、向负无穷大舍入、向零舍入等。}、默认的 NaN 控制、Flush-to-Zero 控制\footnote{Flush-to-Zero 控制允许在执行浮点数运算时将非常小的结果舍入为零。当启用 Flush-to-Zero 模式时，如果计算得到的结果小于一个设定的阈值（通常是一个非常小的正数，例如 IEEE 754 中的 subnormal number），则结果将被直接截断为零，而不是保留非常小的非零值。}和异常 trap 使能位（由具体实现所支持）。
+      在 IEEE 754 浮点数标准中，舍入模式指定了在进行浮点数运算时如何处理结果的舍入方式。
+      常见的舍入模式包括向最接近的偶数舍入、向正无穷大舍入、向负无穷大舍入、向零舍入等。
+    }
+    、默认的 NaN 控制、Flush-to-Zero 控制\footnote{
+      Flush-to-Zero 控制允许在执行浮点数运算时将非常小的结果舍入为零。
+      当启用 Flush-to-Zero 模式时，如果计算得到的结果小于一个设定的阈值（通常是一个非常小的正数，例如 IEEE 754 中的 subnormal number），则结果将被直接截断为零，而不是保留非常小的非零值。
+    }
+    和异常 trap 使能位（由具体实现所支持）。
   \item FP/NEON 寄存器的 Load/Store 寻址模式与整型的 Load/Store 相统一，包括加载或存储一对浮点寄存器的操作。
-  \item 添加与整型 CSEL 和 CCMP 指令等效的浮点 FCSEL 和 选择并比较指令。 
+  \item 添加与整型 CSEL 和 CCMP 指令等效的浮点 FCSEL 和 选择并比较指令。
 
     类似 ARMv7，浮点 FCMP、FCMPE、FCCMP 和 FCCMP 指令根据浮点比较结果设置 PSTATE.\{N, Z, C, V\} 标志，但是不会更改 FPSR 寄存器中的状态标志。
   \item 合并所有浮点乘加（Multiply-Add）和乘减（Multiply-Subtract）指令\footnote{
-      "Fused Multiply-Add (FMA)" 指的是在单个指令中执行乘加运算的能力。
+      “Fused Multiply-Add (FMA)” 指的是在单个指令中执行乘加运算的能力。
       这意味着指令可以同时进行乘法和加法操作，并且结果是精确的。
       这样可以提高性能，并且在一些情况下可以提高数值计算的精度。
 
@@ -1267,11 +1294,14 @@ AArch64 加强了浮点功能，改动如下（相对于 ARMv7）：
       \item[-] 到 $+\inf$。
       \item[-] 到 $-\inf$。
       \item[-] 到一个接近的偶数。
-      \item[-] 到更远离零的那个整数\footnote{在 "Nearest with ties to away" 这种舍入模式下，如果一个值恰好处于两个整数的中间，它会舍入到远离零的整数。换句话说，如果一个值恰好处于两个整数的中间，它会舍入到更远离零的那个整数。}。
+      \item[-] 到更远离零的那个整数\footnote{在 “Nearest with ties to away” 这种舍入模式下，如果一个值恰好处于两个整数的中间，它会舍入到远离零的整数。
+          换句话说，如果一个值恰好处于两个整数的中间，它会舍入到更远离零的那个整数。
+        }。
     \end{itemize}
   \item 新增包含相同有向舍入模式并且可根据当前环境进行舍入的浮点向邻近整型舍入的指令（FRINTx）。
   \item 新增不精确的舍入到奇数的双精度到单精度向下转换指令，适合通过正确的近似（FCVTXN）进行现场向下转换到半精度类型。
-  \item 添加了 FMINNM 和 FMAXNM 指令，这两个指令用来实现 IEEE754-2008 中的操作 minNum() 和 maxNum()。如果其中一个操作数是静态NaN，则返回数值。
+  \item 添加了 FMINNM 和 FMAXNM 指令，这两个指令用来实现 IEEE754 - 2008 中的操作 minNum() 和 maxNum()。
+  如果其中一个操作数是静态 NaN，则返回数值。
   \item 新增浮点向量规范化加速指令（FRECPX 和 FMULX）。
 \end{itemize}
 
@@ -1303,7 +1333,8 @@ NEON 和 浮点指令操作适用于以下类型的元素：
 
       有限域中的元素可以是整数模素数的余数，也可以是多项式系数模一个不可约多项式的余数。
       在密码学、编码理论、数字通信等领域，有限域的理论和运算被广泛应用。
-    }或者在 \{0, 1\} 上的简单多项式的错误纠正。
+    }
+    或者在 \{0, 1\} 上的简单多项式的错误纠正。
     通常的 ARM 整型代码一般使用查表的方式进行有限域运算。
     而 AArch64 NEON 则提供了使用巨大查找表的指令。
 
