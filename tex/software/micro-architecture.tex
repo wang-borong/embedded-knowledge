@@ -1446,7 +1446,185 @@ AArch64 调用标准强制规定只要使用到浮点运算的地方就必须使
 
 \subsubsection{AArch64 NEON 指令格式}
 
-\subsubsection{NEON 代码替代}
+AArch64 改动了 NEON 和浮点指令的语法以协调核心整型和标量浮点指令集语法。
+这些指令的助记符和 ARMv7 NEON 非常接近。
+
+\begin{itemize}
+  \item 移除 ARMv7 NEON 指令中存在的前缀 V。
+
+    重命名了与核心指令集冲突的助记符，并且移除 V 前缀。
+
+    这意味相同名字的指令会做相同的事情，并且可以是核心指令、NEON 指令或者浮点指令，而只是语法上有区别。
+    例如：
+
+    \lstinline!ADD W0, W1, W2{, shift #amount}!
+    和
+    \lstinline!ADD X0, X1, X2{, shift #amount}!
+
+    都是 A64 基础指令。
+
+    \lstinline!ADD D0, D1, D2!
+
+    是一个标量浮点指令，并且
+
+    \lstinline!ADD V0.4H, V1.4H, V2.4H!
+
+    是一个 NEON 向量指令。
+
+  \item 指令的前缀上添加了 S、U、F 或 P 前缀，用以表示 Signed、Unsigned、Floating-point 或 Polynomial 数据类型。
+    指令根据该助记符来选择相应数据类型的操作。
+    例如：
+
+    \lstinline!PMULL V0.8B, V1.8B, V2.8B!
+
+  \item 寄存器修饰符描述向量寄存器的组织形式（元素大小和 lane 数量）。
+    例如：
+
+    \lstinline!ADD Vd.T, Vn.T, Vm.T!
+
+    其中，Vd、Vn 和 Vm 都是寄存器的名字，而 T 则是将被使用到的寄存器细分。
+    就此例而言，T 是做为排列说明符 8B、16B、4H、8H、2S、4S 或 2D 中的一个。
+    任意上述的排列说明符都可以使用，取决于数据类型的宽度（64、32、16 或 8-bit）以及寄存器的位宽（64 bit 或 128 bit）。
+
+    若要对 2 个 64-bit 的 lane 相加，则是用
+
+    \lstinline!ADD V0.2D, V1.2D, V2.2D!
+
+  \item ARMv7 中，一些 NEON 数据处理指令存在 Normal、Long、Wide、Narrow 和 Staturating 变种。
+    Long、Wide 和 Narrow 变种以后缀标识：
+
+    \begin{itemize}
+      \item[-] \textit{Normal 指令}可以对任何向量类型进行操作，并生成与操作数向量相同大小且通常相同类型的结果向量。
+      \item[-] \textit{Long 指令}或 \textit{Lengthening 指令}对双字向量操作数进行操作并产生四字向量结果。
+        结果元素的宽度是操作数的两倍。
+        长指令使用附加到指令的 L 来指定。
+        例如：
+
+        \lstinline!SADDL V0.4S, V1.4H, V2.4H!
+
+        下图展示了该操作，输入操作数在运算之前被提升。
+
+        \Figure[caption={NEON Long 指令}, label={fig:NEON-long-insts}, width=0.6]{NEON-long-insts}
+
+    \end{itemize}
+
+  \item \textit{Wide} 或 \textit{Widening 指令}对双字和四字向量操作数进行操作，产生四字向量。
+    产生的结果元素（第一个操作数）的长度是第二个操作数元素长度的两倍。
+    Wide 指令含有一个 W 后缀。例如，
+
+    \lstinline!SADDW V0.4S, V1.4H, V2.4S!
+
+    下图展示该操作，输入的双字操作数在运算前被提升。
+
+    \Figure[caption={NEON Wide 指令}, label={fig:NEON-wide-insts}, width=0.6]{NEON-wide-insts}
+
+  \item \textit{Narrow} 或 \textit{Narrowing 指令}对四字向量进行操作，并且生成双字向量。
+    生产的元素通常为操作数元素长度的一半。
+    Narrow 指令用 N 后缀指定。例如，
+
+    \lstinline!SUBHN V0.4H, V1.4S, V2.4S!
+
+    下图展示该操作，输入操作数在运算前被降级。
+
+    \Figure[caption={NEON Narrow 指令}, label={fig:NEON-narrow-insts}, width=0.6]{NEON-narrow-insts}
+
+  \item 一些指令存在 Signed 和 unsigned staturating 变种（以 SQ 或 UQ 前缀标识），比如 SQADD 和 UQADD。
+    如果结果超出了数据类型的最大值或最小值，那么 saturating 指令则返回其最大值或最小值。
+    Saturation 的限制取决于指令所用的数据类型。
+
+    \begin{stblr}
+      {Saturation ranges}
+      {NEON-saturation-ranges}
+      {cc}
+      \hline[1pt]
+      Data type & Saturation range of x \\
+      \hline
+      Signed byte (S8) & $-27 \leq x < 27$ \\
+      Signed halfword (S16) & $-215 \leq x < 215$ \\
+      Signed word (S32) & $-231 \leq x < 231$ \\
+      Signed doubleword (S64) & $-263 \leq x < 263$ \\
+      Unsigned byte (U8) & $0 \leq x < 28$ \\
+      Unsigned halfword (U16) & $0 \leq x < 216$ \\
+      Unsigned word (U32) & $0 \leq x < 232$ \\
+      Unsigned doubleword (U64) & $0 \leq x < 264$ \\
+      \hline[1pt]
+    \end{stblr}
+
+  \item ARMv7 中示意为 pairwise 操作的 P 前缀现已在 ARMv8 中改成后缀，比如 ADDP。
+    Pairwise 指令操作相邻的双字或四字操作数对。
+    例如：
+
+    \lstinline!ADDP V0.4S, V1.4S, V2.4S!
+
+    \Figure[caption={Pairwise 操作}, label={fig:pairwise-op}, width=0.6]{pairwise-op}
+
+  \item 添加 V 后缀到 across-all-lanes（整个寄存器）操作，比如 ADDV。
+    例如：
+
+    \lstinline!ADDV S0, V1.4S!
+
+    \Figure[caption={Across all lanes 操作}, label={fig:across-all-lanes-op}, width=0.6]{across-all-lanes-op}
+
+  \item 为新的加宽、缩小或加长的第二部分指令添加了 2 后缀，称为第二和上半部分说明符。
+    如果存在该后缀，那么相应的操作会保持较窄元素的寄存器的高 64 位上执行操作。
+
+    \begin{itemize}
+      \item[-] 带有 2 后缀的加宽指令从包含较窄值的向量的高编号通道获取输入数据，并将扩展结果写入 128 位目标。
+        例如：
+
+        \lstinline!SADDW2 V0.2D, V1.2D, V2.4S!
+
+        \Figure[caption={SADDW2}, label={fig:saddw2-inst}, width=0.6]{saddw2-inst}
+
+      \item[-] 带有 2 后缀的 Narrowing 指令从 128-bit 的源操作数获取它们的输入数据，并且将缩小后的结果插入到 128-bit 目的寄存器的高序 lane 中，低序 lane 保持不变。
+        例如：
+
+        \lstinline!XTN2 V0.4S, V1.2D!
+
+        \Figure[caption={XTN2}, label={fig:xtn2-inst}, width=0.6]{xtn2-inst}
+
+      \item[-] 带有 2 后缀的 Lengthening 指令从 128-bit 源向量寄存器的高序 lane 中获取它们的输入数据，并将加长的结果保存到 128-bit 目的寄存器中。
+        例如：
+
+        \lstinline!SADDL2 V0.2D, V1.4S, V2.4S!
+
+        \Figure[caption={SADDL2}, label={fig:saddl2-inst}, width=0.6]{saddl2-inst}
+    \end{itemize}
+
+  \item 比较指令已通过使用状态码来表明当前状态，以及当前状态是有符号的还是无符号的。
+    例如，CMGT 和 CMHI、CMGE 和 CMHS。
+
+\end{itemize}
+
+\subsubsection{NEON 编码替代方案}
+
+NEON 编码有很多种形式。
+本节只是简单的列举以下（详细内容可查看《ARM NEON Programmers Guide》）。
+其中包括内部函数的使用、C 代码的自动矢量化、库的使用，当然还有直接用汇编语言编写。
+内在函数是编译器用适当的 NEON 指令替换的 C 或 C++ 伪函数调用。
+这允许您使用 NEON 实现中可用的数据类型和操作，同时允许编译器处理指令调度和寄存器分配。
+这些 intrinsic 函数定义在 ARM C 语言扩展文档里。
+ARM 编译器 6 下，Auto-vectorization 由 \lstinline!-fvectorize! 选项配置，然而高级优化中该选项是自动打开的（\lstinline!-O2! 和更高）。
+只要 \lstinline!-O0! 选项开启，无论指不指定 \lstinline!-fvectorize! Auto-vectorization 都是关闭的。
+因此您需要在 \lstinline!-O1! 优化下通过以下命令开启 auto-vectorization：
+
+\lstinline!armclang --target=armv8a-arm-none-eabi -fvectorize -O1 -c file.c!
+
+有多个支持 NEON 代码的软件库。
+这些库随时间动态更新，因此其状态也无法把控，所以当前的支持情况并没有列举到该文档中。
+虽然技术上而言，手动优化 NEON 汇编代码是可行的，但是由于流水线和内存访问时序的内部复杂依赖，手动优化是非常困难的。
+ARM 强烈推荐直接使用 intrinsic 调用函数，而不是手写汇编。
+
+\begin{itemize}
+  \item 使用 instrinsic 函数比使用汇编助记符更简单。
+  \item Instrinsic 函数提供了很好的跨平台可移植性。
+  \item 使用 instrinsic 不需要关心内部流水线和内存访问时序。
+  \item 大多数情况下能够或得很好的性能。
+\end{itemize}
+
+如果您不是一个经验丰富的汇编开发者，那么使用 intrinsic 通常能获得更好的性能。
+Intrinsic 提供了和直接用汇编编写代码一样丰富的控制，但是把分配寄存器的任务分配给了编译器，因此您可以专注与算法。
+这样会比汇编语言具有更好的代码维护性。
 
 \subsection{ABI}
 
