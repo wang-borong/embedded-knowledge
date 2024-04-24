@@ -1887,15 +1887,290 @@ AArch64 架构还有 32 个 NEON 和 浮点操作寄存器 V0 - V31。
 
 \subsection{异常处理} \label{sec:exception}
 
-\BlockDesc{The Exception Syndrome Register}
+严格来讲，中断将打断软件的运行流程。
+然而，在 ARM 术语中，这实际是异常。
+异常是一些状态和系统事件，这些事件需要特权软件（异常处理函数）采取一些措施来保证系统的正常运行。
+每类异常都由相关的异常处理函数与其关联。
+一旦异常被处理完成，特权软件将恢复 CPU 核到异常前的执行状态。
 
-% The Exception Syndrome Register, ESR_ELn, contains information which allows the exception handler to determine the reason for the exception. It is updated only for synchronous exceptions and SError. It is not updated for IRQ or FIQ as these interrupt handlers typically obtain status information from registers in the Generic Interrupt Controller (GIC). (See The Generic Interrupt Controller.) The bit coding for the register is:
-%
-% Bits [31:26] of ESR_ELn indicate the exception class which allows the handler to distinguish between the various possible exception causes (such as unallocated instruction, exceptions from MCR/MRC to CP15, exception from FP operation, SVC, HVC or SMC executed, Data Aborts, and alignment exceptions).
-%
-% Bit [25] indicates the length of the trapped instruction (0 for a 16-bit instruction or 1 for a 32-bit instruction) and is also set for certain exception classes.
-%
-% Bits [24:0] form the Instruction Specific Syndrome (ISS) field containing information specific to that exception type. For example, when a system call instruction (SVC, HVC or SMC) is executed, the field contains the immediate value associated with the opcode such as 0x123456 for SVC 0x123456.
+异常分为以下几类：
+
+\BlockDesc{Interrupts}
+
+系统有两种中断类型为 IRQ 和 FIQ。
+
+FIQ 优先级高于 IRQ。
+这两种异常类型通常与 CPU 核的输入引脚相连。
+假定没有关闭中断的情况下，外部硬件发起一个中断线路请求，并且在当前的指令执行完成后（虽然一些指令可以加载多个数值，但是可以被中断），引发对应的异常类型。
+FIQ 和 IRQ 是 CPU 核的物理信号，当触发这些信号时，CPU 核便会响应关联的异常（中断使能的情况下）。
+绝大多数的系统中，各种中断源都是用中断控制器连接的。
+中断控制器对中断进行仲裁和优先级排序，每次提供一个串行化的信号给连接到 CPU 核的 FIQ 或 IRQ 信号口。
+由于中断的发生与 CPU 在任意时刻执行的软件没有直接的关系，所以它们被分类为异步异常。
+详情可见于 \textit{The Generic Interrupt Controller} 章节。
+
+\BlockDesc{Aborts}
+
+Abort 可能由取指令错误或者数据访问错误产生。
+Abort 异常可能从外部的内存系统的数据访问错误产生（表面指定的地址与系统的真实内存不对应）。
+另外，Abort 也可以通过 CPU 核的 MMU 产生。
+操作系统使用 MMU abort 来给应用程序动态分配内存。
+
+在取指令的过程中，指令在 pipeline 中可被标注为 abort 异常。
+指令 abort 仅发生在 CPU 核尝试执行指令的时候。
+异常发生在指令执行之前。
+如果 pipeline 在会产生 abort 的指令进入 pipeline 的执行阶段前被刷新了，那么系统不再产生该 abort 异常。
+数据 abort 由 load 或 store 指令产生，并且发生在系统尝试读写数据之后。
+
+如果 Abort 异常由指令流的执行或尝试执行所产生，那么可以描述为同步异常，并且返回地址提供了产生异常的详细信息。
+
+异步的 abort 异常不是由执行指令所产生，同时返回地址也不一定会提供产生 abort 的详细原因。
+ARMv8-A 架构下，指令和数据 abort 是同步的。
+异步异常是 IRQ/FIQ 和系统错误（System errors, SError）。
+
+\BlockDesc{Reset}
+
+复位（reset）被视为所实现的最高异常级别的特殊向量。
+该向量即为，当发起该异常时 ARM 处理器将跳转的指令位置。
+\lstinline!RVBAR_ELn! 保存该 reset 向量地址，其中 n 是所实现的最高异常级的序号。
+
+所有核都有一个 reset 入口并且当它们被复位后立即采取复位异常。
+该异常的优先级是系统内最高的，并且不能被屏蔽。
+该异常用于上电后执行核上的初始化代码。
+
+\BlockDesc{Exception generating instructions}
+
+某些指令的执行也会产生异常。
+一般，执行这些指令用于从运行在更高异常级的软件中获取其提供的服务（例如，系统调用服务）。
+
+\begin{itemize}
+  \item SVC（Supervisor Call）指令开启了用户模式程序向操作系统请求服务的功能。
+  \item HVC（Hypervisor Call）指令开启了客户操作系统向虚拟机监控程序请求服务的功能。
+  \item SMC（Secure monitor）指令开启了普通程序向安全程序请求服务的功能。
+\end{itemize}
+
+如果所产生的异常是由于 EL0 下取指而生成的，那么它将被视为 EL1 下的异常。
+除非在非安全状态下设置了 \lstinline!HCR_EL2.TGE! 位，那么它将被带入 EL2 下。
+
+如果所产生的异常是由其它异常级下取指所产生的，那么异常级保持不变。
+
+本文档的前面讲述了 ARMv8-A 架构有 4 个异常级。
+处理器的运行只能通过进入或返回一个异常的方式切换运行级。
+当处理器从更高的异常级切换到更低的异常级时，运行状态可以保持不变，或者处理器可以从 AArch64 切换到 AArch32。
+相反，处理器从更低的异常级切换到更高的异常级时，运行状态可以保持不变，或者处理器可以从 AArch32 切换到 AArch64。
+
+\Figure[caption={异常执行流程}, label={fig:exception-flow}, width=0.6]{exception-flow}
+
+上图示意出在应用程序运行过程中发生异常的程序流程。
+处理器跳转到包含所有异常类的入口的向量表。
+向量表包含通常表明有异常原因的调度代码，并且调度代码选择调用合适的函数处理所处异常。
+调度代码执行完成后并返回到高级的处理函数，该函数执行 ERET 指令返回应用程序。
+
+\subsubsection{异常处理寄存器}
+
+如果发生异常，PSTATE 信息将被保存到 \lstinline!SPSR_ELn!（Saved Program Status Register）寄存器中，系统有 \lstinline!SPSR_EL3!、\lstinline!SPSR_EL2! 和 \lstinline!SPSR_EL1!。
+
+\Figure[caption={AArch64 下的 SPSR}, label={fig:aarch64-spsr}, width=0.95]{aarch64-spsr}
+\Figure[caption={AArch32 下的 SPSR}, label={fig:aarch32-spsr}, width=0.95]{aarch32-spsr}
+
+% The SPRSR.M field (bit 4) is used to record the execution state (0 indicates AArch64 and 1
+% indicates AArch32).
+\lstinline!SPSR.M! 字段（bit 4）用于记录运行状态（0 表明 AArch64，1 为 AArch32）。
+
+\begin{stblr}
+  {PSTATE 字段}
+  {pstate-field}
+  {c>{\centering\arraybackslash}X}
+  \hline[1pt]
+  字段 & 说明 \\
+  \hline
+  NZCV & Condition flags \\
+  Q & Cumulative saturation bit \\
+  DAIF & Exception mask bits \\
+  SPSel & SP selection (EL0 or ELn), not applicable to EL0 \\
+  E & Data endianness (AArch32 only) \\
+  IL & Illegal flag \\
+  SS & Software stepping bit \\
+  \hline[1pt]
+\end{stblr}
+
+The exception bit mask bits (DAIF) allow the exception events to be masked. The exception is
+not taken when the bit is set.
+
+\begin{description}
+  \item[D] Debug exceptions mask.
+  \item[A] SError interrupt Process state mask, for example, asynchronous External Abort.
+  \item[I] IRQ interrupt Process state mask.
+  \item[F] FIQ interrupt Process state mask.
+\end{description}
+
+SPSel 字段选择当前的该使用哪个异常级栈指针 \lstinline!SP_EL0!。
+切换栈指针可以在除了 EL0 之外的任何异常级进行。
+后续章节会讨论如何切换。
+
+设置 IL 字段会导致执行下一条指令以触发异常。
+该字段使用非法执行的返回，例如，尝试从 AArch64 返回 EL2 而实际系统运行状态是 AArch32。
+
+SS（Software Stepping）字段在调试相关章节讲解。
+调试器使用它执行一条指令然后对后续的指令发起一个调试异常。
+
+当采取一个异常时，一些分开的字段（CurrentEL、DAIF 和 NZCV 等等）以一种紧凑的方式拷贝到 \lstinline!SPSR_ELn!（返回时相反）。
+
+当以事件引发一个异常，处理器会自动采取一些特定的动作。
+这些动作有更新 \lstinline!SPSR_ELn!（n 是异常发生时所处异常级）、
+保存正确从异常返回时所需的 PSTATE 信息、
+更新 PSTATE 以反应处理器的新状态（可能意味着异常级的发起或保持不变）以及
+将从异常所需的返回地址保存到 \lstinline!ELR_ELn!。
+
+\Figure[caption={异常处理}, label={fig:exception-handling}, width=0.5]{exception-handling}
+
+记住，\lstinline!_ELn! 后缀表示这些寄存器在不同异常级的多个备份。
+例如，\lstinline!SPSR_EL1! 与 \lstinline!SPSR_EL2! 是不同的物理寄存器。
+另外，在同步或 SError 异常的情况下，也会把 \lstinline!ESR_ELn! 更新为表面异常产生原因的值。
+
+软件通过执行 ERET 指令来通知处理器何时从异常返回。
+执行 ERET 将从 \lstinline!SPSR_ELn! 恢复异常前的 PSTATE 值并且从 \lstinline!ELR_ELn! 恢复之前的程序运行地址。 
+
+上面已经讲述了 SPSR 如何为异常返回记录必要的状态信息。
+下面将继续讲述 link 寄存器如何存储程序地址信息。
+架构架构为函数调用和异常返回提供了单独的链接寄存器。
+
+我们已经在 A64 指令集相关章节了解到 X30 寄存器用于从子例程中返回（通过 RET 指令）。
+一旦我们执行了跳转链接（branch with link）指令（BL 或 BLR），那么返回值将被更新到 X30 寄存器中。
+而 \lstinline!ELR_ELn! 寄存器用于存储从异常返回的地址。
+当进入一个异常时，该寄存器值将被硬件自动更新，并且当执行 ERET 指令返回时，该寄存器的值会写入到 PC 中。
+
+\begin{Tcbox}[title={Note}]
+  当从异常返回时，如果 SPSR 的值与系统寄存器的设置冲突，那么你将看到一个错误。
+\end{Tcbox}
+
+\lstinline!ELR_ELn! 保存有指定异常类型的返回地址。
+对于一些异常而言，这个返回值是发生异常指令地址的下一条指令地址。
+例如，当一个 SVC 指令执行时，我们希望返回时能执行下一条指令。
+在其他情况下，我们可能希望重新执行发生异常的指令。
+
+对于异步异常来说，\lstinline!ELR_ELn! 指向由于获取中断而尚未执行或完全执行的第一条指令的地址。
+系统允许处理函数代码修改 \lstinline!ELR_En!，例如，如果有必要返回到中止同步异常之后的指令地址。
+ARMv8-A 模型已经明显比 ARMv7-A 简单了，然而处于兼容性的原因，从特定类型的异常中返回时仍然需要从链接寄存器中减去 4 或 8。
+
+除了 SPSR 和 ELR 寄存器，每个异常级都包含其专用的栈指针寄存器。
+这些寄存器被命名为 \lstinline!SP_EL0!、\lstinline!SP_EL1!、\lstinline!SP_EL2! 和 \lstinline!SP_EL3!。
+这些寄存器用于指向专用栈，这些专用栈则可用于保存一些会被异常处理函数破坏的寄存器，那么便可以在异常返回时恢复这些被保存的寄存器。
+
+异常处理代码可能会切换 \lstinline!SP_ELn! 为 \lstinline!SP_EL0!。
+例如，\lstinline!SP_EL1! 可能指向一块小型的内核可以确保永久有效的栈内存上。
+\lstinline!SP_EL0! 则可能指向一块大型的内核无法确保安全的（栈溢出）任务栈上。
+通过控制 SPSel 字段进行切换，方法如下：
+
+\begin{lstlisting}[
+  language={[ARM]Assembler},
+  numbers=none
+]
+MSR SPSel, #0  // switch to SP_EL0
+MSR SPSel, #1  // switch to SP_ELn
+\end{lstlisting}
+
+\subsubsection{同步和异步异常}
+
+AArch64 中，异常分为同步和异步异常。
+同步异常是由于尝试执行指令所引起的，并且返回地址包含导致异常的指令的详细信息。
+异步异常不是指令的执行所引起的，返回地址也不一定会包含产生异常的信息。
+
+异步异常是由 IRQ、FIQ 或 SError 产生的。
+有不少可能导致系统错误异常的产生原因，其中最常见的是异步数据中止（例如 cache line 中的脏数据写回外部内存所触发的中止）。
+
+同步异常的产生源头有：
+
+\begin{itemize}
+  \item MMU 产生的指令中止。
+    比如，指令的内存地址设置为不可执行。
+  \item MMU 产生的数据中止。
+    例如，访问权限不足或对齐检查。
+  \item SP 和 PC 对齐检查。
+  \item 同步的外部中止。
+    比如，读取也表时发生的中止。
+  \item 未分配的指令
+  \item 调试异常。
+\end{itemize}
+
+\BlockDesc{同步中止}
+
+有很多产生同步异常的原因：
+
+\begin{itemize}
+  \item MMU 产生
+  \item SP 和 PC 对齐检查
+  \item 未分配的指令
+  \item 服务调用指令（SVC、SMC 和 HVC）
+\end{itemize}
+
+操作系统可以用这些异常实现一些正常功能。
+例如，在 Linux 中，一个 task 请求分配新的内存页的功能就是通过 MMU 中止机制。
+
+ARMv7-A 架构中，预取中止、数据中止和未定义异常是分开的条目。
+但是在 AArch64 中，这些异常会统一产生一个同步中止。
+异常处理函数读取 syndrome 和 FAR 寄存器获取必要的信息来区分这些异常。
+
+\BlockDesc{处理同步异常}
+
+异常处理函数通过读取一些寄存器来获取异常产生的原因等信息。
+其中，\lstinline!ESR_ELn!（Exception Syndrome Register）提供异常的产生原因。
+\lstinline!FAR_ELn!（Fault Address Register）保存有关于同步指令、数据中止和对齐错误相关的出错的虚拟地址。
+
+\lstinline!ELR_ELn!（Exception Link Register）保存产生数据访问中止时的指令地址（Data Abort）。
+这通常在内存错误之后更新，但也会在其它情况下设置，比如跳转到一个非对齐的地址。
+
+如果将异常从使用 AArch32 的异常级别转移到使用 AArch64 的异常级别，那么异常将以目标异常级的方式写 FAR 寄存器，也就是说 \lstinline!FAR_ELn! 的高 32 bit 会全部设成 0。
+
+对于实现了 EL2（Hypervisor）或 EL3（Secure Kernel）的系统来说，同步异常通常由当前或者更高的异常级接管。
+异步异常可以被路由到更高异常级处理。
+\lstinline!SCR_EL3! 寄存器指定哪些异常被路由到 EL3。
+同样的，\lstinline!HCR_EL2! 指定哪些异常被路由到 EL2。
+IRQ、FIQ 和 SError 由一些单独的 bit 来独立控制。
+
+\BlockDesc{系统调用}
+
+一些指令和系统函数只能在特定的异常级下执行。
+如果运行在一个较低的异常级下的代码需要采取特权操作，例如，当应用程序向内核请求功能时。
+一种方式是使用 SVC 指令，该指令允许应用程序产生一个异常。
+系统调用的参数则通过通用寄存器传入，或者编码在系统调用中。
+
+\BlockDesc{EL2/EL3 的系统调用}
+
+与应用程序向 EL1（内核）请求系统调用类似，请求 EL2 和 EL3 的服务同样有相应指令，分别为 HVC 和 SMC。
+当处理器运行在 EL0 下，它无法直接向 EL2 提交服务请求，只能通过 SVC 先向内核提交请求，然后通过 EL1 下的内核来向 EL2 发起请求。
+
+运行在 EL1 下的 OS 内核可以通过 HVC 指令调用 hypervisor 服务，也可以通过 SMC 调用安全监控服务。
+如果处理器实现了 EL3，那么 EL2 能够捕获来自 EL1 的 SMC 指令。
+如果没有 EL3，那么 SMC 不会被分配并且只在当前异常级触发。
+
+同样，EL2 下的代码可以使用 SMC 调用 EL3 代码。
+如果 SVC 指令在 EL2 或 EL3 下执行，那么它仍然会同一异常级产生一个同步异常，并且异常级下的处理函数来决定如何响应。
+
+\BlockDesc{未分配的指令}
+
+未分配的指令产生一个同步中止，当处理器执行以下指令时产生该类异常：
+
+\begin{itemize}
+  \item 没有分配操作码的指令
+  \item 需要更高特权级执行的指令
+  \item 禁用的指令
+  \item PSTATE.IL 字段设置后的任意指令
+\end{itemize}
+
+% -----
+\BlockDesc{The Exception Syndrome Register (ESR)}
+
+\lstinline!ESR_ELn! 寄存器保存异常的信息，可由异常处理函数从中获取异常产生的原因。
+它只会在发生同步异常和 SError 异常时更新。
+它不会在产生 IRQ 或 FIQ 时更新，IRQ 和 FIQ 的状态信息保存在 GIC 的寄存器中（详情查阅 \textit{The Generic Interrupt Controller}）。 
+ESR 寄存器的编码如下：
+
+\begin{description}
+  \item[31:26] 异常类，异常处理函数可用以区分异常类别（例如未分配的指令、从 MCR/MRC 到 CP15 所产生的异常、FP 操作异常、SVC、HVC、SMC、数据中止和对齐异常）。
+  \item[25] 异常指令的长度（0 代表 16-bit 指令；1 代表 32-bit 指令），并且设置给特定异常类。
+  \item[24:0] 形成 Instruction Specific Syndrome (ISS) 字段，包含该类异常的信息。
+    例如：当系统调用指令（SVC、HVC 或 SMC）执行时，该字段包含指令的立即数，比如当执行 \lstinline!SVC 0x123456! 时该字段包含 0x123456。
+\end{description}
 
 \subsection{Caches}
 

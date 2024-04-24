@@ -1,0 +1,17 @@
+[
+  {"bits": 4, "name": "M[3:0]"},
+  {"bits": 1, "name": "M" },
+  {"bits": 1 },
+  {"bits": 1, "name": "F" },
+  {"bits": 1, "name": "I" },
+  {"bits": 1, "name": "A" },
+  {"bits": 1, "name": "D" },
+  {"bits": 10 },
+  {"bits": 1, "name": "IL"},
+  {"bits": 1, "name": "SS"},
+  {"bits": 6 },
+  {"bits": 1, "name": "V" },
+  {"bits": 1, "name": "C" },
+  {"bits": 1, "name": "Z" },
+  {"bits": 1, "name": "N" }
+]
