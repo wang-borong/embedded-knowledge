@@ -5,7 +5,7 @@ CONTFORM := perl tool/content-formatter.pl
 PANDOCMK := tool/pandoc.mk
 # set metadata file for pandoc (located in pandoc/data/metadata)
 # or eleg-book, eleg-paper, eleg-note
-METADATA_FILE  ?= eleg-book
+# METADATA_FILE  ?= eleg-book
 
 OUTDIR ?= build
 BUILDIR := $(PWD)/$(OUTDIR)
@@ -15,28 +15,29 @@ ifeq ($(V),)
 	NOINFO := > /dev/null 2>&1
 endif
 
-TOPTEXES ?= main.tex
+MAIN ?= $(shell ls main.*)
 TEXES := $(shell find . -name "*.tex" | sort)
 
 FIGSRC := $(wildcard drawio/*.drawio)
 FIGSRC += $(wildcard dac/*)
 SVGSRC := $(wildcard figure/*.svg)
 
-TARGET ?= 嵌入式知识体系总结
+TARGET ?= 写作模板
 
 export TEXMFHOME=texmf
 export TARGET CONTFORM BUILDIR METADATA_FILE
 
-all: $(BUILDIR) pdf
+all: $(BUILDIR)
+	@if [[ ${MAIN} == "main.md" ]]; then make pandoc; else make latex; fi
 
-pdf: $(BUILDIR)/$(TARGET).tex
+latex: $(BUILDIR)/$(TARGET).tex
 	@if [[ ! -d figures ]]; then make figures; fi
 	@$(LATEXMK) $(TEXOPTS) $< || $(LATEXMK) -c $<
 
 pandoc: $(BUILDIR)
 	@make -f $(PANDOCMK)
 
-$(BUILDIR)/$(TARGET).tex: $(TOPTEXES) $(BUILDIR)
+$(BUILDIR)/$(TARGET).tex: $(MAIN) $(BUILDIR)
 	@if [[ ! -f $@ ]]; then ln -sf ../$< $@; fi
 
 $(BUILDIR):
@@ -55,10 +56,10 @@ figures: $(FIGSRC) $(SVGSRC)
 	$(FIGENERATOR) -c $(SVGSRC) figures/*.svg
 	$(FIGENERATOR) $(FIGSRC)
 
-view: pdf
+latex-view: latex
 	@$(LATEXMK) -f -pvc -view=pdf $(BUILDIR)/$(TARGET) $(NOINFO) &
 
-pandoc-view: pandoc-tex pdf
+pandoc-view: pandoc-tex latex
 	@$(LATEXMK) -f -pvc -view=pdf $(BUILDIR)/$(TARGET) $(NOINFO) &
 
 kill-view:
@@ -67,8 +68,9 @@ kill-view:
 	@kill $$(ps aux | grep $(TARGET).pdf \
 		| head -1 | awk '{print $$2}')
 
-clean: $(BUILDIR)/$(TARGET).tex
-	@$(LATEXMK) -c $<
+clean: $(BUILDIR)/$(TARGET).pdf
+	@$(RM) $<
+	@if [[ ${MAIN} == main.tex ]]; then $(LATEXMK) -c main.tex; fi
 
 dist-clean:
 	@$(RM) -r $(OUTDIR) auto \
