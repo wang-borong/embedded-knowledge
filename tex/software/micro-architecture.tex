@@ -2172,6 +2172,120 @@ ESR 寄存器的编码如下：
     例如：当系统调用指令（SVC、HVC 或 SMC）执行时，该字段包含指令的立即数，比如当执行 \lstinline!SVC 0x123456! 时该字段包含 0x123456。
 \end{description}
 
+\subsubsection{异常引起的执行状态和异常级的变化}
+
+异常产生时，处理器可能改变运行状态也可能保持不变。
+例如，当处理器运行在 AArch32 状态时，外部中断源可能引发中断，但是 OS 内核的中断处理函数运行在 AArch64 状态。
+
+SPSR 寄存器会保存处理器的运行状态，以便异常返回时切换回去。
+这个切换的动作是由处理器自动完成的，但是每个异常级别的运行状态的控制是通过以下方式完成的：
+
+\begin{itemize}
+  \item 硬件配置输入决定最高异常级别的初始运行状态（不一定为 EL3）。
+    但是，并没有固定，因为有 \lstinline!RMR_ELn! 寄存器可以在处理器运行时改变最高异常级的运行状态。
+    EL3 是安全监控代码，它是一个有特定运行状态的安全的小型代码块。
+  \item EL2 和 EL1 的运行状态由 \lstinline!SCR_EL3.RW! 和 \lstinline!HCR_EL2.RW! 位。
+    \lstinline!SCR_EL3.RW! 在 EL3 下配置控制 EL2 的运行状态。
+    \lstinline!HCR_EL2.RW! 在 EL2 或 EL3 下配置控制 EL1/0 的运行状态。
+  \item EL0 不会处理异常（只运行应用程序代码）。
+\end{itemize}
+
+如下图所示，考虑当应用程序正在 EL0 上运行时，发生了 IRQ 中断的情况。
+而内核的 IRQ 处理函数运行于 EL1。
+中断发生时，处理器会决定如何设置运行状态。
+它通过查看更高异常级（EL2）的控制寄存器的 RW 位。
+这个例子中它会查看 \lstinline!HCR_EL2.RW!。
+
+\Figure[caption={到 EL1 的异常}, label={fig:exception-to-el1}, width=0.4]{exception-to-el1}
+
+那么接下来还要考虑异常级别的切换。
+同样的，异常发生时异常级别可以切到更高或保持不变。
+老生常谈，EL0 不处理异常。
+
+同步异常通常由当前异常级别或更高的异常级别处理。
+然而，异步异常可以被路由到更高异常级。
+对于安全代码来说，\lstinline!SCR_EL3! 可用于指定哪些异常可以路由到 EL3。
+对于 hypervisor 代码而言，\lstinline!HCR_EL2! 可用于指定哪些异常可以路由到 EL2。
+
+在所有的路由情况下，IRQ、FIQ 和 SError 都由独立的字段来控制。
+处理器只会把异常带入到它被路由的异常级去处理。
+异常不可能到比它出发的异常级低的级别去处理。
+中断只能在其处理的异常级才能被屏蔽。
+
+将异常从 AArch32 带入到 AArch64 时，需要做一些特殊考虑。
+AArch64 处理代码可能需要访问 AArch32 的寄存器，因此架构将寄存器映射到 AArch32 上来对其进行访问。
+
+AArch32 寄存器的 R0 到 R12 对应 X0 到 X12。
+AArch32 不同模式的所有储备 SP 和 LR 寄存器对应于 X13 到 X23，储备 的 FIQ 寄存器 R8 到 R12 对应 X24 到 X29。
+这些寄存器的 \[63:32\] 位在 AArch32 模式下无法获取，其值为 0 或者为上次在 AArch64 下写入的值。
+架构不保证这些高位值，所以一般都以 W 寄存器去访问。
+
+\subsubsection{AArch64 的异常向量表}
+
+当异常发生时，处理器必须执行可以处理该异常的处理函数代码。
+异常处理代码保存的内存地址称作异常向量。
+ARM 架构下，异常向量存在一个表中，称为异常向量表。
+除了 EL0 外，每个异常级都有一个异常向量表。
+向量表中保存异常发生时要被执行的代码，而不是一些地址。
+不同异常的向量被放在表中的固定地址偏移上。
+分别通过向量基地址寄存器 \lstineline!VBAR_EL3!、\lstineline!VBAR_EL2! 和 \lstineline!VBAR_EL1! 设置每个表的虚拟地址。
+
+向量表中的每个条目长度为 32 指令（单个指令为 4-byte）长度。
+这相对 ARMv7 的向量表条目只有 4 byte 来说，有了重大的改变。
+对于 ARMv7 来说，一个 4-byte 的条目只能存放一个跳转类型的指令，跳转到一个真正的异常处理函数地址上。
+而 AArch64 的异常向量的空间足够大，可以直接在异常向量中直接处理异常。
+
+下表展示了一个异常向量表。
+基地址由 \lstineline!VBAR_ELn! 设置，而每个条目都在基于该地址的偏移上。
+每个表含有 16 个条目，每个条目为 128 byte（32 条指令）。
+向量表由 4 组 4 条目组成，使用哪个条目则由以下因素决定：
+
+\begin{itemize}
+  \item 异常类型（SError、FIQ、IRQ 和 同步异常）
+  \item 如果异常在同一异常级产生，那么使用栈指针（SP0 或 SPx）
+  \item 如果异常在较低的异常级产生，那么决定较低一级的执行状态（AArch64 或 AArch32）
+\end{itemize}
+
+\begin{ltblr}[caption={异常向量表}, label={tbl:exp-table}]
+  {colspec={c>{\centering\arraybackslash}X>{\centering\arraybackslash}X}}
+  \hline[1pt]
+  地址 & 异常类型 & 描述\\
+  \hline
+  VBAR\_ELn+0x000  & Synchronous & \SetCell[r=4]{c} Current EL with SP0\\
+  +0x080 & IRQ/vIRQ & \\
+  +0x100 & FIQ/vFIQ & \\
+  +0x180 & SError/vSError & \\
+  \hline
+  +0x200 & Synchronous & \SetCell[r=4]{c} Current EL with SPx\\
+  +0x280 & IRQ/vIRQ & \\
+  +0x300 & FIQ/vFIQ & \\
+  +0x380 & SError/vSError & \\
+  \hline
+  +0x400 & Synchronous & \SetCell[r=4]{c} Lower EL using AArch64\\
+  +0x480 & IRQ/vIRQ & \\
+  +0x500 & FIQ/vFIQ & \\
+  +0x580 & SError/vSError & \\
+  \hline
+  +0x600 & Synchronous & \SetCell[r=4]{c} Lower EL using AArch32\\
+  +0x680 & IRQ/vIRQ & \\
+  +0x700 & FIQ/vFIQ & \\
+  +0x780 & SError/vSError & \\
+  \hline[1pt]
+\end{ltblr}
+
+举个例子来理解上述的异常条目的选择。
+
+如果内核代码正在 EL1 下运行，而此时正好发生了一个中断 IRQ，该中断并未关联到更高的异常级（hypervisor 或 secure 环境），那么该中断也是由 EL1 下的内核代码来处理（内核此时的栈是 \lstinline!SP_EL1!，并且设置在 SPSel 字段，那么异常处理代码也使用 \lstinline!SP_EL1!）。所以，异常发生时的跳转地址即为 \lstinline!VBAR_EL1 + 0x280!。
+
+由于 ARMv8 中不存在 \lstinline!LDR PC, [PC, #offset]! 指令，所以程序员必须使用更多的指令才能从寄存器表中读取到目的地址。
+异常向量的间距的设计旨在避免未使用的向量对典型大小的指令高速缓存线造成高速缓存污染。
+Reset 的地址是由\textbf{设计决定的}完全独立的地址，通常是硬件固化配置。该地址可由 \lstinline!RVBAR_EL1/2/3! 等寄存器获取。
+
+无论当前的异常级还是较低的异常级中每个异常都有独立的异常向量的设计给 OS 或 hypervisor 带来灵活性，即可以灵活的决定较低异常级的运行状态（AArch64 还是 AArch32）。
+\lstinline!SP_ELn! 用于较低异常级产生的异常。
+但是，软件可以在异常处理代码中切换到 \lstinline!SP_EL0!。
+使用此机制有助于从处理程序的线程中访问变量值。
+
 \subsection{Caches}
 
 \subsection{MMU}
@@ -2190,4 +2304,10 @@ ESR 寄存器的编码如下：
 
 \section{内存层级}
 
-% vim:set ts=8 sts=2 sw=2 et:
+\section{每个程序员都应该知道的内存知识}
+
+关于内存相关的知识，强烈建议阅读
+\href{https://people.freebsd.org/~lstewart/articles/cpumemory.pdf}{What Every Programmer Should Know About Memory}。
+
+
+% nvim: set ts=2 sts=2 sw=2 et:
