@@ -22,7 +22,7 @@ FIGSRC := $(wildcard drawio/*.drawio)
 FIGSRC += $(wildcard dac/*)
 SVGSRC := $(wildcard figure/*.svg)
 
-TARGET ?= 写作模板
+TARGET ?= 嵌入式知识体系总结
 
 export TEXMFHOME=texmf
 export TARGET CONTFORM BUILDIR METADATA_FILE
