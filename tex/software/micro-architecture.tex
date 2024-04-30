@@ -2228,7 +2228,7 @@ ARM 架构下，异常向量存在一个表中，称为异常向量表。
 除了 EL0 外，每个异常级都有一个异常向量表。
 向量表中保存异常发生时要被执行的代码，而不是一些地址。
 不同异常的向量被放在表中的固定地址偏移上。
-分别通过向量基地址寄存器 \lstineline!VBAR_EL3!、\lstineline!VBAR_EL2! 和 \lstineline!VBAR_EL1! 设置每个表的虚拟地址。
+分别通过向量基地址寄存器 \lstinline!VBAR_EL3!、\lstinline!VBAR_EL2! 和 \lstinline!VBAR_EL1! 设置每个表的虚拟地址。
 
 向量表中的每个条目长度为 32 指令（单个指令为 4-byte）长度。
 这相对 ARMv7 的向量表条目只有 4 byte 来说，有了重大的改变。
@@ -2236,7 +2236,7 @@ ARM 架构下，异常向量存在一个表中，称为异常向量表。
 而 AArch64 的异常向量的空间足够大，可以直接在异常向量中直接处理异常。
 
 下表展示了一个异常向量表。
-基地址由 \lstineline!VBAR_ELn! 设置，而每个条目都在基于该地址的偏移上。
+基地址由 \lstinline!VBAR_ELn! 设置，而每个条目都在基于该地址的偏移上。
 每个表含有 16 个条目，每个条目为 128 byte（32 条指令）。
 向量表由 4 组 4 条目组成，使用哪个条目则由以下因素决定：
 
@@ -2285,6 +2285,113 @@ Reset 的地址是由\textbf{设计决定的}完全独立的地址，通常是�
 \lstinline!SP_ELn! 用于较低异常级产生的异常。
 但是，软件可以在异常处理代码中切换到 \lstinline!SP_EL0!。
 使用此机制有助于从处理程序的线程中访问变量值。
+
+\subsubsection{中断处理}
+
+ARM 通常使用中断（interrupt） 来表示中断信号。
+在 ARM A-profile 和 R-profile 处理器上，表示外部的 IRQ 或 FIQ 中断信号。
+架构并未指定这些信号的使用方法。
+FIQ 一般保留为安全中断源。
+在早期的架构中，FIQ 和 IRQ 用于表示高中断优先级和标准中断优先级，但是 ARMv8-A 已经不是这种概念了。
+
+当处理器在 AArch64 运行状态下产生一个异常时，所有的 PSTATE 中断屏蔽字段都会被自动设置。
+这意味后面的异常都被关闭掉了。
+如果软件想要支持嵌套异常，例如运行一个更高优先级的中断打断正在处理的低级的中断，那么软件必须明确的重新使能这些中断。
+
+使用的指令如下：
+
+% \noindent
+{
+  \lstinline!MSR DAIFClr, #imm!
+}
+
+立即数是一个 4-bit 长度的字段，表示：
+
+\begin{itemize}
+  \item PSTATE.A (SError)
+  \item PSTATE.D (Debug)
+  \item PSTATE.I (IRQ)
+  \item PSTATE.F (FIQ)
+\end{itemize}
+
+\Figure[caption={C 中断处理示意}, label={fig:irq-hdl-in-c}, width=0.5]{irq-hdl-in-c}
+
+一个汇编语言编写的 IRQ 处理函数类似为：
+
+\begin{lstlisting}[
+  language={[ARM]Assembler},
+  caption={汇编 IRQ handler},
+  label={lst:asm-irq-hdl}
+]
+
+IRQ_Handler
+                          // Stack all corruptible registers
+STP X0, X1, [SP, #-16]!   // SP = SP -16
+//...
+STP X2, X3, [SP, #-16]!   // SP = SP - 16
+                          // unlike in ARMv7, there is no STM instruction and
+                          // so we may need several STP instructions
+BL read_irq_source        // a function to work out why we took an interrupt
+                          // and clear the request
+BL C_irq_handle           // the C interrupt handler
+                          // restore from stack the corruptible registers
+LDP X2, X3, [SP], #16     // S = SP + 16
+LDP X0, X1, [SP], #16     // S = SP + 16
+//...
+ERET
+\end{lstlisting}
+
+然而，从性能考虑，下面的代码会更好一些：
+
+\begin{lstlisting}[
+  language={[ARM]Assembler},
+  caption={汇编 IRQ handler (better)},
+  label={lst:asm-irq-hdl-b}
+]
+
+SUB SP, SP, #<frame_size>   // SP = SP - <frame_size>
+STP X0, X1, [SP}            // Store X0 and X1 at the base of the frame
+
+STP X2, X3, [SP]            // Store X2 and X3 at the base of the frame + 16
+//...                       // bytes more register storing
+//...
+                            // Interrupt handling
+BL read_irq_source          // a function to work out why we took an interrupt
+                            // and clear the request
+BL C_irq_handler            // the C interrupt handler
+                            // restore from stack the corruptible registers
+LDP X0, X1, [SP]            // Load X0 and X1 at the base of the frame
+LDP X2, X3, [SP]            // Load X2 and X3 at the base of the frame + 16
+//...                       // bytes more register loading
+ADD SP, SP, #<frame_size>   // Restore SP at its original value
+//...
+ERET 
+\end{lstlisting}
+
+\Figure[caption={处理嵌套中断}, label={fig:hdl-nest-irqs}, width=0.8]{hdl-nest-irqs}
+
+嵌套的处理函数需要更多代码。
+它必须将 \lstinline!SPSR_EL1! 和 \lstinline!ELR_EL1! 保存到栈上。
+处理代码中也必须在确定（以及清除）中断来源后重新使能所有 IRQ。
+然而（与 ARMv7-A 不同），用于子例程调用的链接寄存器和异常使用的链接寄存器是不同的，所以必须要避免对 LR 和 模式做任何特殊的操作。
+
+\begin{probsolu}[title={Problem and Solution \theprob}]{
+  如何处理嵌套中断？写出处理嵌套中断的代码。（可以从 FreeRTOS、RT-Thread 等代码中找到参考）
+  }\label{pb:how-to-hdl-nest-irqs}
+
+  经查阅，RT-Thread 在进入中断处理函数之前保存了浮点寄存器 Q0-Q31、通用寄存器 X0-X30、FPCR、FPSR、SP\_EL0、SPSR\_EL1 和 ELR\_EL1 到栈上。
+  最后将栈保存到 X0 寄存器中。
+
+  具体可查阅 RT-Thread 代码 \lstinline!aarch64/common/context_gcc.S!。
+\end{probsolu}
+
+\subsubsection{GIC}
+
+ARM 提供了一个标准的中断控制器可用于 ARMv8-A 系统中。
+该中断控制器的编程接口定义在 GIC 架构中。
+GIC 架构定义了多个版本，本文档主要介绍 GICv2。
+ARMv8-A 处理器与 GIC 连接，例如，GIC-400 或 GIC-500 等。
+GIC 支持在多核之间路由软件产生的、私有和共享的外设中断。
 
 \subsection{Caches}
 
