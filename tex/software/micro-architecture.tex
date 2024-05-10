@@ -2408,7 +2408,123 @@ Cache 是一个小型的快速的内存块，它存在于主内存和处理器�
 由于减少了对外部内存的访问次数所以大大增加了系统的潜在性能。
 另外，由于避免了驱动外部信号所以也减少了系统的功耗。
 
+\Figure[caption={Cache 的基本组成}, label={fig:basic-cache-arrangement}]{basic-cache-arrangement}
+
+ARMv8 架构处理器一般有 2-3 级 cache，通常每个 CPU 核都含有较小的一级 I-Cache 和 D-Cache。
+基于 Cortex-A53 和 Cortex-A57 的处理器一般有 2 级及以上的 Cache，即较小的一级 I-Cache 和 D-Cache，以及更大的 Cluster 共享的二级 Cache。
+另外，还可以增加 Cluster 之间共享的更大的 3 级 Cache。
+
+系统初始状态访问数据不会得到加速，此时 Cache 也需要填充从内存中读取的数据。
+然而，当 Cache 中缓存了一定量的数据，系统再次需要这些数据时，Cache 的加速功能便显现出来。
+处理器在取指令或数据读写时先去检查 Cache，但是有一部分内存地址必须要标记为不可缓存的，比如外设寄存器地址空间。
+由于 Cache 中只能缓存一小部分主存数据，所以必须要想出一种高效的方式来快速检测数据是否在 Cache 中。
+
+有时，Cache 中的数据和外部主存的数据会出现不一致。
+可能的情况有，处理器更新了 Cache 中的数据，但是还没有写回主存；
+或者，某个硬件机构在处理器获取主存的数据后更改了主存中的数据，例如 DMA。
+这种数据一致性的问题将在后续章节继续讲述。
+这种问题在多核和有 DMA 的情况下特别需要注重。
+
+\subsubsection{Cache 术语}
+
+Von Neumann 架构定义单个 Cache 用于指令和数据的缓存（统一 Cache）。
+Harvard 架构更新了该种形式，提出 I-Cache 和 D-Cache 分开缓存指令和数据的形式。
+ARMv8 架构则在 L1 Cache 中使用 Harvard 形式，更高级使用统一的 Cache。
+
+Cache 需要保存地址、数据和一些状态信息。
+
+下图简略描述了 Cache 的术语及基础框架。
+
+\Figure[caption={Cache 术语}, label={fig:cache-terminology}]{cache-terminology}
+
+\begin{itemize}
+  \item \textit{tag} 是保存在 Cache 中的部分内存地址，这部分地址用于连系内存地址和 Cache line。
+    64 位内存地址的高字段告诉 Cache 数据信息在内存中的来源，该高字段即称为 \textit{tag}。
+    总缓存大小衡量的是它可以保存的数据量，但用于保存 \textit{tag} 的 RAM 不包括在计算中。
+    然而，tag 仍然是占用物理空间的。
+  \item 如果每个 tag 下只存放一个 word，那么 tag 所占的比重就太大了，导致 Cache 的利用率很低。
+    所以就定义了每个 tag 下可以存放 \textit{Cache line} 大小的数据。
+    Cache line 是 Cache 可以提供的最小数据量，并且 Cache line 中保存的数据是内存中连续的数据 word。
+    当 Cache line 中存有指令或数据时，称为有效（valid），反之则为无效（invalid）。
+
+    Cache line 数据相关联有一个或多个状态位。
+    通常，有一个有效位表明 Cache line 是否存在有效数据，意味着 tag 中含有真是数据。
+    D-Cache 中也可能含有污染（dirty）位，用以表明该 Cache line 中的数据（或部分数据）与主存中数据是否不同（比其更新）。
+  \item \textit{way} 是 Cache 的细分，每个 way 都具有相同的大小，相同的索引方式。
+    \textit{set} 由所有 way 中的所有具有相同索引方式的 line 组成。
+  \item 地址中的低字段（做为 offset），则不需要保存到 tag 中。
+    Cache 给出的是一行（cache line）数据，所以地址中有 5 到 6 个最低有效位恒为 0（也就是说 cache line 有 $2^5$ - $2^6$ 个 byte）。
+\end{itemize}
+
+\BlockDesc{组（Set）相连 Cache 和 way}
+
+ARM 架构下的 Cache 基本都是组相连的，这种类型的 Cache 极大的减少了直接映射型 Cache 的抖动（thrashing）问题\footnote{
+Where main memory is accessed in a pattern that leads to multiple main memory locations competing for the same cache lines, resulting in excessive cache misses.
+This is most problematic for caches that have low associativity.
+ }，从而提升程序的执行速度并且增加了更多可预测的执行。
+不过，该种类型的 Cache 也会增加硬件的复杂度和略微增加功耗，这是由于每个 cycle 下会比较多个 tag。
+
+在这种类型的 Cache 组织方式下，Cache 被分成许多大小相同的块，这些块就是 \textit{way}。
+那么内存地址便可以映射到 way，而不是 line 上。
+可以使用地址中的索引字段继续选择特定的 line，但是此时它指向的是每个 way 中的单独 line。
+通常，L1 Cache 中有 2 - 4 路，Contex-A57 则有 3-way 的 L1 I-Cache。
+而 L2 Cache 通常有 16 路。
+
+外部的 L3 Cache 的大小更大，所以有更多路，因此有更高的关联性。
+具有相同索引值的 line 属于同一 set，于是检查是否命中需要查看 set 中的所有 tag。
+
+下图是一个 2-way 相连的 Cache。
+主存中的 0x00、0x40 和 0x80 可能出现在其中一路中，但是不会同时存在于两路中。
+
+\Figure[caption={2-way 组相连 Cache}, label={fig:2-way-set-associative-cache}]{2-way-set-associative-cache}
+
+关联性的增加（即增加 way 数）可以降低 thrashing 的概率。
+最理想的情况是全相连 Cache，即主存和 Cache 一一映射，每个地址都能找到对应。
+如果不是想缓存很少的数据来说（例如 TLB），构建这样的 Cache 是不现实的。
+实际上， 8-way 以上的对与性能来说提升很小，16-way 的关联性对于更大的 L2 才更有用。
+
+\BlockDesc{tag 和 物理地址}
+
+一个 tag 对应一条 line，用于记录关联于 line 的外部内存物理地址。
+Cache line 的大小是由\textbf{实现决定的}，但是所有的 CPU 核都具有相同的 Cache line 大小，因为这些核之间是相互连系的。
+
+要访问的物理地址决定数据缓存在 Cache 中的位置。
+最低有效字段用于选择 Cache 中的相关条目。
+中间字段用于选择 set 中的特定 line。
+最高有效字段标识地址的剩余部分，并与保存的 tag 进行比较。
+ARMv8 下数据 Cache 通常是 \textit{Physically Indexed, Physically Tagged}（PIPT），也可以是 non-aliasing \textit{Virtually Indexed, Physically Tagged}（VIPT）。
+
+Cache line 包含以下成员：
+
+\begin{itemize}
+  \item 关联物理地址中的 tag 值。
+  \item 表明 line 是否存在的有效位，亦即 tag 是否有效。
+    如果缓存在多个核心之间是一致的，有效位也可以是 MESI 状态的状态位。
+  \item 表明 Cache line 与外部内存不一致的 dirty 位。
+\end{itemize}
+
+一个简单的 4路组相连的 32KB L1 D-Cache 如下所示，该 Cache 的 line 大小为 16-word（64 byte）。
+
+\Figure[caption={32KB 4-way D-Cache}, label={fig:32KB-4-way-D-Cache}]{32KB-4-way-D-Cache}
+
+\BlockDesc{包容或排它 Cache}
+
+包容型 Cache 即数据可以同时存在与 L1 和 L2 Cache 中。
+排它型 Cache 即数据只能同时存在于单级 Cache，同一地址不可能同时在 L1 和 L2 中出现。
+
+\subsubsection{Cache 控制器}
+
+
+
 \subsection{MMU}
+
+\begin{Tcbox}[title={扩展}]
+\textbf{TLB thrashing}
+
+Where the translation lookaside buffer (TLB) acting as a cache for the memory management unit (MMU) which translates virtual addresses to physical addresses is too small for the working set of pages. TLB thrashing can occur even if instruction cache or data cache thrashing is not occurring because these are cached in different sizes. Instructions and data are cached in small blocks (cache lines), not entire pages, but address lookup is done at the page level. Thus even if the code and data working sets fit into the cache, if the working sets are fragmented across many pages, the virtual address working set may not fit into TLB, causing TLB thrashing.
+
+  更多关于 thrashing 的概念可以参考\href{https://en.wikipedia.org/wiki/Thrashing_(computer_science)}{维基百科}。
+\end{Tcbox}
 
 \subsection{Memory ordering} \label{sec:memory-ordering}
 
