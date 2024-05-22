@@ -387,7 +387,7 @@ EL0 异常级具有最低的权限，并且只有极少数的系统系统器可�
 \begin{probsolu}[title={Problem and Solution \theprob}]{
     手册上写的 Explicit data access 怎么理解？}
 
-  “Explicit data access” 是指在编程中明确地访问数据的操作。
+  “Explicit data access”是指在编程中明确地访问数据的操作。
   这意味着程序员直接指定要访问的数据和操作，而不依赖于编译器或运行时系统的隐式处理。
 
   这种方式通常用于对内存中的数据进行读取、写入或者其他操作。
@@ -1257,7 +1257,7 @@ AArch64 加强了浮点功能，改动如下（相对于 ARMv7）：
   \item 前缀 V 替换成 F。
   \item 先已支持 IEEE754 浮点标准定义的单精度（32-bit）和双精度（64-bit）浮点向量数据类型和运算。
     遵循 FPCR 寄存器中指定的舍入模式来执行浮点数运算\footnote{
-      “Honoring the FPCR Rounding Mode field” 表示处理器或者软件库遵循浮点控制寄存器（Floating Point Control Register，FPCR）中的舍入模式字段（Rounding Mode field）。
+    “Honoring the FPCR Rounding Mode field”表示处理器或者软件库遵循浮点控制寄存器（Floating Point Control Register，FPCR）中的舍入模式字段（Rounding Mode field）。
 
       在 IEEE 754 浮点数标准中，舍入模式指定了在进行浮点数运算时如何处理结果的舍入方式。
       常见的舍入模式包括向最接近的偶数舍入、向正无穷大舍入、向负无穷大舍入、向零舍入等。
@@ -1272,7 +1272,7 @@ AArch64 加强了浮点功能，改动如下（相对于 ARMv7）：
 
     类似 ARMv7，浮点 FCMP、FCMPE、FCCMP 和 FCCMP 指令根据浮点比较结果设置 PSTATE.\{N, Z, C, V\} 标志，但是不会更改 FPSR 寄存器中的状态标志。
   \item 合并所有浮点乘加（Multiply-Add）和乘减（Multiply-Subtract）指令\footnote{
-      “Fused Multiply-Add (FMA)” 指的是在单个指令中执行乘加运算的能力。
+      “Fused Multiply-Add (FMA)”指的是在单个指令中执行乘加运算的能力。
       这意味着指令可以同时进行乘法和加法操作，并且结果是精确的。
       这样可以提高性能，并且在一些情况下可以提高数值计算的精度。
 
@@ -1294,7 +1294,7 @@ AArch64 加强了浮点功能，改动如下（相对于 ARMv7）：
       \item[-] 到 $+\inf$。
       \item[-] 到 $-\inf$。
       \item[-] 到一个接近的偶数。
-      \item[-] 到更远离零的那个整数\footnote{在 “Nearest with ties to away” 这种舍入模式下，如果一个值恰好处于两个整数的中间，它会舍入到远离零的整数。
+      \item[-] 到更远离零的那个整数\footnote{在“Nearest with ties to away”这种舍入模式下，如果一个值恰好处于两个整数的中间，它会舍入到远离零的整数。
           换句话说，如果一个值恰好处于两个整数的中间，它会舍入到更远离零的那个整数。
         }。
     \end{itemize}
@@ -1510,7 +1510,8 @@ AArch64 改动了 NEON 和浮点指令的语法以协调核心整型和标量浮
 
   \item \textit{Wide} 或 \textit{Widening 指令}对双字和四字向量操作数进行操作，产生四字向量。
     产生的结果元素（第一个操作数）的长度是第二个操作数元素长度的两倍。
-    Wide 指令含有一个 W 后缀。例如，
+    Wide 指令含有一个 W 后缀。
+    例如，
 
     \lstinline!SADDW V0.4S, V1.4H, V2.4S!
 
@@ -1520,7 +1521,8 @@ AArch64 改动了 NEON 和浮点指令的语法以协调核心整型和标量浮
 
   \item \textit{Narrow} 或 \textit{Narrowing 指令}对四字向量进行操作，并且生成双字向量。
     生产的元素通常为操作数元素长度的一半。
-    Narrow 指令用 N 后缀指定。例如，
+    Narrow 指令用 N 后缀指定。
+    例如，
 
     \lstinline!SUBHN V0.4H, V1.4S, V2.4S!
 
@@ -2021,7 +2023,7 @@ SS（Software Stepping）字段在调试相关章节讲解。
 另外，在同步或 SError 异常的情况下，也会把 \lstinline!ESR_ELn! 更新为表面异常产生原因的值。
 
 软件通过执行 ERET 指令来通知处理器何时从异常返回。
-执行 ERET 将从 \lstinline!SPSR_ELn! 恢复异常前的 PSTATE 值并且从 \lstinline!ELR_ELn! 恢复之前的程序运行地址。 
+执行 ERET 将从 \lstinline!SPSR_ELn! 恢复异常前的 PSTATE 值并且从 \lstinline!ELR_ELn! 恢复之前的程序运行地址。
 
 上面已经讲述了 SPSR 如何为异常返回记录必要的状态信息。
 下面将继续讲述 link 寄存器如何存储程序地址信息。
@@ -2154,12 +2156,13 @@ IRQ、FIQ 和 SError 由一些单独的 bit 来独立控制。
 
 \lstinline!ESR_ELn! 寄存器保存异常的信息，可由异常处理函数从中获取异常产生的原因。
 它只会在发生同步异常和 SError 异常时更新。
-它不会在产生 IRQ 或 FIQ 时更新，IRQ 和 FIQ 的状态信息保存在 GIC 的寄存器中（详情查阅 \textit{The Generic Interrupt Controller}）。 
+它不会在产生 IRQ 或 FIQ 时更新，IRQ 和 FIQ 的状态信息保存在 GIC 的寄存器中（详情查阅 \textit{The Generic Interrupt Controller}）。
 ESR 寄存器的编码如下：
 
 \begin{description}
   \item[31:26] 异常类，异常处理函数可用以区分异常类别（例如未分配的指令、从 MCR/MRC 到 CP15 所产生的异常、FP 操作异常、SVC、HVC、SMC、数据中止和对齐异常）。
-  \item[25] 异常指令的长度（0 代表 16-bit 指令；1 代表 32-bit 指令），并且设置给特定异常类。
+  \item[25] 异常指令的长度（0 代表 16-bit 指令；
+    1代表 32-bit 指令），并且设置给特定异常类。
   \item[24:0] 形成 Instruction Specific Syndrome (ISS) 字段，包含该类异常的信息。
     例如：当系统调用指令（SVC、HVC 或 SMC）执行时，该字段包含指令的立即数，比如当执行 \lstinline!SVC 0x123456! 时该字段包含 0x123456。
 \end{description}
@@ -2267,11 +2270,13 @@ ARM 架构下，异常向量存在一个表中，称为异常向量表。
 
 举个例子来理解上述的异常条目的选择。
 
-如果内核代码正在 EL1 下运行，而此时正好发生了一个中断 IRQ，该中断并未关联到更高的异常级（hypervisor 或 secure 环境），那么该中断也是由 EL1 下的内核代码来处理（内核此时的栈是 \lstinline!SP_EL1!，并且设置在 SPSel 字段，那么异常处理代码也使用 \lstinline!SP_EL1!）。所以，异常发生时的跳转地址即为 \lstinline!VBAR_EL1 + 0x280!。
+如果内核代码正在 EL1 下运行，而此时正好发生了一个中断 IRQ，该中断并未关联到更高的异常级（hypervisor 或 secure 环境），那么该中断也是由 EL1 下的内核代码来处理（内核此时的栈是 \lstinline!SP_EL1!，并且设置在 SPSel 字段，那么异常处理代码也使用 \lstinline!SP_EL1!）。
+所以，异常发生时的跳转地址即为 \lstinline!VBAR_EL1 + 0x280!。
 
 由于 ARMv8 中不存在 \lstinline!LDR PC, [PC, #offset]! 指令，所以程序员必须使用更多的指令才能从寄存器表中读取到目的地址。
 异常向量的间距的设计旨在避免未使用的向量对典型大小的指令高速缓存线造成高速缓存污染。
-Reset 的地址是由\textbf{设计决定的}完全独立的地址，通常是硬件固化配置。该地址可由 \lstinline!RVBAR_EL1/2/3! 等寄存器获取。
+Reset 的地址是由\textbf{设计决定的}完全独立的地址，通常是硬件固化配置。
+该地址可由 \lstinline!RVBAR_EL1/2/3! 等寄存器获取。
 
 无论当前的异常级还是较低的异常级中每个异常都有独立的异常向量的设计给 OS 或 hypervisor 带来灵活性，即可以灵活的决定较低异常级的运行状态（AArch64 还是 AArch32）。
 \lstinline!SP_ELn! 用于较低异常级产生的异常。
@@ -2280,7 +2285,7 @@ Reset 的地址是由\textbf{设计决定的}完全独立的地址，通常是�
 
 \subsubsection{中断处理}
 
-ARM 通常使用中断（interrupt） 来表示中断信号。
+ARM 通常使用中断（interrupt）来表示中断信号。
 在 ARM A-profile 和 R-profile 处理器上，表示外部的 IRQ 或 FIQ 中断信号。
 架构并未指定这些信号的使用方法。
 FIQ 一般保留为安全中断源。
@@ -2368,7 +2373,8 @@ ERET
 然而（与 ARMv7-A 不同），用于子例程调用的链接寄存器和异常使用的链接寄存器是不同的，所以必须要避免对 LR 和 模式做任何特殊的操作。
 
 \begin{probsolu}[title={Problem and Solution \theprob}]{
-  如何处理嵌套中断？写出处理嵌套中断的代码。（可以从 FreeRTOS、RT-Thread 等代码中找到参考）
+  如何处理嵌套中断？写出处理嵌套中断的代码。
+  （可以从 FreeRTOS、RT-Thread 等代码中找到参考）
   }\label{pb:how-to-hdl-nest-irqs}
 
   经查阅，RT-Thread 在进入中断处理函数之前保存了浮点寄存器 Q0-Q31、通用寄存器 X0-X30、FPCR、FPSR、SP\_EL0、SPSR\_EL1 和 ELR\_EL1 到栈上。
@@ -2393,7 +2399,7 @@ ARM 架构开发初期，处理器的速度和访问内存的速度大体相近�
 不过这些 RAM 与 DRAM 比起来非常昂贵，相比起来，DRAM 一般拥有数千倍以上的容量。
 ARM 架构下，访问外部 ram 通常需要数十个处理器周期，甚至数千个。
 
-Cache 是一个小型的快速的内存块，它存在于主内存和处理器之间，保存有主内存中的数据缓存。 
+Cache 是一个小型的快速的内存块，它存在于主内存和处理器之间，保存有主内存中的数据缓存。
 访问 Cache 的速度比访问外存快很多。
 处理核需要读取或者写入一个特定地址时，先去查看 Cache 里面有没有保存该地址的数据。
 如果 Cache 找到该地址，那么它就使用 Cache 中的数据，并不再访问主内存。
@@ -2402,7 +2408,7 @@ Cache 是一个小型的快速的内存块，它存在于主内存和处理器�
 
 \Figure[caption={Cache 的基本组成}, label={fig:basic-cache-arrangement}]{basic-cache-arrangement}
 
-ARMv8 架构处理器一般有 2-3 级 cache，通常每个 CPU 核都含有较小的一级 I-Cache 和 D-Cache。
+ARMv8 架构处理器一般有 2 - 3 级 cache，通常每个 CPU 核都含有较小的一级 I-Cache 和 D-Cache。
 基于 Cortex-A53 和 Cortex-A57 的处理器一般有 2 级及以上的 Cache，即较小的一级 I-Cache 和 D-Cache，以及更大的 Cluster 共享的二级 Cache。
 另外，还可以增加 Cluster 之间共享的更大的 3 级 Cache。
 
@@ -2473,7 +2479,7 @@ This is most problematic for caches that have low associativity.
 关联性的增加（即增加 way 数）可以降低 thrashing 的概率。
 最理想的情况是全相连 Cache，即主存和 Cache 一一映射，每个地址都能找到对应。
 如果不是想缓存很少的数据来说（例如 TLB），构建这样的 Cache 是不现实的。
-实际上， 8-way 以上的对与性能来说提升很小，16-way 的关联性对于更大的 L2 才更有用。
+实际上，8-way 以上的对与性能来说提升很小，16-way 的关联性对于更大的 L2 才更有用。
 
 \BlockDesc{tag 和 物理地址}
 
@@ -2495,7 +2501,7 @@ Cache line 包含以下成员：
   \item 表明 Cache line 与外部内存不一致的 dirty 位。
 \end{itemize}
 
-一个简单的 4路组相连的 32KB L1 D-Cache 如下所示，该 Cache 的 line 大小为 16-word（64 byte）。
+一个简单的 4 路组相连的 32KB L1 D-Cache 如下所示，该 Cache 的 line 大小为 16-word（64 byte）。
 
 \Figure[caption={32KB 4-way D-Cache}, label={fig:32KB-4-way-D-Cache}]{32KB-4-way-D-Cache}
 
@@ -2526,7 +2532,8 @@ Cache 控制器通常先从 cache line 中获取关键字（\textit{critical wor
 
 \BlockDesc{缓存策略}
 
-Cache 策略简而言之就是，数据 Cache 何时需要申请 line；存储指令执行时并且数据 Cache 命中后应该发生什么事情。
+Cache 策略简而言之就是，数据 Cache 何时需要申请 line；
+存储指令执行时并且数据 Cache 命中后应该发生什么事情。
 
 Cache 的分配机制有以下几种：
 
@@ -2664,11 +2671,15 @@ AArch64 缓存维护操作使用具有以下一般形式的指令执行：
   \hline[1pt]
 \end{ltblr}
 
-那些接受地址参数的指令使用一个64位寄存器，该寄存器保存要维护的虚拟地址。该地址没有对齐限制。接受组/路/级别参数的指令，使用一个64位寄存器，其低32位遵循 ARMv7 架构中描述的格式。AArch64 数据缓存失效指令，\lstinline!DC IVAC!，需要写入权限，否则会生成权限故障。
+那些接受地址参数的指令使用一个 64 位寄存器，该寄存器保存要维护的虚拟地址。
+该地址没有对齐限制。
+接受组 / 路 / 级别参数的指令，使用一个 64 位寄存器，其低 32 位遵循 ARMv7 架构中描述的格式。
+AArch64 数据缓存失效指令，\lstinline!DC IVAC!，需要写入权限，否则会生成权限故障。
 
 所有指令缓存维护指令可以以任何顺序执行，相对于其他指令缓存维护指令、数据缓存维护指令和加载存储指令，除非在指令之间执行了 DSB。
 
-除了 \lstinline!DC ZVA! 之外的数据缓存操作，如果它们指定了一个地址，只有在它们指定相同地址时，才保证按程序顺序执行。指定地址的那些操作，相对于不指定地址的所有维护操作，按程序顺序执行。
+除了 \lstinline!DC ZVA! 之外的数据缓存操作，如果它们指定了一个地址，只有在它们指定相同地址时，才保证按程序顺序执行。
+指定地址的那些操作，相对于不指定地址的所有维护操作，按程序顺序执行。
 
 考虑以下代码。
 
@@ -2683,7 +2694,8 @@ IC IVAU, X1  // Might be out of order relative to the previous operations if
              // x0 and x1 differ
 \end{lstlisting}
 
-前两条指令按顺序执行，因为它们引用相同的地址。然而，最后一条指令可能相对于前面的操作重新排序，因为它引用了不同的地址。
+前两条指令按顺序执行，因为它们引用相同的地址。
+然而，最后一条指令可能相对于前面的操作重新排序，因为它引用了不同的地址。
 
 \begin{lstlisting}[
   language={[ARM]Assembler},
@@ -2695,16 +2707,23 @@ IC IALLU     // I cache Invalidate All to Point of Unification
              // Operations execute in order
 \end{lstlisting}
 
-这仅适用于发出指令。只有在执行 DSB 指令后才能确保完成。
+这仅适用于发出指令。
+只有在执行 DSB 指令后才能确保完成。
 
-在ARMv8-A中，使用 \lstinline!DC ZVA! 指令预加载数据缓存的零值是一项新功能。处理器的运行速度通常显著快于外部内存系统，有时从内存加载缓存行可能需要很长时间。
+在 ARMv8-A 中，使用 \lstinline!DC ZVA! 指令预加载数据缓存的零值是一项新功能。
+处理器的运行速度通常显著快于外部内存系统，有时从内存加载缓存行可能需要很长时间。
 
-缓存行清零的行为类似于预取，它是一种提示处理器未来可能会使用某些地址的方式。然而，清零操作可能会更快，因为不需要等待外部内存访问完成。
-与从内存读取实际数据到缓存不同，你会得到填充了零的缓存行。它可以提示处理器，代码完全覆盖了缓存行的内容，因此不需要初始读取。
+缓存行清零的行为类似于预取，它是一种提示处理器未来可能会使用某些地址的方式。
+然而，清零操作可能会更快，因为不需要等待外部内存访问完成。
+与从内存读取实际数据到缓存不同，你会得到填充了零的缓存行。
+它可以提示处理器，代码完全覆盖了缓存行的内容，因此不需要初始读取。
 
-考虑这样一种情况：你需要一个大的临时存储缓冲区，或者正在初始化一个新的结构。你可以让代码直接开始使用内存，或者在使用之前预取它。两者都会消耗大量的周期和内存带宽来读取初始内容到缓存中。通过使用缓存清零选项，你可能可以节省这种浪费的带宽，并且让代码执行得更快。
+考虑这样一种情况：你需要一个大的临时存储缓冲区，或者正在初始化一个新的结构。
+你可以让代码直接开始使用内存，或者在使用之前预取它。
+两者都会消耗大量的周期和内存带宽来读取初始内容到缓存中。
+通过使用缓存清零选项，你可能可以节省这种浪费的带宽，并且让代码执行得更快。
 
-缓存维护指令执行的时机可以根据指令是通过虚拟地址 (VA) 还是通过组/路 (Set/Way) 操作而定。
+缓存维护指令执行的时机可以根据指令是通过虚拟地址 (VA) 还是通过组 / 路 (Set/Way) 操作而定。
 
 你可以选择作用域，可以是 PoC 或 PoU，对于可以广播的操作，你可以选择共享性。
 
@@ -2754,16 +2773,21 @@ Skip: ADD W10, W10, #2          // Increment 2 x cache level
 一些需要注意的要点：
 
 \begin{itemize}
-  \item 在正常情况下，清理或使整个缓存失效是固件应该执行的任务之一，作为核心上电或关机代码序列的一部分。这可能需要相当长的时间，因为L2缓存中的行数可能相当多，需要逐个遍历它们。
+  \item 在正常情况下，清理或使整个缓存失效是固件应该执行的任务之一，作为核心上电或关机代码序列的一部分。
+  这可能需要相当长的时间，因为 L2 缓存中的行数可能相当多，需要逐个遍历它们。
 
     因此，这种清理绝对是为特殊场合准备的！
-  \item 缓存维护操作，如 \lstinline!DC CSW!，在上述节中有描述。 
-  \item 在代码序列开始时必须禁用缓存，以防止在序列中段分配新行。如果缓存是排它性的，行可能会在级别之间迁移。
-  \item 在SMP系统中，另一个核心可能会在序列中段从缓存中获取脏缓存行，阻止它们到达PoC。Cortex-A53和Cortex-A7处理器都可以做到这一点。
-  \item 如果存在EL3，则必须从安全世界使缓存失效，因为某些条目可能是“安全脏”数据，不能从普通世界使其失效。如果不处理，“安全脏”数据在被驱逐时可能会破坏内存系统，因为在安全世界或普通世界中进行正常缓存使用。
+  \item 缓存维护操作，如 \lstinline!DC CSW!，在上述节中有描述。
+  \item 在代码序列开始时必须禁用缓存，以防止在序列中段分配新行。
+  如果缓存是排它性的，行可能会在级别之间迁移。
+  \item 在 SMP 系统中，另一个核心可能会在序列中段从缓存中获取脏缓存行，阻止它们到达 PoC。
+  Cortex-A53 和 Cortex-A7 处理器都可以做到这一点。
+  \item 如果存在 EL3，则必须从安全世界使缓存失效，因为某些条目可能是“安全脏”数据，不能从普通世界使其失效。
+  如果不处理，“安全脏”数据在被驱逐时可能会破坏内存系统，因为在安全世界或普通世界中进行正常缓存使用。
 \end{itemize}
 
-如果软件需要在指令执行和内存之间保持一致性，它必须使用ISB和DSB内存屏障以及缓存维护指令来管理这种一致性。下面的代码序列可用于此目的。
+如果软件需要在指令执行和内存之间保持一致性，它必须使用 ISB 和 DSB 内存屏障以及缓存维护指令来管理这种一致性。
+下面的代码序列可用于此目的。
 
 \begin{lstlisting}[
   language={[ARM]Assembler},
@@ -2781,9 +2805,9 @@ DSB ISH     // Ensure completion of the invalidations
 ISB         // Synchronize the fetched instruction stream
 \end{lstlisting}
 
-这个代码序列仅适用于适合单个I或D缓存行的指令序列。
+这个代码序列仅适用于适合单个 I 或 D 缓存行的指令序列。
 
-该代码根据给定的起始基地址（存储在寄存器x0中）和长度（存储在寄存器x1中），对指定区域的数据和指令缓存进行虚拟地址清理和失效操作。
+该代码根据给定的起始基地址（存储在寄存器 x0 中）和长度（存储在寄存器 x1 中），对指定区域的数据和指令缓存进行虚拟地址清理和失效操作。
 
 \begin{lstlisting}[
   language={[ARM]Assembler},
@@ -2844,59 +2868,77 @@ ISH               // Synchronize the fetched instruction stream
 
 \BlockDesc{Cache 探测}
 
-缓存维护操作可以通过缓存集、路或虚拟地址进行。与平台无关的代码可能需要了解缓存的大小、缓存行的大小、集合和路的数量，以及系统中有多少级缓存。这种需求最有可能出现在后重置的缓存失效和清零操作中。在架构缓存上的所有其他操作很可能是基于 PoC 或 PoU 进行的。
+缓存维护操作可以通过缓存集、路或虚拟地址进行。
+与平台无关的代码可能需要了解缓存的大小、缓存行的大小、集合和路的数量，以及系统中有多少级缓存。
+这种需求最有可能出现在后重置的缓存失效和清零操作中。
+在架构缓存上的所有其他操作很可能是基于 PoC 或 PoU 进行的。
 
 有一些系统控制寄存器包含了这些信息：
 
 \begin{itemize}
-  \item 软件可以通过读取缓存级别ID寄存器（\lstinline!CLIDR_EL1!）来确定存在的缓存级别数量。
+  \item 软件可以通过读取缓存级别 ID 寄存器（\lstinline!CLIDR_EL1!）来确定存在的缓存级别数量。
   \item Cache line 大小可以在缓存类型寄存器中获取（\lstinline!CTR_EL0!）。
-  \item 如果需要由在执行级别EL0运行的用户代码访问，可以通过设置系统控制寄存器（\lstinline!SCTLR/SCTLR_EL1!）的UCT位来实现。
+  \item 如果需要由在执行级别 EL0 运行的用户代码访问，可以通过设置系统控制寄存器（\lstinline!SCTLR/SCTLR_EL1!）的 UCT 位来实现。
 \end{itemize}
 
 要确定缓存中的集合数量（set）和路数（way），需要对两个单独的寄存器进行异常级别的访问。
 
 \begin{enumerate}
   \item 代码必须首先写入缓存大小选择寄存器（\lstinline!CSSELR_EL1!），以选择要获取信息的缓存。
-  \item 然后，代码读取缓存大小ID寄存器（\lstinline!CCSIDR/CCSIDR_EL1!）。
-  \item 数据缓存零ID寄存器（\lstinline!DCZID_EL0!）包含用于零操作的块大小。
-  \item \lstinline!SCTLR/SCTLR_EL1! 中的 \lstinline![DZE]! 位和Hypervisor Configuration Register (\lstinline!HCR/HCR_EL2!) 中的\lstinline![TDZ]!位控制哪些执行级别和哪些世界可以访问 \lstinline!DCZID_EL0!。\lstinline!CLIDR_EL1!、\lstinline!CSSELR_EL1! 和 \lstinline!CCSIDR_EL1! 只能通过特权代码访问，即在AArch32中为PL1或更高级别，在AArch64中为EL1或更高级别。
-  \item 如果在异常级别上禁止执行通过虚拟地址进行数据缓存零操作（\lstinline!DC ZVA!）指令，例如通过 \lstinline!SCTLR_EL1.DZE! 位控制EL0级别，或通过 \lstinline!HCR_EL2.TDZ! 位控制EL1和EL0级别的非安全执行，则读取此寄存器会返回一个指示不支持该指令的值。
+  \item 然后，代码读取缓存大小 ID 寄存器（\lstinline!CCSIDR/CCSIDR_EL1!）。
+  \item 数据缓存零 ID 寄存器（\lstinline!DCZID_EL0!）包含用于零操作的块大小。
+  \item \lstinline!SCTLR/SCTLR_EL1! 中的 \lstinline![DZE]! 位和 Hypervisor Configuration Register (\lstinline!HCR/HCR_EL2!) 中的\lstinline![TDZ]!位控制哪些执行级别和哪些世界可以访问 \lstinline!DCZID_EL0!。
+    \lstinline!CLIDR_EL1!、\lstinline!CSSELR_EL1! 和 \lstinline!CCSIDR_EL1! 只能通过特权代码访问，即在 AArch32 中为 PL1 或更高级别，在 AArch64 中为 EL1 或更高级别。
+  \item 如果在异常级别上禁止执行通过虚拟地址进行数据缓存零操作（\lstinline!DC ZVA!）指令，例如通过 \lstinline!SCTLR_EL1.DZE! 位控制 EL0 级别，或通过 \lstinline!HCR_EL2.TDZ! 位控制 EL1 和 EL0 级别的非安全执行，则读取此寄存器会返回一个指示不支持该指令的值。
 
-  \item \lstinline!CLIDR! 寄存器只知道集成到处理器本身中的缓存有多少级。它无法提供关于外部内存系统中的任何缓存的信息。
+  \item \lstinline!CLIDR! 寄存器只知道集成到处理器本身中的缓存有多少级。
+  它无法提供关于外部内存系统中的任何缓存的信息。
 
-    例如，如果仅集成了L1和L2，则 \lstinline!CLIDR/CLIDR_EL1! 标识了两个级别的缓存，处理器不知道任何外部L3缓存。
+    例如，如果仅集成了 L1 和 L2，则 \lstinline!CLIDR/CLIDR_EL1! 标识了两个级别的缓存，处理器不知道任何外部 L3 缓存。
 
     在执行缓存维护操作或维护与集成缓存的一致性的代码时，可能需要考虑非集成缓存。
 \end{enumerate}
 
 \Figure[width=0.2]{cache-discovery}
 
-此外，在big.LITTLE系统中，描述的缓存层次结构可能会因核心而异，例如，Cortex-A53和Cortex-A57处理器具有不同的 \lstinline!CTR.L1IP! 字段。
+此外，在 big.LITTLE 系统中，描述的缓存层次结构可能会因核心而异，例如，Cortex-A53 和 Cortex-A57 处理器具有不同的 \lstinline!CTR.L1IP! 字段。
 
 \subsection{MMU}
 
-内存管理单元（MMU）的一个重要功能是使系统能够运行多个任务，作为在它们自己的私有虚拟内存空间中运行的独立程序。它们不需要知道系统的物理内存映射，即硬件实际使用的地址，也不需要知道可能同时执行的其他程序。
+内存管理单元（MMU）的一个重要功能是使系统能够运行多个任务，作为在它们自己的私有虚拟内存空间中运行的独立程序。
+它们不需要知道系统的物理内存映射，即硬件实际使用的地址，也不需要知道可能同时执行的其他程序。
 
 \Figure[width=0.8]{mmu}
 
-你可以为每个程序使用相同的虚拟内存地址空间。即使物理内存是分散的，你也可以使用连续的虚拟内存映射。这个虚拟地址空间与系统中实际的物理内存映射是分开的。你可以编写、编译和链接应用程序以在虚拟内存空间中运行。
+你可以为每个程序使用相同的虚拟内存地址空间。
+即使物理内存是分散的，你也可以使用连续的虚拟内存映射。
+这个虚拟地址空间与系统中实际的物理内存映射是分开的。
+你可以编写、编译和链接应用程序以在虚拟内存空间中运行。
 
-下图展示了一个示例系统，即内存的虚拟视图和物理视图。在单个系统中的不同处理器和设备可能具有不同的虚拟和物理地址映射。操作系统将MMU编程以在这两种内存视图之间进行转换。
+下图展示了一个示例系统，即内存的虚拟视图和物理视图。
+在单个系统中的不同处理器和设备可能具有不同的虚拟和物理地址映射。
+操作系统将 MMU 编程以在这两种内存视图之间进行转换。
 
 \Figure[width=0.8]{virt-phys-mem}
 
 为了实现这一点，在虚拟内存系统中，硬件必须提供地址转换，即将处理器发出的虚拟地址转换为主存储器中的物理地址。
 
-虚拟地址是由你、编译器和链接器在将代码放置到内存中时使用的地址。物理地址是实际硬件系统使用的地址。
+虚拟地址是由你、编译器和链接器在将代码放置到内存中时使用的地址。
+物理地址是实际硬件系统使用的地址。
 
-MMU使用虚拟地址的最高有效位来索引翻译表中的条目，并确定正在访问哪个块。MMU将代码和数据的虚拟地址转换为实际系统中的物理地址。这种转换是在硬件中自动进行的，并且对应用程序是透明的。除了地址转换外，MMU还控制每个内存区域的内存访问权限、内存排序和缓存策略。
+MMU 使用虚拟地址的最高有效位来索引翻译表中的条目，并确定正在访问哪个块。
+MMU 将代码和数据的虚拟地址转换为实际系统中的物理地址。
+这种转换是在硬件中自动进行的，并且对应用程序是透明的。
+除了地址转换外，MMU 还控制每个内存区域的内存访问权限、内存排序和缓存策略。
 
 \Figure[width=0.8]{address-translation-with-tb}
 
-MMU使得任务或应用程序可以编写为不需要了解系统的物理内存映射或可能同时运行的其他程序。这使得你可以为每个程序使用相同的虚拟内存地址空间。
+MMU 使得任务或应用程序可以编写为不需要了解系统的物理内存映射或可能同时运行的其他程序。
+这使得你可以为每个程序使用相同的虚拟内存地址空间。
 
-它还使你可以在物理内存是分散的情况下使用连续的虚拟内存映射。这个虚拟地址空间与系统中实际的物理内存映射是分开的。应用程序被编写、编译和链接以在虚拟内存空间中运行。
+它还使你可以在物理内存是分散的情况下使用连续的虚拟内存映射。
+这个虚拟地址空间与系统中实际的物理内存映射是分开的。
+应用程序被编写、编译和链接以在虚拟内存空间中运行。
 
 \BlockDesc{TLB}
 
@@ -2905,7 +2947,10 @@ MMU使得任务或应用程序可以编写为不需要了解系统的物理内�
 \begin{Tcbox}[title={扩展}]
 \textbf{TLB thrashing}
 
-  TLB抖动可能会发生在工作集页数太多，而翻译后备缓冲（TLB）作为内存管理单元（MMU）的缓存，用于将虚拟地址翻译为物理地址的大小太小的情况下。即使指令缓存或数据缓存没有抖动，TLB抖动也可能发生，因为它们的缓存大小不同。指令和数据被缓存在小块（缓存行）中，而不是整个页面，但地址查找是在页面级别进行的。因此，即使代码和数据工作集适合缓存，如果工作集在许多页面中分散，虚拟地址工作集可能不适合TLB，导致TLB抖动。
+  TLB 抖动可能会发生在工作集页数太多，而翻译后备缓冲（TLB）作为内存管理单元（MMU）的缓存，用于将虚拟地址翻译为物理地址的大小太小的情况下。
+  即使指令缓存或数据缓存没有抖动，TLB 抖动也可能发生，因为它们的缓存大小不同。
+  指令和数据被缓存在小块（缓存行）中，而不是整个页面，但地址查找是在页面级别进行的。
+  因此，即使代码和数据工作集适合缓存，如果工作集在许多页面中分散，虚拟地址工作集可能不适合 TLB，导致 TLB 抖动。
 
   更多关于 thrashing 的概念可以参考\href{https://en.wikipedia.org/wiki/Thrashing_(computer_science)}{维基百科}。
 \end{Tcbox}
