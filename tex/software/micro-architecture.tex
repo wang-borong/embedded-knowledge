@@ -701,7 +701,7 @@ A64 中使用到条件码的指令，大致可以总结为：
 
 Load 指令的一般形式如下：
 
-\begin{lstcode}[numbers=none, language={[ARM]Assembler}]
+\begin{lstcode}[language={[ARM]Assembler}]
   LDR Rt, <addr>
 \end{lstcode}
 
@@ -721,7 +721,7 @@ Load 指令的一般形式如下：
 
 类似的，存储指令的一般形式如下：
 
-\begin{lstcode}[numbers=none, language={[ARM]Assembler}]
+\begin{lstcode}[language={[ARM]Assembler}]
   STR Rn, <addr>
 \end{lstcode}
 
@@ -776,7 +776,7 @@ Load 和 Store 指令同样支持访问浮点 / NEON 寄存器。
 
 例如：
 
-\begin{lstcode}[numbers=none, language={[ARM]Assembler}]
+\begin{lstcode}[language={[ARM]Assembler}]
   LDR D0, [X0, X1]
 \end{lstcode}
 
@@ -815,7 +815,7 @@ A64 可用的寻址模式与 A32 和 T32 中的相似。
 通常，当指定移位或扩展选项时，移位量可以是 0（默认值）或 $log_2(access\; size\; in\; bytes)$（因此，$Rn <<\; <shift>$ 即是 Rn 乘以访问大小）。
 所以，偏移寻址支持常见的数组索引操作。
 
-\begin{lstcode}[numbers=none, language=C]
+\begin{lstcode}[language=C]
 // A C example showing accesses that a compiler is likely to generate.
 void example_dup(int32_t a[], int32_t length) {
   int32_t first = a[0];  // LDR W3, [X0]
@@ -852,7 +852,7 @@ void example_dup(int32_t a[], int32_t length) {
 
 例如，这些选项准确地映射到一些常见的 C 操作上：
 
-\begin{lstcode}[numbers=none, language=C]
+\begin{lstcode}[language=C]
 // A C example showing accesses that a compiler is likely to generate.
 void example_strcpy(char * dst, const char * src)
 {
@@ -1116,7 +1116,7 @@ A64 有三个异常处理指令用于产生一个异常。
 MSR 或 MRS 也可以单独获取 PSTATE 寄存器中的 field。
 例如，选择关联于 EL0 的 Stack Pointer 或当前的异常级：
 
-\begin{lstcode}[numbers=none]
+\begin{lstcode}
   // A value of 0 or 1 in this register is used to select
   // between using EL0 stack pointer or the current exception
   // level stack pointer
@@ -1125,7 +1125,7 @@ MSR 或 MRS 也可以单独获取 PSTATE 寄存器中的 field。
 
 这两个指令有一些特殊的形式可以用于清除或设置独立的异常掩码位：
 
-\begin{lstcode}[numbers=none]
+\begin{lstcode}
   MSR DAIFClr, #imm4
   MSR DAIFSet, #imm4
 \end{lstcode}
@@ -1134,7 +1134,7 @@ MSR 或 MRS 也可以单独获取 PSTATE 寄存器中的 field。
 
 A64 有两个调试相关的指令：
 
-\begin{lstcode}[numbers=none]
+\begin{lstcode}
   // Enters monitor mode debug, where there is on-chip debug monitor
   // code
   BRK #imm16
@@ -1709,7 +1709,6 @@ AArch64 架构有若干 ABI 组成元素：
 
 \begin{lstlisting}[
   language=C,
-  numbers=none,
   caption={间接地址},
   label={lst:indirect-result-location}
 ]
@@ -1742,9 +1741,7 @@ void bar()
 
 下面通过以下命令获取到汇编代码：
 
-\begin{lstlisting}[
-  numbers=none
-]
+\begin{lstlisting}
   armclang -target aarch64-arm-none-eabi -c test.c
   fromelf-c test.o
   # 当然，以交叉编译链 aarch64-linux-gnu-gcc 编译也是可行的，为了引述文档说明，默认使用上面的编译命令。
@@ -1757,7 +1754,6 @@ void bar()
 
 \begin{lstlisting}[
   language={[ARM]Assembler},
-  numbers=none
 ]
 foo//
   SUB SP, SP, #0x30
@@ -1833,9 +1829,7 @@ AAPC64 的栈帧如下图所示。
 
 图~\ref{fig:stack-frame} 说明了一个栈帧使用了两个被调函数保存的寄存器（X19 和 X20）和一个临时变量，布局如下（左边的数字代表相对于 FP 的偏移）：
 
-\begin{lstlisting}[
-  numbers=none
-]
+\begin{lstlisting}
   40: <padding>
   32: temp
   24: X20
@@ -1848,7 +1842,6 @@ AAPC64 的栈帧如下图所示。
 
 \begin{lstlisting}[
   language={[ARM]Assembler},
-  numbers=none
 ]
   function:
   STP X29, X30, [SP, #-48]! // Push down stack pointer and store FP and LR
@@ -2063,7 +2056,6 @@ ARMv8-A 模型已经明显比 ARMv7-A 简单了，然而处于兼容性的原因
 
 \begin{lstlisting}[
   language={[ARM]Assembler},
-  numbers=none
 ]
 MSR SPSel, #0  // switch to SP_EL0
 MSR SPSel, #1  // switch to SP_ELn
@@ -2579,7 +2571,7 @@ ARMv8 提供的预加载暗示（hint）指令。
 
 A64 预取内存指令更一般的形式：
 
-\begin{lstcode}[numbers=none]
+\begin{lstcode}
   PRFM <prfop>, addr
 
   Where:
@@ -2621,14 +2613,299 @@ A64 预取内存指令更一般的形式：
 
 \BlockDesc{Cache 维护}
 
+有时在软件中清除和无效 cache 是必要的。
+在外部内存已经发生改变这种操作可能就是必要的，并且这时需要从 cache 中把陈旧的数据移除掉。
+在 MMU 相关的活动后也有必要进行上述的 cache 操作，比如：改变内存访问权限、cache 策略或虚拟地址到物理地址的映射，或者诸如 JIT 和动态库加载产生动态代码时必须要进行指令和数据 cache 同步。
 
+\begin{itemize}
+  \item 无效 cache 或 cache line 意味着清除它的数据，即清除 cache line 中的有效位。
+    \textbf{初始化后必须要无效 cache，因为此时数据是未定义的。}
+    这也可以被看作是一种使缓存外的内存域中的更改对缓存的使用者可见的方式。
+  \item 清理缓存或缓存行意味着将标记为污染的数据写入到下一级缓存或主内存中，并清除缓存行中的污染位。
+    这使得缓存行的内容与下一级缓存或内存系统保持一致。
+    这仅适用于使用写回策略的数据缓存。
+    这也是使缓存中的更改对外部内存域的用户可见的一种方式，但仅适用于数据缓存。
+  \item 清零。
+    这会在缓存内将一块内存清零，而无需先从外部域读取其内容，仅适用于数据缓存。
+\end{itemize}
+
+你可以选择哪些条目需要应用于这些操作：
+
+\begin{description}
+  \item[All] 指整个缓存，不适用于数据缓存或统一缓存。
+  \item[\textit{Modified Virtual Address} (MVA)] 是虚拟地址 (VA) 的另一种名称，是指包含特定虚拟地址的缓存行。
+  \item[Set or Way] 指通过其在缓存结构中的位置选定的特定缓存行。
+\end{description}
+
+AArch64 缓存维护操作使用具有以下一般形式的指令执行：
+
+\lstinline!<cache> <operation>{, <Xt>}!
+
+有多种操作可用。
+
+\begin{ltblr}[caption={数据、指令和统一缓存的操作}, label={tbl:diu-cache-ops}]
+  {colspec={cc>{\centering\arraybackslash}Xc}}
+  \hline[1pt]
+  Cache & 操作 & 描述 & AArch32 等效\\
+  \hline
+     & CISW & Clean and invalidate by Set/Way & DCCISW \\ 
+     & CIVAC & Clean and Invalidate by Virtual Address to Point of Coherency & DCCIMVAC \\
+     & CSW & Clean by Set/Way & DCCSW \\
+  DC & CVAC & Clean by Virtual Address to Point of Coherency & DCCMVAC \\
+     & CVAU & Clean by Virtual Address to Point of Unification & DCCMVAU \\
+     & ISW & Invalidate by Set/Way & DCISW \\
+     & IVAC & Invalidate by Virtual Address, to Point of Coherency & DCIMVAC \\
+  \hline
+  DC &  ZVA & Cache zero by Virtual Address & - \\
+  \hline
+     & IALLUIS & Invalidate all, to Point of Unification, Inner Sharable & ICIALLUIS \\
+  IC & IALLU & Invalidate all, to Point of Unification, Inner Shareable & ICIALLU \\
+     & IVAU & Invalidate by Virtual Address to Point of Unification & ICIMVAU \\
+  \hline[1pt]
+\end{ltblr}
+
+那些接受地址参数的指令使用一个64位寄存器，该寄存器保存要维护的虚拟地址。该地址没有对齐限制。接受组/路/级别参数的指令，使用一个64位寄存器，其低32位遵循 ARMv7 架构中描述的格式。AArch64 数据缓存失效指令，\lstinline!DC IVAC!，需要写入权限，否则会生成权限故障。
+
+所有指令缓存维护指令可以以任何顺序执行，相对于其他指令缓存维护指令、数据缓存维护指令和加载存储指令，除非在指令之间执行了 DSB。
+
+除了 \lstinline!DC ZVA! 之外的数据缓存操作，如果它们指定了一个地址，只有在它们指定相同地址时，才保证按程序顺序执行。指定地址的那些操作，相对于不指定地址的所有维护操作，按程序顺序执行。
+
+考虑以下代码。
+
+\begin{lstlisting}[
+  language={[ARM]Assembler},
+  caption={对于 PoU 的 cache 无效和清理操作},
+  label={lst:cache-ic-pou}
+]
+IC IVAU, X0  // Instruction Cache Invalidate by address to Point of Unification
+DC CVAC, X0  // Data Cache Clean by address to Point of Coherency
+IC IVAU, X1  // Might be out of order relative to the previous operations if
+             // x0 and x1 differ
+\end{lstlisting}
+
+前两条指令按顺序执行，因为它们引用相同的地址。然而，最后一条指令可能相对于前面的操作重新排序，因为它引用了不同的地址。
+
+\begin{lstlisting}[
+  language={[ARM]Assembler},
+  caption={对于 PoU 的 cache 无效操作},
+  label={lst:cache-i-pou}
+]
+IC IVAU, X0  // I cache Invalidate by address to Point of Unification
+IC IALLU     // I cache Invalidate All to Point of Unification
+             // Operations execute in order
+\end{lstlisting}
+
+这仅适用于发出指令。只有在执行 DSB 指令后才能确保完成。
+
+在ARMv8-A中，使用 \lstinline!DC ZVA! 指令预加载数据缓存的零值是一项新功能。处理器的运行速度通常显著快于外部内存系统，有时从内存加载缓存行可能需要很长时间。
+
+缓存行清零的行为类似于预取，它是一种提示处理器未来可能会使用某些地址的方式。然而，清零操作可能会更快，因为不需要等待外部内存访问完成。
+与从内存读取实际数据到缓存不同，你会得到填充了零的缓存行。它可以提示处理器，代码完全覆盖了缓存行的内容，因此不需要初始读取。
+
+考虑这样一种情况：你需要一个大的临时存储缓冲区，或者正在初始化一个新的结构。你可以让代码直接开始使用内存，或者在使用之前预取它。两者都会消耗大量的周期和内存带宽来读取初始内容到缓存中。通过使用缓存清零选项，你可能可以节省这种浪费的带宽，并且让代码执行得更快。
+
+缓存维护指令执行的时机可以根据指令是通过虚拟地址 (VA) 还是通过组/路 (Set/Way) 操作而定。
+
+你可以选择作用域，可以是 PoC 或 PoU，对于可以广播的操作，你可以选择共享性。
+
+以下示例代码展示了一种通用机制，用于将整个数据缓存或统一缓存清理（对于 PoC）。
+
+\begin{lstlisting}[
+  language={[ARM]Assembler},
+  caption={对于 PoU 的 cache 无效操作},
+  label={lst:cache-i-pou}
+]
+       MRS X0, CLIDR_EL1
+       AND W3, W0, #0x07000000  // Get 2 x Level of Coherence
+       LSR W3, W3, #23
+       CBZ W3, Finished
+       MOV W10, #0              // W10 = 2 x cache level
+       MOV W8, #1               // W8 = constant 0b1
+Loop1: ADD W2, W10, W10, LSR #1 // Calculate 3 x cache level
+       LSR W1, W0, W2           // extract 3-bit cache type for this level
+       AND W1, W1, #0x7
+       CMP W1, #2
+       B.LT Skip                // No data or unified cache at this level
+       MSR CSSELR_EL1, X10      // Select this cache level
+       ISB                      // Synchronize change of CSSELR
+       MRS X1, CCSIDR_EL1       // Read CCSIDR
+       AND W2, W1, #7           // W2 = log2(linelen)-4
+       ADD W2, W2, #4           // W2 = log2(linelen)
+       UBFX W4, W1, #3, #10     // W4 = max way number, right aligned
+       CLZ W5, W4               /* W5 = 32-log2(ways), bit position of way in DC operand */
+       LSL W9, W4, W5           /* W9 = max way number, aligned to position in DC operand */
+       LSL W16, W8, W5          // W16 = amount to decrement way number per iteration
+Loop2: UBFX W7, W1, #13, #15    // W7 = max set number, right aligned
+       LSL W7, W7, W2           /* W7 = max set number, aligned to position in DC operand */
+       LSL W17, W8, W2          // W17 = amount to decrement set number per iteration
+       Loop3: ORR W11, W10, W9  // W11 = combine way number and cache number...
+       ORR W11, W11, W7         // ... and set number for DC operand
+       DC CSW, X11              // Do data cache clean by set and way
+       SUBS W7, W7, W17         // Decrement set number
+       B.GE Loop3
+       SUBS X9, X9, X16         // Decrement way number
+       B.GE Loop2
+Skip: ADD W10, W10, #2          // Increment 2 x cache level
+       CMP W3, W10
+       DSB                      /* Ensure completion of previous cache maintenance operation */
+       B.GT Loop1
+\end{lstlisting}
+
+一些需要注意的要点：
+
+\begin{itemize}
+  \item 在正常情况下，清理或使整个缓存失效是固件应该执行的任务之一，作为核心上电或关机代码序列的一部分。这可能需要相当长的时间，因为L2缓存中的行数可能相当多，需要逐个遍历它们。
+
+    因此，这种清理绝对是为特殊场合准备的！
+  \item 缓存维护操作，如 \lstinline!DC CSW!，在上述节中有描述。 
+  \item 在代码序列开始时必须禁用缓存，以防止在序列中段分配新行。如果缓存是排它性的，行可能会在级别之间迁移。
+  \item 在SMP系统中，另一个核心可能会在序列中段从缓存中获取脏缓存行，阻止它们到达PoC。Cortex-A53和Cortex-A7处理器都可以做到这一点。
+  \item 如果存在EL3，则必须从安全世界使缓存失效，因为某些条目可能是“安全脏”数据，不能从普通世界使其失效。如果不处理，“安全脏”数据在被驱逐时可能会破坏内存系统，因为在安全世界或普通世界中进行正常缓存使用。
+\end{itemize}
+
+如果软件需要在指令执行和内存之间保持一致性，它必须使用ISB和DSB内存屏障以及缓存维护指令来管理这种一致性。下面的代码序列可用于此目的。
+
+\begin{lstlisting}[
+  language={[ARM]Assembler},
+  caption={对于 PoU 的 cache 无效操作},
+  label={lst:cache-i-pou}
+]
+/* Coherency example for data and instruction accesses within the same Inner
+Shareable domain. Enter this code with <Wt> containing a new 32-bit instruction,
+to be held in Cacheable space at a location pointed to by Xn. */
+STR Wt, [Xn]
+DC CVAU, Xn // Clean data cache by VA to point of unification (PoU)
+DSB ISH     // Ensure visibility of the data cleaned from cache
+IC IVAU, Xn // Invalidate instruction cache by VA to PoU
+DSB ISH     // Ensure completion of the invalidations
+ISB         // Synchronize the fetched instruction stream
+\end{lstlisting}
+
+这个代码序列仅适用于适合单个I或D缓存行的指令序列。
+
+该代码根据给定的起始基地址（存储在寄存器x0中）和长度（存储在寄存器x1中），对指定区域的数据和指令缓存进行虚拟地址清理和失效操作。
+
+\begin{lstlisting}[
+  language={[ARM]Assembler},
+  caption={对于 PoU 的 cache 无效操作},
+  label={lst:cache-i-pou}
+]
+
+//
+// X0 = base address
+// X1 = length (we assume the length is not 0)
+//
+
+// Calculate end of the region
+ADD x1, x1, x0  // Base Address + Length
+//
+// Clean the data cache by MVA
+//
+MRS X2, CTR_EL0 // Read Cache Type Register
+
+// Get the minimun data cache line
+//
+
+UBFX X4, X2, #16, #4 // Extract DminLine (log2 of the cache line)
+MOV X3, #4           // Dminline iss the number of words (4 bytes)
+LSL X3, X3, X4       // X3 should contain the cache line
+SUB X4, X3, #1       // get the mask for the cache line
+
+BIC X4, X0, X4       // Aligned the base address of the region
+clean data cache:
+DC CVAU, X4          // Clean data cache line by VA to PoU
+ADD X4, X4, X3       // Next cache line
+CMP X4, X1           // Is X4 (current cache line) smaller than the end
+                     // of the region
+B.LT clean_data_cache // while (address < end_address)
+
+DSB ISH              // Ensure visibility of the data cleaned from cache
+
+//
+//Clean the instruction cache by VA
+//
+// Get the minimum instruction cache line (X2 contains ctr_el0)
+AND X2, X2, #0xF  // Extract IminLine (log2 of the cache line)
+MOV X3, #4        // IminLine is the number of words (4 bytes)
+LSL X3, X3, X2    // X3 should contain the cache line
+SUB x4, x3, #1    // Get the mask for the cache line
+
+BIC X4, X0, X4    // Aligned the base address of the region
+clean_instruction_cache:
+IC IVAU, X4       // Clean instruction cache line by VA to PoU
+ADD X4, X4, X3    // Next cache line
+CMP X4, X1        // Is X4 (current cache line) smaller than the end
+                  // of the region
+B.LT clean_instruction_cache // while (address < end_address)
+
+DSB ISB           // Ensure completion of the invalidations
+ISH               // Synchronize the fetched instruction stream
+\end{lstlisting}
+
+\BlockDesc{Cache 探测}
+
+缓存维护操作可以通过缓存集、路或虚拟地址进行。与平台无关的代码可能需要了解缓存的大小、缓存行的大小、集合和路的数量，以及系统中有多少级缓存。这种需求最有可能出现在后重置的缓存失效和清零操作中。在架构缓存上的所有其他操作很可能是基于 PoC 或 PoU 进行的。
+
+有一些系统控制寄存器包含了这些信息：
+
+\begin{itemize}
+  \item 软件可以通过读取缓存级别ID寄存器（\lstinline!CLIDR_EL1!）来确定存在的缓存级别数量。
+  \item Cache line 大小可以在缓存类型寄存器中获取（\lstinline!CTR_EL0!）。
+  \item 如果需要由在执行级别EL0运行的用户代码访问，可以通过设置系统控制寄存器（\lstinline!SCTLR/SCTLR_EL1!）的UCT位来实现。
+\end{itemize}
+
+要确定缓存中的集合数量（set）和路数（way），需要对两个单独的寄存器进行异常级别的访问。
+
+\begin{enumerate}
+  \item 代码必须首先写入缓存大小选择寄存器（\lstinline!CSSELR_EL1!），以选择要获取信息的缓存。
+  \item 然后，代码读取缓存大小ID寄存器（\lstinline!CCSIDR/CCSIDR_EL1!）。
+  \item 数据缓存零ID寄存器（\lstinline!DCZID_EL0!）包含用于零操作的块大小。
+  \item \lstinline!SCTLR/SCTLR_EL1! 中的 \lstinline![DZE]! 位和Hypervisor Configuration Register (\lstinline!HCR/HCR_EL2!) 中的\lstinline![TDZ]!位控制哪些执行级别和哪些世界可以访问 \lstinline!DCZID_EL0!。\lstinline!CLIDR_EL1!、\lstinline!CSSELR_EL1! 和 \lstinline!CCSIDR_EL1! 只能通过特权代码访问，即在AArch32中为PL1或更高级别，在AArch64中为EL1或更高级别。
+  \item 如果在异常级别上禁止执行通过虚拟地址进行数据缓存零操作（\lstinline!DC ZVA!）指令，例如通过 \lstinline!SCTLR_EL1.DZE! 位控制EL0级别，或通过 \lstinline!HCR_EL2.TDZ! 位控制EL1和EL0级别的非安全执行，则读取此寄存器会返回一个指示不支持该指令的值。
+
+  \item \lstinline!CLIDR! 寄存器只知道集成到处理器本身中的缓存有多少级。它无法提供关于外部内存系统中的任何缓存的信息。
+
+    例如，如果仅集成了L1和L2，则 \lstinline!CLIDR/CLIDR_EL1! 标识了两个级别的缓存，处理器不知道任何外部L3缓存。
+
+    在执行缓存维护操作或维护与集成缓存的一致性的代码时，可能需要考虑非集成缓存。
+\end{enumerate}
+
+\Figure[width=0.2]{cache-discovery}
+
+此外，在big.LITTLE系统中，描述的缓存层次结构可能会因核心而异，例如，Cortex-A53和Cortex-A57处理器具有不同的 \lstinline!CTR.L1IP! 字段。
 
 \subsection{MMU}
+
+内存管理单元（MMU）的一个重要功能是使系统能够运行多个任务，作为在它们自己的私有虚拟内存空间中运行的独立程序。它们不需要知道系统的物理内存映射，即硬件实际使用的地址，也不需要知道可能同时执行的其他程序。
+
+\Figure[width=0.8]{mmu}
+
+你可以为每个程序使用相同的虚拟内存地址空间。即使物理内存是分散的，你也可以使用连续的虚拟内存映射。这个虚拟地址空间与系统中实际的物理内存映射是分开的。你可以编写、编译和链接应用程序以在虚拟内存空间中运行。
+
+下图展示了一个示例系统，即内存的虚拟视图和物理视图。在单个系统中的不同处理器和设备可能具有不同的虚拟和物理地址映射。操作系统将MMU编程以在这两种内存视图之间进行转换。
+
+\Figure[width=0.8]{virt-phys-mem}
+
+为了实现这一点，在虚拟内存系统中，硬件必须提供地址转换，即将处理器发出的虚拟地址转换为主存储器中的物理地址。
+
+虚拟地址是由你、编译器和链接器在将代码放置到内存中时使用的地址。物理地址是实际硬件系统使用的地址。
+
+MMU使用虚拟地址的最高有效位来索引翻译表中的条目，并确定正在访问哪个块。MMU将代码和数据的虚拟地址转换为实际系统中的物理地址。这种转换是在硬件中自动进行的，并且对应用程序是透明的。除了地址转换外，MMU还控制每个内存区域的内存访问权限、内存排序和缓存策略。
+
+\Figure[width=0.8]{address-translation-with-tb}
+
+MMU使得任务或应用程序可以编写为不需要了解系统的物理内存映射或可能同时运行的其他程序。这使得你可以为每个程序使用相同的虚拟内存地址空间。
+
+它还使你可以在物理内存是分散的情况下使用连续的虚拟内存映射。这个虚拟地址空间与系统中实际的物理内存映射是分开的。应用程序被编写、编译和链接以在虚拟内存空间中运行。
+
+\BlockDesc{TLB}
+
+
 
 \begin{Tcbox}[title={扩展}]
 \textbf{TLB thrashing}
 
-Where the translation lookaside buffer (TLB) acting as a cache for the memory management unit (MMU) which translates virtual addresses to physical addresses is too small for the working set of pages. TLB thrashing can occur even if instruction cache or data cache thrashing is not occurring because these are cached in different sizes. Instructions and data are cached in small blocks (cache lines), not entire pages, but address lookup is done at the page level. Thus even if the code and data working sets fit into the cache, if the working sets are fragmented across many pages, the virtual address working set may not fit into TLB, causing TLB thrashing.
+  TLB抖动可能会发生在工作集页数太多，而翻译后备缓冲（TLB）作为内存管理单元（MMU）的缓存，用于将虚拟地址翻译为物理地址的大小太小的情况下。即使指令缓存或数据缓存没有抖动，TLB抖动也可能发生，因为它们的缓存大小不同。指令和数据被缓存在小块（缓存行）中，而不是整个页面，但地址查找是在页面级别进行的。因此，即使代码和数据工作集适合缓存，如果工作集在许多页面中分散，虚拟地址工作集可能不适合TLB，导致TLB抖动。
 
   更多关于 thrashing 的概念可以参考\href{https://en.wikipedia.org/wiki/Thrashing_(computer_science)}{维基百科}。
 \end{Tcbox}
