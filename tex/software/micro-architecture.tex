@@ -2514,6 +2514,113 @@ Cache line 包含以下成员：
 
 \subsubsection{Cache 控制器}
 
+Cache 控制器负责管理 Cache 缓存，它对于应用程序来说几乎是透明的。
+它自动的将内存中的代码或数据写入到 Cache 中。
+它从处理器核处获取内存读写请求并且执行必要的 Cache 缓存或外部内存操作。
+
+它收到处理核的请求命令后，首先检查该请求地址是否在 Cache 中，这个步骤称为 \textit{cache look-up}。
+它将请求中的部分地址位与 Cache line 对应的 tag 进行比对来完成 \textit{cache look-up} 操作。
+如果上述对比成功，那么说明 Cache 中存在匹配 line，称为命中（hit），并且控制器将该行标注为有效（valid），从而使用 Cache 缓存作为对写请求的数据来源。
+
+当读写请求无法从 Cache 中找到匹配的 tag，或者 tag 是无效的，那么即产生 Cache 未命中（miss）。
+此时，请求必须传给下一级内存层级 L2 Cache，或外部内存。
+这将产生一个 cache line 填充（cahe linefill），即将内存中的数据拷贝到 cache 中。
+请求的数据或指令流也会同时发送给处理核。
+该过程对于软件开发人员是透明的，是不直接可见的。
+处理核不用等到 cache line 填充完数据才能使用。
+Cache 控制器通常先从 cache line 中获取关键字（\textit{critical word}）。
+例如，当执行一个加载指令而发生 cahce miss 并产生一个 cache linefill 时，CPU 核先从 cache line 中获取部分请求的数据。
+这部分关键数据先提供给 CPU 核的流水线（pipeline），然后 Cache 和外部总线接口在后台读取 cache line 中剩余的数据。
+
+\BlockDesc{缓存策略}
+
+Cache 策略简而言之就是，数据 Cache 何时需要申请 line；存储指令执行时并且数据 Cache 命中后应该发生什么事情。
+
+Cache 的分配机制有以下几种：
+
+\begin{description}
+  \item[Write allocation (WA)] 在写未命中时分配 cache line。
+    这意味 CPU 执行存储指令时会发生读操作。
+    在写操作执行前，cache 会先获取数据填充对应的 cache line。
+    即使只是写入一个 byte，Cache 中也会保存一个完整行，因为这是它的最小单元。
+  
+  \item[Read allocation (RA)] 在读为命中时分配 cache line。
+\end{description}
+
+Cache 更新机制有：
+
+\begin{description}
+  \item[Write-back (WB)] 写时更新 Cache，并且只会将 cache line 标记为污染（dirty）。
+    外部内存只在该行被驱逐出去或明确的清理操作发生时更新。
+  
+  \item[Write-through (WT)] 写时更新 Cache 和外部内存。
+    该机制不会标注 cache line 为污染。
+\end{description}
+
+两种更新机制的数据读操作命中时的 Cache 行为相同。
+
+普通内存的可缓存属性分为 \textit{inner} 和 \textit{outer} 属性。
+至于这两种属性的范围是\textbf{由实现所决定的}。
+一般来说，inner 属性用于集成 Cache（CPU 核内集成的 Cache），outer 属性可在处理器内存总线上供外部 Cache 使用。
+
+\Figure{cacheable-properties-of-memory}
+
+处理器可以预测式的访问普通内存，也就是说处理器可以自动暗中加载数据到 cache 中。
+这个行为并不需要开发人员的干涉，也无需指定请求地址。
+当然，开发人员也可以暗示处理器哪些数据将被使用。
+ARMv8 提供的预加载暗示（hint）指令。
+但是 cache 是否支持预测和预加载是由\textbf{实现决定}。
+下面的指令是架构提供的：
+
+\begin{description}
+  \item[AArch64] \lstinline!PRFM PLDL1KEEP, [Xm, #imm]! 意思是将 \lstinline!Xm + offset! 的数据加载到 L1 缓存中作为临时预取，这意味着数据可能会被使用多次。
+  \item[AArch32] \lstinline!PLD Rm! 将数据从 Rm 中的地址预加载到缓存。
+\end{description}
+
+A64 预取内存指令更一般的形式：
+
+\begin{lstcode}[numbers=none]
+  PRFM <prfop>, addr
+
+  Where:
+
+  <prfop>     <type><target><policy> | #uimm5
+  <type>      PLD for prefetch for load
+              PST for prefetch for store
+  <target>    L1 for L1 cache, L2 for L2 cache, L3 for L3 cache
+  <policy>    KEEP for retain or temporal prefetch means allocate in cache
+              normally
+              STRM for streaming or non-temporal prefetch means the memory
+              is used only once
+  uimm5       Represents the hint encodings as a 5-bit immediate.
+              These are optional.
+\end{lstcode}
+
+\BlockDesc{POC 和 POU}
+
+对于基于 set 和基于 way 的 cache 清理和 invalidate 来说，操作是施加到指定 cache 级上的。
+对于使用虚拟地址的操作，该架构定义两个观察点。
+
+\begin{description}
+  \item[\textit{Point of Coherency} (PoC)] 对于一个特定的地址，PoC 是所有观察者的点，例如，处理器、DSP 或 DMA 引擎等可以访问内存的单元，这些单元都确保可以在一个内存地址下看到同样的数据。
+    通常这个观察点为外部内存。
+  \item[\textit{Point of Unification} (POU)] PoU 是指令和数据 Cache 和 TLB 在内存地址可以看到的相同数据。
+    例如，L2 Cache 即为 Harvard 架构的一级 Cache 和 TLB 可见的相同点。
+    如果没有 L2 等外部 cache，那么内存则为 PoU。
+\end{description}
+
+了解 PoU 可以确保在取指修改后的代码时的正确性。
+可以通过以下两个阶段的来处理：
+
+\begin{itemize}
+  \item 通过地址来清理相关的数据 cache 条目。
+  \item 通过地址来无效指令 cache 条目。
+\end{itemize}
+
+即使对于共享内存地址来说，ARM 架构也不需要硬件来确保指令 cache 和内存的一致性。
+
+\BlockDesc{Cache 维护}
+
 
 
 \subsection{MMU}
