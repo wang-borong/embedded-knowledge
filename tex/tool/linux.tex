@@ -8,7 +8,7 @@
 
 通过如下命令安装 fcitx5 输入法：
 
-\begin{lstcode}[numbers=none]
+\begin{lstcode}
   sudo pacman -S fcitx5 fcitx5-pinyin-moegirl \
         fcitx5-configtool fcitx5-gtk \
         fcitx5-qt fcitx5-chinese-addons
@@ -21,7 +21,7 @@
 
 将如下环境变量配置到 \lstinline{/etc/environment} 中。
 
-\begin{lstcode}[numbers=none]
+\begin{lstcode}
   GTK_IM_MODULE=fcitx
   QT_IM_MODULE=fcitx
   XMODIFIERS=@im=fcitx
@@ -35,7 +35,7 @@
 
 字体的配置是通过 fontconfig，我们使用的配置如下\footnote{关于 fontconfig 的配置解析我们不准备展开，互联网上的资源很多，我们在此只关注其使用。并且下面的配置也是来源于互联网。}：
 % eliminate numbers for easy coping
-\begin{lstcode}[numbers=none]
+\begin{lstcode}
 <?xml version="1.0"?>
 <!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
 <fontconfig>
@@ -312,7 +312,7 @@
 
 通过如下命令，安装 \LaTeX 工具：
 
-\begin{lstcode}[numbers=none]
+\begin{lstcode}
   sudo pacman -S texlive texlive-langchinese biber
 \end{lstcode}
 
