@@ -2502,7 +2502,7 @@ Cache 控制器通常先从 cache line 中获取关键字（\textit{critical wor
 例如，当执行一个加载指令而发生 cahce miss 并产生一个 cache linefill 时，CPU 核先从 cache line 中获取部分请求的数据。
 这部分关键数据先提供给 CPU 核的流水线（pipeline），然后 Cache 和外部总线接口在后台读取 cache line 中剩余的数据。
 
-\BlockDesc{缓存策略}
+\subsubsection{缓存策略}
 
 Cache 策略简而言之就是，数据 Cache 何时需要申请 line；
 存储指令执行时并且数据 Cache 命中后应该发生什么事情。
@@ -2567,7 +2567,7 @@ A64 预取内存指令更一般的形式：
               These are optional.
 \end{lstcode}
 
-\BlockDesc{POC 和 POU}
+\subsubsection{POC 和 POU}
 
 对于基于 set 和基于 way 的 cache 清理和 invalidate 来说，操作是施加到指定 cache 级上的。
 对于使用虚拟地址的操作，该架构定义两个观察点。
@@ -2590,7 +2590,7 @@ A64 预取内存指令更一般的形式：
 
 即使对于共享内存地址来说，ARM 架构也不需要硬件来确保指令 cache 和内存的一致性。
 
-\BlockDesc{Cache 维护}
+\subsubsection{Cache 维护}
 
 有时在软件中清除和无效 cache 是必要的。
 在外部内存已经发生改变这种操作可能就是必要的，并且这时需要从 cache 中把陈旧的数据移除掉。
@@ -2703,8 +2703,8 @@ IC IALLU     // I cache Invalidate All to Point of Unification
 
 \begin{lstlisting}[
   language={[ARM]Assembler},
-  caption={对于 PoU 的 cache 无效操作},
-  label={lst:cache-i-pou}
+  caption={对于 PoC 的 cache 清除操作},
+  label={lst:clean-cache-poc}
 ]
        MRS X0, CLIDR_EL1
        AND W3, W0, #0x07000000  // Get 2 x Level of Coherence
@@ -2763,8 +2763,8 @@ Skip: ADD W10, W10, #2          // Increment 2 x cache level
 
 \begin{lstlisting}[
   language={[ARM]Assembler},
-  caption={对于 PoU 的 cache 无效操作},
-  label={lst:cache-i-pou}
+  caption={清理一行自改代码},
+  label={lst:clean-one-line}
 ]
 /* Coherency example for data and instruction accesses within the same Inner
 Shareable domain. Enter this code with <Wt> containing a new 32-bit instruction,
@@ -2783,8 +2783,8 @@ ISB         // Synchronize the fetched instruction stream
 
 \begin{lstlisting}[
   language={[ARM]Assembler},
-  caption={对于 PoU 的 cache 无效操作},
-  label={lst:cache-i-pou}
+  caption={通过虚拟地址清理 cache},
+  label={lst:clean-cache-by-virt}
 ]
 
 //
@@ -2838,7 +2838,7 @@ DSB ISB           // Ensure completion of the invalidations
 ISH               // Synchronize the fetched instruction stream
 \end{lstlisting}
 
-\BlockDesc{Cache 探测}
+\subsubsection{Cache 探测}
 
 缓存维护操作可以通过缓存集、路或虚拟地址进行。
 与平台无关的代码可能需要了解缓存的大小、缓存行的大小、集合和路的数量，以及系统中有多少级缓存。
@@ -2871,61 +2871,11 @@ ISH               // Synchronize the fetched instruction stream
     在执行缓存维护操作或维护与集成缓存的一致性的代码时，可能需要考虑非集成缓存。
 \end{enumerate}
 
-\Figure[width=0.2]{cache-discovery}
+\Figure[width=0.3]{cache-discovery}
 
 此外，在 big.LITTLE 系统中，描述的缓存层次结构可能会因核心而异，例如，Cortex-A53 和 Cortex-A57 处理器具有不同的 \lstinline!CTR.L1IP! 字段。
 
-\subsection{MMU}
-
-内存管理单元（MMU）的一个重要功能是使系统能够运行多个任务，作为在它们自己的私有虚拟内存空间中运行的独立程序。
-它们不需要知道系统的物理内存映射，即硬件实际使用的地址，也不需要知道可能同时执行的其他程序。
-
-\Figure[width=0.8]{mmu}
-
-您可以为每个程序使用相同的虚拟内存地址空间。
-即使物理内存是分散的，您也可以使用连续的虚拟内存映射。
-这个虚拟地址空间与系统中实际的物理内存映射是分开的。
-您可以编写、编译和链接应用程序以在虚拟内存空间中运行。
-
-下图展示了一个示例系统，即内存的虚拟视图和物理视图。
-在单个系统中的不同处理器和设备可能具有不同的虚拟和物理地址映射。
-操作系统将 MMU 编程以在这两种内存视图之间进行转换。
-
-\Figure[width=0.8]{virt-phys-mem}
-
-为了实现这一点，在虚拟内存系统中，硬件必须提供地址转换，即将处理器发出的虚拟地址转换为主存储器中的物理地址。
-
-虚拟地址是由您、编译器和链接器在将代码放置到内存中时使用的地址。
-物理地址是实际硬件系统使用的地址。
-
-MMU 使用虚拟地址的最高有效位来索引翻译表中的条目，并确定正在访问哪个块。
-MMU 将代码和数据的虚拟地址转换为实际系统中的物理地址。
-这种转换是在硬件中自动进行的，并且对应用程序是透明的。
-除了地址转换外，MMU 还控制每个内存区域的内存访问权限、内存排序和缓存策略。
-
-\Figure[width=0.8]{address-translation-with-tb}
-
-MMU 使得任务或应用程序可以编写为不需要了解系统的物理内存映射或可能同时运行的其他程序。
-这使得您可以为每个程序使用相同的虚拟内存地址空间。
-
-它还使您可以在物理内存是分散的情况下使用连续的虚拟内存映射。
-这个虚拟地址空间与系统中实际的物理内存映射是分开的。
-应用程序被编写、编译和链接以在虚拟内存空间中运行。
-
-\BlockDesc{TLB}
-
-
-
-\begin{Tcbox}[title={扩展}]
-\textbf{TLB thrashing}
-
-  TLB 抖动可能会发生在工作集页数太多，而翻译后备缓冲（TLB）作为内存管理单元（MMU）的缓存，用于将虚拟地址翻译为物理地址的大小太小的情况下。
-  即使指令缓存或数据缓存没有抖动，TLB 抖动也可能发生，因为它们的缓存大小不同。
-  指令和数据被缓存在小块（缓存行）中，而不是整个页面，但地址查找是在页面级别进行的。
-  因此，即使代码和数据工作集适合缓存，如果工作集在许多页面中分散，虚拟地址工作集可能不适合 TLB，导致 TLB 抖动。
-
-  更多关于 thrashing 的概念可以参考\href{https://en.wikipedia.org/wiki/Thrashing_(computer_science)}{维基百科}。
-\end{Tcbox}
+\input{ma/mmu}
 
 \subsection{Memory ordering} \label{sec:memory-ordering}
 
