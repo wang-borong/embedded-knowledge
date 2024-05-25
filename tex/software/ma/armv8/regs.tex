@@ -1,0 +1,220 @@
+\subsection{寄存器}
+
+AArch64 64 位通用寄存器（X0-X30），也可以只使用低 32 位（W0-W30）用于 A32 状态。
+从 W 寄存器读取时，忽略相应 X 寄存器高 32 位，并保持其它不变。
+写入 W 寄存器时，将 X 寄存器的高 32 位设置为零。
+也就是说，将 0xFFFFFFFF 写入 W0 会将 X0 设置为 0x00000000FFFFFFFF。
+
+另外还有一些特殊寄存器：
+\begin{itemize}
+  \item Zero 寄存器，注意并没有所谓的 31 号寄存器（X31/W31），编号为 31 的寄存器就是零寄存器。
+    当访问零寄存器时，所有写操作都被忽略，所有读操作返回 0。
+  \item PC 寄存器（Program Counter）。
+  \item SP 寄存器（SP/WSP）。
+    注意 A64 下的 SP 并不加前缀 X。
+  \item SPSR 寄存器（Program Status Register）。
+    SPSR 保存着异常发生之前的 PSTATE 的值，用于在异常返回时恢复 PSTATE 的值。
+  \item ELR 寄存器（Exception Link Register）。
+    保存异常返回地址。
+\end{itemize}
+
+只有 EL1 和更高的异常级存在 SPSR 和 ELR。
+
+在 ARMv8 体系结构中，选择使用栈指针寄存器在一定程度上与异常级别是分开的。
+默认情况下，发生异常时会选择目标异常级别的 SP\_ELn 作为栈指针。
+例如，当触发到 EL1 的异常时，就会选择 SP\_EL1 作为栈指针。
+每个异常级别都有自己的栈指针，SP\_EL0、SP\_EL1、SP\_EL2 和 SP\_EL3。
+EL0 永远只能访问 SP\_EL0。
+
+\begin{stblr}
+  {AArch64 SP 选项}
+  {a64-sp-opt}
+  {cc}
+  \hline[1pt]
+  Exception Level & Options \\
+  \hline
+  EL0 & EL0t \\
+  EL1 & EL1t, EL1h \\
+  EL2 & EL2t, EL2h \\
+  EL3 & EL3t, EL3h \\
+  \hline[1pt]
+\end{stblr}
+
+后缀 t 表示选择 SP\_EL0，h 表示选择 SP\_ELn。
+
+大多数指令无法使用 SP 寄存器，但是有一些形式的算术指令可以操作 SP，例如，ADD 指令可以读写当前的栈指针以调整函数中的栈指针。
+
+原来的 ARMv7 指令集的一个特性是 R15 作为程序计数器（PC），并作为一个通用寄存器使用。
+PC 寄存器的使用带来了一些编程技巧，但它为编译器和复杂的流水线的设计引入了复杂性。
+在 ARMv8 中删除了对 PC 的直接访问，使返回预测更容易，并简化了 ABI 规范。
+
+PC 永远不能作为一个命名的寄存器来访问。
+但是，可以在某些指令中隐式的使用 PC，如 PC 相对加载和地址生成。
+PC 不能被指定为数据处理或加载指令的目的操作数。
+
+下表总结了 SPSR 各 bit 的含义：
+\begin{ltblr}[caption={AArch64 SPSR bit 位含义}, label={tbl:a64_spsr}]
+  {colspec={c>{\centering\arraybackslash}X}}
+    \hline[1pt]
+    bit & 含义 \\
+    \hline
+    N & 负数标志位，如果结果为负数，则 N=1；
+    如果结果为非负数，则 N=0。\\
+    Z & 零标志位，如果结果为零，Z=1，否则 Z=0。\\
+    C & 进位标志位\\
+    V & 溢出标志位\\
+    SS & 软件步进标志位，表示当一个异常发生时，软件步进是否开启\\
+    IL & 非法执行状态位\\
+    D & 程序状态调试掩码，在异常发生时的异常级别下，来自监视点、断点和软件单步调试事件中的调试异常是否被屏蔽。\\
+    A & SError（系统错误）掩码位\\
+    I & IRQ 掩码位\\
+    F & FIQ 掩码位\\
+    M$[4]$ & 异常发生时的执行状态，0 表示 AArch64\\
+    M$[3:0]$ & 异常发生时的 mode 或异常级别\\
+    \hline[1pt]
+\end{ltblr}
+
+AArch64 没有直接与 ARMv7 当前程序状态寄存器 (CPSR) 等价的寄存器。
+在 AArch64 中，传统 CPSR 的组件作为可以独立访问的字段提供。
+这些状态被统称为处理器状态 (PSTATE)。
+
+\begin{ltblr}[caption={AArch64 PSTATE field}, label={tbl:a64_pstate}]
+  {colspec={c>{\centering\arraybackslash}X}}
+    \hline[1pt]
+    bit & 含义 \\
+    \hline
+    N & Negative condition flag. \\
+    Z & Zero condition flag. \\
+    C & Carry condition flag. \\
+    V & oVerflow condition flag. \\
+    D & Debug mask bit. \\
+    A & SError mask bit. \\
+    I & IRQ mask bit. \\
+    F & FIQ mask bit. \\
+    SS & Software Step bit. \\
+    IL & Illegal execution state bit. \\
+    EL (2) & Exception level. \\
+    nRW & Execution state 
+          0 = 64-bit
+          1 = 32-bit \\
+    SP & Stack Pointer selector.
+          0 = SP\_EL0
+          1 = SP\_ELn \\
+    \hline[1pt]
+\end{ltblr}
+
+在 AArch64 中，您可以通过执行 ERET 指令从一个异常中返回，那么 SPSR\_ELn 被复制到 PSTATE 中。
+包括恢复 ALU 标志、执行状态、异常级别和处理器分支。
+并将从 ELR\_ELn 中的地址开始继续执行。
+
+PSTATE.\{N, Z, C, V\} 字段可以在 EL0 级别访问。
+其他的字段可以在 EL1 或更高级别访问，但是这些字段在 EL0 级别未定义。
+
+\subsubsection{系统寄存器}
+
+在 AArch64 中，系统配置通过系统寄存器进行控制，并使用 MSR 和 MRS 指令进行访问。
+简化了 ARMv7 架构通过协处理器 CP15 来操作系统寄存器的方式。
+
+高异常级下可以访问本异常级和低异常级的系统寄存器。
+EL0 异常级具有最低的权限，并且只有极少数的系统系统器可以在 EL0 下访问，例如：CTR\_EL0。
+
+详细的系统寄存器列表请参见 Arm® Architecture Reference Manual for A-profile architecture \cite{armrefman}。
+
+\BlockDesc{系统控制寄存器 SCTLR}
+
+系统控制寄存器是一个很重要的系统寄存器，用于控制内存、配置系统能力和提供处理器核的状态信息。
+这个寄存器在 EL0 下拥有更多的可获取 bit，更高的异常级则更少。
+
+% npx bit-field -i <json> --fontsize=9 > figures/<bit_field>.svg
+\Figure[caption={SCTLR BIT FIELD EL1}, label={fig:sctlr-bit-field-el1}, width=1]{sctlr-bit-field-el1}
+\Figure[caption={SCTLR BIT FIELD EL2/3}, label={fig:sctlr-bit-field-el23}, width=1]{sctlr-bit-field-el23}
+
+\begin{description}
+  \item[UCI] 设置该域将使能 AArch64 下的 EL0 异常级对 DC CVAU、DC CIVAC、DC CVAC 和 IC IVAU 指令的访问权限。
+  \item[EE] 控制异常 Endianness。
+    \begin{description}
+      \item[0] 小端 
+      \item[1] 大端
+    \end{description}
+  \item[EOE] EL0 下 Explicit data 访问字节序
+    \begin{description}
+      \item[0] 小端 
+      \item[1] 大端
+    \end{description}
+  \item[WXN] 写权限下应用不可执行权限 XN（eXecute Never）
+    \begin{description}
+      \item[0] 可写区域可执行
+      \item[1] 可写区域强制不可执行
+    \end{description}
+  \item[nTWE] 不陷入 WFE，此标志为 1 表示 WFE 作为普通指令执行。
+  \item[nTWI] 不陷入 WFI, 此标志为 1 表示 WFI 作为普通指令执行
+  \item[UCT] 此标志为 1 时，开启 AArch64 的 EL0 下对 CTR\_EL0 寄存器访问权限。
+  \item[DZE] EL0 下对 DC AVA 指令的访问权限。
+    \begin{description}
+      \item[0] 禁止访问
+      \item[1] 允许访问
+    \end{description}
+  \item[I] 开启指令缓存，这是在 EL0 和 EL1 下的指令缓存的启用位。
+    对可缓存的正常内存的指令访问被缓存。
+  \item[UMA] 用户中断屏蔽控制，EL0 运行在 AArch64 状态下有效。
+  \item[SED] 控制 AArch64 状态下的 EL0 是否可以使用 SETEND 指令。
+    \begin{description}
+      \item[0] 可用
+      \item[1] 禁用
+    \end{description}
+  \item[ITD] 禁止 IT 指令
+    \begin{description}
+      \item[0] IT 指令有效
+      \item[1] IT 指令被当作 16 位指令。
+        仅另外 16 位指令或 32 位指令的头 16 位可以使用，这依赖于实现。
+    \end{description}
+  \item[CP15BEN] CP15 barrier 使能。
+    如果实现了，它是 AArch32 CP15 DMB、DSB 和 ISB barrier 操作的使能位
+  \item[SA0] EL0 的栈对齐检查使能位
+  \item[SA] 栈对齐检查使能位
+  \item[C] 数据 cache 使能。
+    EL0 和 EL1 的数据访问使能位。
+    cacheable 普通内存的数据访问都被缓存。
+  \item[A] 对齐检查使能位。
+  \item[M] 使能 MMU。
+\end{description}
+
+\begin{probsolu}[title={Problem and Solution \theprob}]{
+    手册上写的 Explicit data access 怎么理解？}
+
+  “Explicit data access”是指在编程中明确地访问数据的操作。
+  这意味着程序员直接指定要访问的数据和操作，而不依赖于编译器或运行时系统的隐式处理。
+
+  这种方式通常用于对内存中的数据进行读取、写入或者其他操作。
+  与之相对应的是隐式访问方式，其中编译器或者运行时系统负责管理数据的访问。
+  在隐式访问中，程序员通常只需指定数据的名称，而无需关心数据的存储位置或者具体的访问方式。
+
+\end{probsolu}
+
+\begin{remark}
+  The caches in the processor must be invalidated before caching of data and instructions is
+enabled in any of the Exception levels.
+\end{remark}
+
+\BlockDesc{大小端的设置}
+
+每个异常级别的数据的大小端都被单独控制。
+对于 EL3，EL2 和 EL1，通过 SCTLR\_ELn.EE 设置大小端。
+EL1 中其他位，SCTLR\_EL1.E0E 控制 EL0 的数据大小端的设置。
+在 AArch64 执行状态中，数据访问可以为 LE 或 BE，但指令的获取通常为 LE。
+
+\subsubsection{NEON 和浮点}
+
+除了通用寄存器之外，ARMv8 还有 32 个 128 位浮点寄存器，标记为 V0-V31。
+32 个寄存器用于保存标量浮点指令的浮点操作数，以及 NEON 操作的标量操作数和向量操作数。
+
+操作数使用 H (Half)、S (Single) 和 D (Double) 分别用来指定 V 寄存器的低 16、32 和 64 位。
+
+\begin{itemize}
+  \item
+    \textbf{v0-v7}: 用于传递浮点参数和返回值。
+  \item
+    \textbf{v8-v15}: 临时寄存器，用于浮点和SIMD操作。
+  \item
+    \textbf{v16-v31}: 被调用者保存的寄存器，需要在函数调用之间保持其值。
+\end{itemize}

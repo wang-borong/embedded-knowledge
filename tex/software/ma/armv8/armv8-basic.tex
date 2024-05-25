@@ -1,0 +1,124 @@
+\subsection{ARMv8 基础}
+
+在 ARMv8 中，代码执行在四个异常级之一。
+异常级别决定特权级别，因此在 $EL_n$ 执行对应于特权 $PL_n$。
+更大的 n 值的异常级别处于更高的异常级别。
+
+异常级别提供了软件执行权限的逻辑分离，适用于ARMv8架构的所有操作状态。
+它类似并支持计算机科学中常见的分层保护域的概念。
+
+\begin{description}
+    \item[EL0] Normal user applications.
+    \item[EL1] Operating system kernel typically described as privileged.
+    \item[EL2] Hypervisor.
+    \item[EL3] Low-level firmware, including the Secure Monitor.
+\end{description}
+
+\BlockDesc{异常级切换}
+
+异常级别之间可以转换，但是要遵循以下规则：
+
+\begin{itemize}
+  \item 移动到更高的异常级别，例如从 EL0 到 EL1，表示软件增加执行特权。
+  \item 不能在较低的异常级别下进行异常处理。
+  \item EL0 级别没有异常处理，必须在更高的异常级别处理异常。
+  \item 异常导致程序流程发生变化。
+    异常处理程序的执行从高于EL0的异常级别开始，起始于与所发生的异常相关的定义向量。
+    异常包括：IRQ 和 FIQ 等中断、内存系统中止、未定义的指令、系统调用和安全监视器或虚拟机管理程序 trap。
+  \item 通过执行 ERET 指令来结束异常处理并返回到上一个异常级别。
+  \item 从异常返回可以保持相同的异常级别或进入较低的异常级别，但不能移动到更高的异常级别。
+  \item 安全状态确实会随着异常级别的变化而变化，除非从 EL3 重新调整到非安全状态。
+\end{itemize}
+
+\begin{probsolu}[title={Problem and Solution \theprob}]{
+    如何切换 AArch64 EL？写个切换的实际例子？（课后作业）
+  }\label{pb:el_changing}
+
+  当处理异常时，会涉及几个寄存器的操作：
+  \begin{enumerate}
+    \item 处理器将当前正在执行的指令地址（PC 寄存器）存储在 ELR\_ELn（Exception link register）中。
+    \item 将当前处理器的状态（PSTATE）存储在 SPSR\_ELn（Saved Program Status Register）中。
+    \item 处理器根据异常向量表跳转到异常处理程序。
+    异常处理程序可以修改 ELR 和 SPSR。
+    \item 异常处理程序执行 eret 指令推出异常状态。
+    这个指令会从 SPSR\_Eln 寄存器恢复处理器的状态，并且恢复 ELE\_Eln 中储存的指令的执行。
+  \end{enumerate}
+  据上所述，异常处理程序\textcolor{red}{可以修改 ELR\_ELn 和 SPSR\_ELn 寄存器}，所以异常处理程序能够间接的修改 EL 等参数，达到切换 EL 的目的。
+
+  比如，想要从 EL3 异常级切换到 EL1，示例代码如下~\ref{lst:change_el}。
+  那么需要配置一些系统寄存器，然后调用 eret 指令触发处理器切换异常运行级。
+
+  \begin{enumerate}
+    \item 配置 SCTLR\_EL1（System Control Register）。
+      sctlr\_eln 寄存器被用来配置处理器的不同参数。
+      存在 sctlr\_el1、sctlr\_el2 和 sctlr\_el3 分别对应 EL1、EL2 和 EL3 的寄存器。
+      sctlr\_el1 寄存器能够配置 EL0 和 EL1 级别的内存等配置。
+      通过修改 sctlr\_el1 某些位的值能达到配置处理器在 EL0 和 EL1 级别运行时的行为。
+    \item 配置 HCR\_EL2（Hypervisor Configuration Register）。
+      HCR\_EL2 寄存器提供了虚拟化的配置，包括定义是否将各种操作限制在 EL2 中。
+      因为只有 EL2 支持 Hypervisor，所以只存在一个 HCR\_EL2 寄存器。
+    \item 配置 SCR\_EL3（Secure Configuration Register）。
+      SCR\_EL3 寄存器定义当前安全状态的配置:
+      \begin{itemize}
+        \item EL0，EL1 和 EL2 的安全状态为 Secure 或 Non-Secure
+        \item EL2 的 Execution State
+      \end{itemize}
+    \item 配置 SPSR\_EL3（Saved Program Status Register）。
+      EL3 发生异常时，SPSR\_EL3 寄存器用来保存处理器的状态。
+    \item 配置 ELR\_EL3（Exception Link Register (EL3)）。
+      在 EL3 进行异常处理时，ELR\_EL3 寄存器将用来指定即将要返回的地址。
+  \end{enumerate}
+  通过配置上述系统寄存器，然后调用 eret 触发处理器的执行状态的重恢复，就能将异常级别从 EL3 切换到 EL1。
+\end{probsolu}
+\begin{lstlisting}[
+  language={[ARM]Assembler},
+  caption={切换异常级},
+  label={lst:change_el}
+]
+  master:
+  ldr    x0, =SCTLR_VALUE_MMU_DISABLED
+  msr    sctlr_el1, x0
+
+  ldr    x0, =HCR_VALUE
+  msr    hcr_el2, x0
+
+  ldr    x0, =SCR_VALUE
+  msr    scr_el3, x0
+
+  ldr    x0, =SPSR_VALUE
+  msr    spsr_el3, x0
+
+  adr    x0, el1_entry
+  msr    elr_el3, x0
+
+  eret
+\end{lstlisting}
+
+\BlockDesc{运行状态切换}
+
+ARMv8 架构定义了两种执行状态，AArch64 和 AArch32。
+每个状态分别用于描述使用 64 位宽通用寄存器或 32 位宽通用寄存器的执行。
+虽然 ARMv8 AArch32 保留了 ARMv7 对特权的定义，但在 AArch64 中，特权级别由异常级别决定。
+因此，在 $EL_n$ 的执行对应于特权 $PL_n$。
+
+当处于 AArch64 状态时，处理器执行 A64 指令集。
+当处于 AArch32 状态时，处理器可以执行 A32（在早期版本的架构中称为 ARM）或 T32 (Thumb) 指令集。
+
+\begin{probsolu}[title={Problem and Solution \theprob}]{
+    如何切换 AArch64 状态到 AArch32 状态？写个切换的实际例子？（课后作业）
+  }\label{pb:state_changing}
+  
+  例如：在 EL3 下进行运行切换，EL3 为 AArch64，将 EL2 切换成 aarch32。
+  在 EL3 异常级下，设置 EL2 的架构为 aarch32，设置好返回地址，通过 ERET 指令，即可将 EL2 状态切换成 EL2。
+  设置中，主要涉及配置 elr\_el3 寄存器（保存下一异常级的指令地址）和 spsr\_el3 寄存器（保存下一异常级的 pstate 值）。
+  对于 spsr\_el3，要设置正确，则要参考 AArch32 的 cpsr 寄存器值进行设置。
+
+  如果需要将 A32 状态切换到 T32 状态，则使用 bx 指令，并且跳转地址的最低位要为 1；
+  从 T32 状态切回 A32 状态同样使用 bx 指令，且跳转地址最低位为 0。
+  
+  总结：EL2 的 A64 和 A32 状态，由 EL3 决定，也就是 SCR\_EL3.RW 寄存器决定。
+
+  EL1 的 A64 和 A32 状态，由 EL2 决定，也就是 HCR\_EL3.RW 寄存器决定。
+
+  EL0 的 A64 和 A32 状态，由 EL1 决定，也就是 CPSR.M[4] 位决定。
+\end{probsolu}
