@@ -410,7 +410,7 @@ Cortex-A53 和 Cortex-A57 处理器支持在集群中的不同核心之间进行
 系统中的一致性支持取决于硬件设计决策，存在许多可能的配置。
 例如，一致性只能在单个集群内支持。
 一个双集群 big.LITTLE 系统是可能的，其中内部域包括两个集群的核心，或者一个多集群系统，其中内部域包括一个集群，外部域包括其他集群。
-有关 big.LITTLE 系统的更多信息，请参见第~\ref{sec:big-little-tec} 章《big.LITTLE 技术》。
+有关 big.LITTLE 系统的更多信息，请参见第~\ref{sec:big-little-tec} 章的 big.LITTLE 技术。
 
 除了硬件之外，用于在缓存之间维护数据一致性的广播缓存维护活动的能力也是必要的，该活动由在一个核心上运行的代码执行。
 在重置时会对硬件配置信号进行采样，以控制内部、外部或两者缓存维护操作是否广播，以及系统屏障指令是否广播。
@@ -647,7 +647,6 @@ ARMv8 处理器通常使用 MOESI 协议，并支持 AMBA 5 CHI 互连系统，�
   \item
     若缓存行为“独占”，其他缓存读取时需将其状态改为“共享”。
   \end{itemize}
-\item
 \item [{丢弃操作}] \hfill
   \begin{itemize}
   \item
@@ -830,21 +829,21 @@ GPU 和 IO 一致性主机通过 AMBA 4 ACE-Lite 接口连接到 CCI-400。
 ARM 提供了不同的互连选项来维护跨集群的一致性：
 
 \begin{description}
-  \item [CoreLink CCI-400 高速缓存一致性互连] \hfill
+  \item [CoreLink CCI-400 高速缓存一致性互连] \hfill \\
     支持两个多核集群，并使用 AMBA
     4 和 AMBA 一致性扩展或 ACE。
     ACE 使用 MOESI 状态机进行跨集群的一致性维护。
-  \item [CoreLink CCN-504 高速缓存一致性网络] \hfill
+  \item [CoreLink CCN-504 高速缓存一致性网络] \hfill \\
     支持最多四个多核集群，并包括集成的 L3 缓存和两通道 72 位 DDR。
-  \item [CoreLink CCN-508 高速缓存一致性网络] \hfill
+  \item [CoreLink CCN-508 高速缓存一致性网络] \hfill \\
     支持最多八个多核集群，32 个核心，并包括集成的 L3 缓存和四通道 72 位 DDR。
-  \item [CoreLink MMU-500 系统 MMU] \hfill
+  \item [CoreLink MMU-500 系统 MMU] \hfill \\
     为系统组件提供地址转换。
-  \item [CoreLink TZC-400 TrustZone 地址空间控制器] \hfill
+  \item [CoreLink TZC-400 TrustZone 地址空间控制器] \hfill \\
     对内存或外设事务进行安全检查，并允许将内存区域标记为安全区域。
-  \item [CoreLink DMC-400 动态内存控制器] \hfill
+  \item [CoreLink DMC-400 动态内存控制器] \hfill \\
     提供动态内存调度和与外部 DDR2/3 或 LPDDR2 内存的接口。
-  \item [CoreLink NIC-400 网络互连] \hfill
+  \item [CoreLink NIC-400 网络互连] \hfill \\
     是一个高度可配置的组件，能够创建完整的高性能、优化的、符合 AMBA 标准的网络基础设施。
 
     CoreLink NIC-400 网络互连的可能配置范围从单个桥接组件（例如 AHB 到 AXI 协议转换桥）到一个复杂的互连，其中包括多达 128 个 AMBA 协议的主控和 64 个从控。

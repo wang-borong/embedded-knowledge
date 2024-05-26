@@ -169,7 +169,7 @@ Cache 更新机制有：
 至于这两种属性的范围是\textbf{由实现所决定的}。
 一般来说，inner 属性用于集成 Cache（CPU 核内集成的 Cache），outer 属性可在处理器内存总线上供外部 Cache 使用。
 
-\Figure{cacheable-properties-of-memory}
+\Figure[caption={内存的可缓存属性}, label={fig:cacheable-properties-of-memory}, width=0.8]{cacheable-properties-of-memory}
 
 处理器可以预测式的访问普通内存，也就是说处理器可以自动暗中加载数据到 cache 中。
 这个行为并不需要开发人员的干涉，也无需指定请求地址。
@@ -506,6 +506,6 @@ ISH               // Synchronize the fetched instruction stream
     在执行缓存维护操作或维护与集成缓存的一致性的代码时，可能需要考虑非集成缓存。
 \end{enumerate}
 
-\Figure[width=0.3]{cache-discovery}
+\Figure[caption={缓存探测}, label={fig:cache-discovery}, width=0.2]{cache-discovery}
 
 此外，在 big.LITTLE 系统中，描述的缓存层次结构可能会因核心而异，例如，Cortex-A53 和 Cortex-A57 处理器具有不同的 \lstinline!CTR.L1IP! 字段。
