@@ -1,13 +1,17 @@
 \section{Linux 内核}
 
 \subsection{启动}
-\subsubsection{启动流程分析}
+
+关于 Linux 的启动分析（ARMv8 架构），我们专门在另外一个文档撰写。
+所以在此不再浪费篇幅。
 
 \subsection{内存管理}
 
 \subsection{task}
 
 \subsection{网络}
+
+\subsection{内核开发}
 
 \subsection{驱动架构及子系统}
 \subsubsection{UART}
@@ -94,10 +98,10 @@
       \hline[1pt]
       方向 & 说明 \\
       \hline
-      DMA\_NONE		        & no direction (used for debugging) \\
-      DMA\_TO\_DEVICE		  & data is going from the memory to the device \\
-      DMA\_FROM\_DEVICE		& data is coming from the device to the memory \\
-      DMA\_BIDIRECTIONAL	& direction isn't known \\
+      DMA\_NONE            & no direction (used for debugging) \\
+      DMA\_TO\_DEVICE      & data is going from the memory to the device \\
+      DMA\_FROM\_DEVICE    & data is coming from the device to the memory \\
+      DMA\_BIDIRECTIONAL  & direction isn't known \\
       \hline[1pt]
     \end{stblr}
 \end{enumerate}
@@ -143,6 +147,96 @@
 \end{enumerate}
 
 以上只是简单的提炼，具体细节可以查阅相关文档。
+
+\paragraph{scatterlist}
+
+关于 scatterlist，可以参阅 \href{https://lwn.net/Articles/234617/}{LWN 介绍文章}，下面是该文章的翻译。
+
+\begin{quote}
+
+高性能 I/O 通常涉及使用直接内存访问（DMA）操作。
+通过 DMA，I/O 设备可以在不干扰 CPU 的情况下直接与主内存交换数据。
+在最简单的 DMA 形式中，控制器被赋予一个指向内存区域的指针，给定长度，并指示其进行操作。
+处理器随后可以忘记这个操作，直到设备发出工作完成的信号。
+
+然而，这种简单的视图有一个缺点，即它假设要传输的数据在内存中是连续存储的。
+当I/O 缓冲区在内核空间时，内核通常可以安排它在物理上是连续的——尽管随着缓冲区大小的增加，这变得越来越困难。
+如果缓冲区在用户空间，则保证它分散在物理内存中。
+因此，如果 DMA 操作能够处理被分割成多个不同部分的缓冲区，那将是非常理想的。
+
+事实上，对于任何具有合理能力的外围设备，缓冲区都可以这样分割。
+对这种缓冲区进行操作的术语是“散 / 聚集 I/O”；
+Linux 早已很好地支持散 / 聚集。
+Linux 设备驱动程序的 DMA 章节详细介绍了散 / 聚集。
+简而言之，驱动程序首先填充一个散列表结构数组，这在 i386 架构上看起来像这样：
+
+\begin{lstlisting}[language=C]
+struct scatterlist {
+    struct page *page;
+    unsigned int    offset;
+    dma_addr_t  dma_address;
+    unsigned int    length;
+};
+\end{lstlisting}
+
+对于每个段，page 指针指示该段在内存中的位置，offset 指示数据在页面内的起始位置，length 是段的长度。
+列表填充完成后，驱动程序调用：
+
+\begin{lstlisting}[language=C]
+int dma_map_sg(struct device *dev, struct scatterlist *sg, int nents,
+               enum dma_data_direction direction);
+\end{lstlisting}
+
+此操作至少会填充每个散列表条目的 dma\_address 字段，该地址可以提供给外围设备。
+然而，它可能做的不止这些：物理上连续的页面可能会合并为单个散列表条目，或者系统的 I/O 内存管理单元可能会被编程，使得从设备的角度看，列表的部分（或全部）在虚拟上是连续的。
+所有这些——包括 struct scatterlist 的确切形式——都是架构相关的，但散 / 聚集接口的设置使得驱动程序无需担心架构细节。
+
+最近，散 / 聚集接口中的一个特定限制显现出来。
+由于各种原因，散列表必须适应单个页面；
+这一限制对可以表示的段数设置了上限。
+在启用高内存的 i386 架构上，struct scatterlist 需要 20 字节，这限制了散列表为 204 个条目。
+如果每个散列表条目指向一个完整页面，DMA 传输的最大大小将约为 800KB。
+在x86 - 64 系统上，情况更糟：结构体使用 40 字节，将最大长度减半。
+
+在某些情况下，需要更大的 I/O 操作。
+块I/O 子系统是其中之一，但肯定还有其他情况：高分辨率视频捕获设备就是一个例子。
+散列表长度的限制是激励开发人员工作的因素之一，他们致力于支持更大的块大小。
+通过增加有效页面大小，他们能够增加最大 I/O 操作大小。
+
+然而，增加页面大小并不是唯一可行的方法；
+另一种方法是简单地增加散列表的长度。
+多页面连续的散列表实际上并不可行，但可以链式连接单页面散列表。
+Jens Axboe 一直在研究这种方法；
+截至本文撰写时，他的散列表链式连接补丁已经是第六版。
+
+链式连接通过重载页面指针在页面中的最后一个散列表条目来完成。
+设置最低有效位以指示该条目实际上是链条链接，而不是另一个要传输的段。
+对驱动程序来说，这个改变几乎是透明的。
+在当前内核中，遍历散列表的代码通常看起来像这样：
+
+\begin{lstlisting}[language=C]
+struct scatterlist *sg = &the_scatterlist[0];
+
+for (i = 0; i < nentries; i++) {
+    program_io_operation(sg);
+    sg++;
+}
+\end{lstlisting}
+
+当使用链式连接时，简单地通过数组递增将不再有效。
+所以 Jens 添加了一个简单的 sg\_next() 宏，当需要时跟随链条链接。
+因此，上述 sg++ 行变成如下所示：
+
+\begin{lstlisting}[language=C]
+sg = sg_next(sg);
+\end{lstlisting}
+
+由于需要对驱动程序进行更改，除非确定驱动程序已准备好，否则不应使用链式散列表。
+Jens 的补丁修复了许多驱动程序，特别是在块子系统中。
+即便如此，最大 I/O 大小必须由管理员通过 sysfs 文件显式提高，然后链式连接才会启用。
+一旦启用，多兆字节的 I/O 操作就变得可能。
+无需进行侵入性的内存管理更改。
+\end{quote}
 
 \subsubsection{I2C/I3C}
 
