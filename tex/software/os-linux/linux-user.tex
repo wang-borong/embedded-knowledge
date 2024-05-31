@@ -1,0 +1,31 @@
+\section{Linux 应用开发}
+
+\subsection{文件及 IO}
+
+一切皆文件，所有在 Linux/UNIX 系统上打开的文件都用文件描述符表示，并且描述符是非零的。
+当我们创建或打开一个文件，内核会返回一个文件描述符给到当前进程。
+当我们读取或写入数据到一个文件中，我们便使用相应的文件描述符指定这个文件。
+
+在类 UNIX 系统中约定俗成，文件描述符 0 代表一个进程的标准输入，1 代表标准输出，2 代表标准错误输出。
+为了兼容性，应该使用 STDIN\_FILENO、STDOUT\_FILENO 和 STDERR\_FILENO 来代替 0、1 和 2。
+
+文件描述符的范围从 0 到 OPEN\_MAX - 1。
+Linux 系统对文件描述符的限制数量是 1024（soft limit），hard limit 为 524288。
+然而我们可以通过修改 /etc/security/limits.conf 来修改类似的 limit。
+
+\BlockDesc{打开文件}
+
+\begin{lstlisting}[language=C]
+  #include <fcntl.h>
+  int open(const char *path, int oflag, ... /* mode_t mode */ );
+  int openat(int fd, const char *path, int oflag, ... /* mode_t mode */ );
+  /* Both return: file descriptor if OK, −1 on error */
+\end{lstlisting}
+
+\subsection{网络}
+
+\subsection{进程}
+
+\subsection{线程}
+
+\subsection{异常处理}
