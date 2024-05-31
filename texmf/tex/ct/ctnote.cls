@@ -118,7 +118,7 @@
   commentstyle = \color{listing-comment},
   escapeinside = {/*@}{@*/},       % Allow LaTeX inside these special comments
   extendedchars=true,              % lets you use non-ASCII characters; for 8-bits encodings only, does not work with UTF-8
-  frame=single,                    % adds a frame around the code
+  frame=none,                    % adds a frame around the code
   keepspaces=true,                 % keeps spaces in text, useful for keeping indentation of code (possibly needs columns=flexible)
   upquote=true, % 配置成true表示使用英文双引号
   keywordstyle=\color{blue},       % keyword style
@@ -138,7 +138,7 @@
   identifierstyle = \color{listing-identifier},
   stringstyle=\color{listing-string},     % string literal style
   tabsize=2,                       % sets default tabsize to 2 spaces
-  title=\lstname,                  % show the filename of files included with \lstinputlisting; also try caption instead of title
+  % title=\lstname,                  % show the filename of files included with \lstinputlisting; also try caption instead of title
   %xleftmargin=2em,                % 设置左侧缩进为两个字符的宽度
   literate         =
   {á}{{\'a}}1 {é}{{\'e}}1 {í}{{\'i}}1 {ó}{{\'o}}1 {ú}{{\'u}}1
