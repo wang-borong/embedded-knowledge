@@ -14,7 +14,7 @@
     \item[EL3] Low-level firmware, including the Secure Monitor.
 \end{description}
 
-\BlockDesc{异常级切换}
+\subsubsection{异常级切换}
 
 异常级别之间可以转换，但是要遵循以下规则：
 
@@ -94,7 +94,7 @@
   eret
 \end{lstlisting}
 
-\BlockDesc{运行状态切换}
+\subsubsection{运行状态切换}
 
 ARMv8 架构定义了两种执行状态，AArch64 和 AArch32。
 每个状态分别用于描述使用 64 位宽通用寄存器或 32 位宽通用寄存器的执行。

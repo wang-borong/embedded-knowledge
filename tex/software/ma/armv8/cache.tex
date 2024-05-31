@@ -61,7 +61,7 @@ Cache 需要保存地址、数据和一些状态信息。
     Cache 给出的是一行（cache line）数据，所以地址中有 5 到 6 个最低有效位恒为 0（也就是说 cache line 有 $2^5$ - $2^6$ 个 byte）。
 \end{itemize}
 
-\BlockDesc{组（Set）相连 Cache 和 way}
+\paragraph*{组（Set）相连 Cache 和 way}
 
 ARM 架构下的 Cache 基本都是组相连的，这种类型的 Cache 极大的减少了直接映射型 Cache 的抖动（thrashing）问题\footnote{
 Where main memory is accessed in a pattern that leads to multiple main memory locations competing for the same cache lines, resulting in excessive cache misses.
@@ -88,7 +88,7 @@ This is most problematic for caches that have low associativity.
 如果不是想缓存很少的数据来说（例如 TLB），构建这样的 Cache 是不现实的。
 实际上，8-way 以上的对与性能来说提升很小，16-way 的关联性对于更大的 L2 才更有用。
 
-\BlockDesc{tag 和 物理地址}
+\paragraph*{tag 和 物理地址}
 
 一个 tag 对应一条 line，用于记录关联于 line 的外部内存物理地址。
 Cache line 的大小是由\textbf{实现决定的}，但是所有的 CPU 核都具有相同的 Cache line 大小，因为这些核之间是相互连系的。
@@ -112,7 +112,7 @@ Cache line 包含以下成员：
 
 \Figure[caption={32KB 4-way D-Cache}, label={fig:32KB-4-way-D-Cache}]{32KB-4-way-D-Cache}
 
-\BlockDesc{包容或排它 Cache}
+\paragraph*{包容或排它 Cache}
 
 包容型 Cache 即数据可以同时存在与 L1 和 L2 Cache 中。
 排它型 Cache 即数据只能同时存在于单级 Cache，同一地址不可能同时在 L1 和 L2 中出现。

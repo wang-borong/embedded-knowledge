@@ -120,7 +120,7 @@ EL0 异常级具有最低的权限，并且只有极少数的系统系统器可�
 
 详细的系统寄存器列表请参见 Arm® Architecture Reference Manual for A-profile architecture \cite{armrefman}。
 
-\BlockDesc{系统控制寄存器 SCTLR}
+\paragraph*{系统控制寄存器 SCTLR}
 
 系统控制寄存器是一个很重要的系统寄存器，用于控制内存、配置系统能力和提供处理器核的状态信息。
 这个寄存器在 EL0 下拥有更多的可获取 bit，更高的异常级则更少。
@@ -196,7 +196,7 @@ EL0 异常级具有最低的权限，并且只有极少数的系统系统器可�
 enabled in any of the Exception levels.
 \end{remark}
 
-\BlockDesc{大小端的设置}
+\paragraph*{大小端的设置}
 
 每个异常级别的数据的大小端都被单独控制。
 对于 EL3，EL2 和 EL1，通过 SCTLR\_ELn.EE 设置大小端。

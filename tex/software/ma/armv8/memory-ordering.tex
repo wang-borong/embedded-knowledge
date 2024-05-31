@@ -72,7 +72,7 @@ ARMv8 架构定义了两种互斥的内存类型。
 
 \Figure[caption={类型编码}, label={fig:type-encoding}, width=0.8]{type-encoding}
 
-\BlockDesc{Normal}
+\paragraph*{Normal}
 
 您可以将 Normal 内存用于所有代码和大多数内存中的数据区域。
 Normal 内存的示例包括物理内存中的 RAM、Flash 或 ROM 区域。
@@ -111,7 +111,7 @@ LDRH W2, [X5]
 处理器必须确保内存更新为像 STR 和 STRB 按顺序发生一样，以便 LDRH 返回最新的值。
 处理器仍然可以将 STR 和 STRB 合并为一个包含最新、正确数据的单个访问，这是有效的。
 
-\BlockDesc{Device}
+\paragraph*{Device}
 
 你可以将设备内存用于所有可能具有副作用的内存区域。
 例如，对 FIFO 位置或计时器的读取是不可重复的，因为每次读取返回的值都不同。
@@ -362,7 +362,7 @@ C 语言规范对序列点的定义如下：
 
 “在执行序列中的某些特定点，称为序列点，之前所有评估的副作用都应完成，并且后续评估的副作用尚未发生。”
 
-\BlockDesc{Linux 内核中的屏障}
+\subparagraph*{Linux 内核中的屏障}
 
 Linux 内核包含许多平台无关的屏障函数。
 更多详细信息请参见内存屏障的 Linux 内核文档 memory-barriers.txt 文件：
@@ -434,7 +434,7 @@ LDNP X2, X1, [X0]
 例如，L1 表中的一个具有 NSTable=1 的条目意味着忽略了它所指向的 L2 和 L3 表中的 NS 位，并且所有条目都被视为具有 NS=1。
 这个特性只限制了同一级别的后续查找。
 
-\BlockDesc{可缓存和可共享的内存属性}
+\subparagraph*{可缓存和可共享的内存属性}
 
 标记为 Normal 的内存区域可以被指定为缓存或非缓存。
 有关可缓存内存的更多信息，请参阅第下一章节“多核处理器”。
