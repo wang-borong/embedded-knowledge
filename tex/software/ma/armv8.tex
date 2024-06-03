@@ -1,0 +1,44 @@
+\section{ARMv8}
+
+ARM 公司在 2013 年发布了它的 64-bit ARMv8 架构。
+ARMv8 实现了 32-bit ARMv7 的兼容。
+做出了以下重要升级：\footnote{
+  这里翻译或讲述的原版手册是 {ARM® Cortex®-A Series Programmer’s Guide for ARMv8-A}\cite{armpg}
+}
+
+\begin{description}
+    \item[Large physical address] 更大的物理内存，使处理器能够访问超过 4GB 的物理内存。
+    \item[64-bit virtual addressing] 使虚拟内存突破 4GB 限制。
+    这对于使用内存映射文件 I/O 或稀疏寻址的现代桌面和服务器软件很重要。
+    \item[Automatic event signaling] 可以实现节能、高性能的自旋锁。
+    \item[Larger register files] 31 个 64 位通用寄存器可提高性能并减少堆栈使用。
+    \item[Efficient 64-bit immediate generation] 降低对 literal pool 的需求。
+    \item[Large PC-relative addressing range] 一个 +/‑4GB 的寻址范围，用于在共享库和与位置无关的可执行文件中进行有效的数据寻址。
+    \item[Additional 16KB and 64KB translation granules] 降低了翻译后备缓冲区 (TLB) 未命中率和页面遍历深度。
+    \item[New exception model] 降低了操作系统和管理程序软件的复杂性。
+    \item[Efficient cache management] 用户空间缓存操作提高了动态代码生成效率。
+    使用数据缓存零指令快速清除数据缓存。
+    \item[Hardware-accelerated cryptography] 软件加密性能提高 3 到 10 倍。
+      这对于小粒度解密和加密非常有用，因为太小而无法有效地卸载到硬件加速器（too small to offload to a hardware accelerator），例如 https。
+    \item[Load-Acquire, Store-Release instructions] 专为 C++11、C11、Java 内存模型而设计。
+    它们通过消除显式内存屏障指令来提高线程安全代码的性能。
+    \item[NEON double-precision floating-point advanced SIMD] 使得 SIMD 矢量化能够应用于更广泛的算法集，例如科学计算、高性能计算 (HPC) 和超级计算机。
+\end{description}
+
+\input{armv8/cortex-a57-proc}
+\input{armv8/armv8-basic}
+\input{armv8/regs}
+\input{armv8/isa-in-nutshell}
+\input{armv8/a64-isa}
+\input{armv8/float-neon}
+\input{armv8/abi}
+\input{armv8/exception}
+\input{armv8/cache}
+\input{armv8/mmu}
+\input{armv8/memory-ordering}
+\input{armv8/multi-core-processors}
+\input{armv8/power-management}
+\input{armv8/big-little-tec}
+\input{armv8/security}
+\input{armv8/debug}
+\input{armv8/armv8-models}
