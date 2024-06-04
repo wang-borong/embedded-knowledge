@@ -60,7 +60,7 @@
 
 % 设置字体
 \RequirePackage{fontspec}
-\setmainfont{Arial}
+% \setmainfont{Arial}
 \setmonofont{Source Code Pro}
 
 % 调整页面大小
@@ -82,6 +82,9 @@
 
 % 批量设置不同的列表编号
 \RequirePackage{enumerate}
+
+\RequirePackage{biblatex}
+\nocite{*}
 
 % 代码高亮相关
 \RequirePackage{listings}

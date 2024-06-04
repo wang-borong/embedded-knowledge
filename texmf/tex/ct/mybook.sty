@@ -380,18 +380,6 @@
 \newenvironment{property}{\par\noindent\textbf{\color{mybook-third-color}\propertyname} \kaishu}{\par}
 \newenvironment{custom}[1]{\par\noindent\textbf{\color{mybook-third-color} #1} \kaishu}{\par}
 
-\NewDocumentEnvironment{Tcbox}{O{} +b}{%
-  \begin{tcolorbox}[
-    mystyle,
-    title={Tcbox},
-    interior hidden,
-    #1,
-  ]
-}{%
-    #2
-  \end{tcolorbox}
-}
-
 \definecolor{probsolu-tcbcolor}{HTML}{F9F7ED}
 \NewDocumentEnvironment{probsolu}{O{} m +b}{%
   \begin{tcolorbox}[

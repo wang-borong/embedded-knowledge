@@ -1,10 +1,10 @@
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesPackage{mynote}[2023/09/11 v0.3 my common note package]
+\ProvidesPackage{myart}[2023/09/11 v0.3 my article style package]
 
 \RequirePackage{kvoptions}
 \RequirePackage{etoolbox}
-\SetupKeyvalOptions{family=mynote,prefix=mynote@,setkeys=\kvsetkeys}
-%\newcommand{\wkv}[1]{\kvsetkeys{mynote}{#1}}
+\SetupKeyvalOptions{family=myart,prefix=myart@,setkeys=\kvsetkeys}
+%\newcommand{\wkv}[1]{\kvsetkeys{myart}{#1}}
 
 \DeclareStringOption[blue]{color}
 
@@ -16,35 +16,35 @@
 
 % copied from elegantbook.cls
 \RequirePackage{xcolor}
-\ifdefstring{\mynote@color}{green}{
-  \definecolor{mynote-basis-color}{RGB}{0,120,2}%
-  \definecolor{mynote-main-color}{RGB}{0,120,2}%
-  \definecolor{mynote-second-color}{RGB}{230,90,7}%
-  \definecolor{mynote-third-color}{RGB}{0,160,152}%
+\ifdefstring{\myart@color}{green}{
+  \definecolor{myart-basis-color}{RGB}{0,120,2}%
+  \definecolor{myart-main-color}{RGB}{0,120,2}%
+  \definecolor{myart-second-color}{RGB}{230,90,7}%
+  \definecolor{myart-third-color}{RGB}{0,160,152}%
 }{\relax}
-\ifdefstring{\mynote@color}{cyan}{
-  \definecolor{mynote-basis-color}{RGB}{31,186,190}%
-  \definecolor{mynote-main-color}{RGB}{59,180,5}%
-  \definecolor{mynote-second-color}{RGB}{175,153,8}%
-  \definecolor{mynote-third-color}{RGB}{244,105,102}%
+\ifdefstring{\myart@color}{cyan}{
+  \definecolor{myart-basis-color}{RGB}{31,186,190}%
+  \definecolor{myart-main-color}{RGB}{59,180,5}%
+  \definecolor{myart-second-color}{RGB}{175,153,8}%
+  \definecolor{myart-third-color}{RGB}{244,105,102}%
 }{\relax}
-\ifdefstring{\mynote@color}{blue}{
-  \definecolor{mynote-basis-color}{RGB}{60,113,183}
-  \definecolor{mynote-main-color}{RGB}{0,166,82}%
-  \definecolor{mynote-second-color}{RGB}{255,134,24}%
-  \definecolor{mynote-third-color}{RGB}{0,174,247}%
+\ifdefstring{\myart@color}{blue}{
+  \definecolor{myart-basis-color}{RGB}{60,113,183}
+  \definecolor{myart-main-color}{RGB}{0,166,82}%
+  \definecolor{myart-second-color}{RGB}{255,134,24}%
+  \definecolor{myart-third-color}{RGB}{0,174,247}%
 }{\relax}
-\ifdefstring{\mynote@color}{gray}{
-  \definecolor{mynote-basis-color}{RGB}{150,150,150}
-  \definecolor{mynote-main-color}{RGB}{150,150,150}%
-  \definecolor{mynote-second-color}{RGB}{150,150,150}%
-  \definecolor{mynote-third-color}{RGB}{150,150,150}%
+\ifdefstring{\myart@color}{gray}{
+  \definecolor{myart-basis-color}{RGB}{150,150,150}
+  \definecolor{myart-main-color}{RGB}{150,150,150}%
+  \definecolor{myart-second-color}{RGB}{150,150,150}%
+  \definecolor{myart-third-color}{RGB}{150,150,150}%
 }{\relax}
-\ifdefstring{\mynote@color}{black}{
-  \definecolor{mynote-basis-color}{RGB}{0,0,0}
-  \definecolor{mynote-main-color}{RGB}{0,0,0}%
-  \definecolor{mynote-second-color}{RGB}{0,0,0}%
-  \definecolor{mynote-third-color}{RGB}{0,0,0}%
+\ifdefstring{\myart@color}{black}{
+  \definecolor{myart-basis-color}{RGB}{0,0,0}
+  \definecolor{myart-main-color}{RGB}{0,0,0}%
+  \definecolor{myart-second-color}{RGB}{0,0,0}%
+  \definecolor{myart-third-color}{RGB}{0,0,0}%
 }{\relax}
 % \definecolor{winered}{rgb}{0.5,0,0}
 \definecolor{bule}{RGB}{18,29,57}
@@ -59,7 +59,7 @@
 \RequirePackage{bookmark}
 \bookmarksetup{
   numbered,
-  color=mynote-basis-color,
+  color=myart-basis-color,
 }
 
 % 设置caption字体大小为小5
@@ -100,23 +100,23 @@
 \ctexset{
   section = {
     name = {,.},
-    format+ = \zihao{3} \color{mynote-basis-color} \bfseries \rmfamily \raggedright
+    format+ = \zihao{3} \color{myart-basis-color} \bfseries \rmfamily \raggedright
   },
   subsection = {
     name = {,.},
-    format += \zihao{-3} \color{mynote-basis-color} \bfseries \rmfamily \raggedright
+    format += \zihao{-3} \color{myart-basis-color} \bfseries \rmfamily \raggedright
   },
   subsubsection = {
     name = {,.},
-    format += \zihao{4} \color{mynote-basis-color} \bfseries \rmfamily \raggedright
+    format += \zihao{4} \color{myart-basis-color} \bfseries \rmfamily \raggedright
   },
   paragraph = {
     name = {,.},
-    format += \zihao{-4} \color{mynote-basis-color} \bfseries \rmfamily \raggedright
+    format += \zihao{-4} \color{myart-basis-color} \bfseries \rmfamily \raggedright
   },
   subparagraph = {
     name = {,.},
-    format += \zihao{5} \color{mynote-basis-color} \bfseries \rmfamily \raggedright
+    format += \zihao{5} \color{myart-basis-color} \bfseries \rmfamily \raggedright
   }
 }
 
@@ -127,13 +127,13 @@
 \RequirePackage[shortlabels,inline]{enumitem}
 \setlist{nolistsep}
 
-\newcommand*{\eitemi}{\tikz \draw [baseline, ball color=mynote-basis-color,draw=none] circle (2pt);}
-\newcommand*{\eitemii}{\tikz \draw [baseline, fill=mynote-basis-color,draw=none,circular drop shadow] circle (2pt);}
-\newcommand*{\eitemiii}{\tikz \draw [baseline, fill=mynote-basis-color,draw=none] circle (2pt);}
-\setlist[enumerate,1]{label=\color{mynote-basis-color}\arabic*.}
-\setlist[enumerate,2]{label=\color{mynote-basis-color}(\alph*).}
-\setlist[enumerate,3]{label=\color{mynote-basis-color}\Roman*.}
-\setlist[enumerate,4]{label=\color{mynote-basis-color}\Alph*.}
+\newcommand*{\eitemi}{\tikz \draw [baseline, ball color=myart-basis-color,draw=none] circle (2pt);}
+\newcommand*{\eitemii}{\tikz \draw [baseline, fill=myart-basis-color,draw=none,circular drop shadow] circle (2pt);}
+\newcommand*{\eitemiii}{\tikz \draw [baseline, fill=myart-basis-color,draw=none] circle (2pt);}
+\setlist[enumerate,1]{label=\color{myart-basis-color}\arabic*.}
+\setlist[enumerate,2]{label=\color{myart-basis-color}(\alph*).}
+\setlist[enumerate,3]{label=\color{myart-basis-color}\Roman*.}
+\setlist[enumerate,4]{label=\color{myart-basis-color}\Alph*.}
 \setlist[itemize,1]{label={\eitemi}}
 \setlist[itemize,2]{label={\eitemii}}
 \setlist[itemize,3]{label={\eitemiii}}
@@ -141,10 +141,10 @@
 \RequirePackage{fancyhdr}
 \fancyhf{}
 
-\fancyfoot[c]{\color{mynote-basis-color}\small\thepage}
-\fancyhead[R]{\color{mynote-basis-color}\rightmark}
+\fancyfoot[c]{\color{myart-basis-color}\small\thepage}
+\fancyhead[R]{\color{myart-basis-color}\rightmark}
 
-\renewcommand{\headrule}{\color{mynote-basis-color}\hrule}
+\renewcommand{\headrule}{\color{myart-basis-color}\hrule}
 \pagestyle{fancy}
 \renewcommand{\headrulewidth}{1pt}
 \fancypagestyle{plain}{\renewcommand{\headrulewidth}{0pt}\fancyhf{}\renewcommand{\headrule}{}}
@@ -157,7 +157,7 @@
   linktoc=all,
   bookmarksnumbered=true,
   bookmarksopen=true,
-  pdfkeywords={Wangborong's common note},
+  % pdfkeywords={Wangborong's common note},
   colorlinks,
   linkcolor=default-linkcolor,
   citecolor=default-citecolor,
@@ -176,15 +176,15 @@
   \vskip 2em%
   \begin{center}%
     \let \footnote \thanks
-    {\LARGE \color{mynote-basis-color} \@title \par}%
+    {\LARGE \color{myart-basis-color} \@title \par}%
     \vskip 1.5em%
-    {\large \color{mynote-basis-color}
+    {\large \color{myart-basis-color}
     \lineskip .5em%
     \begin{tabular}[t]{c}%
       \@author
     \end{tabular}\par}%
     \vskip 1em%
-    {\large \color{mynote-basis-color} \@date}%
+    {\large \color{myart-basis-color} \@date}%
   \end{center}%
   \par
   \vskip 1.5em
@@ -194,15 +194,15 @@
 %   \pagestyle{plain}
 %   \begin{center}
 %     \vspace*{1cm}
-%     {\LARGE \color{mynote-basis-color} \@title \par}%
+%     {\LARGE \color{myart-basis-color} \@title \par}%
 %     \vspace{2cm}
-%     {\large \color{mynote-basis-color}
+%     {\large \color{myart-basis-color}
 %     \lineskip .5em%
 %     \begin{tabular}[t]{c}%
 %       \@author
 %     \end{tabular}\par}%
 %     \vskip 1em%
-%     {\large \color{mynote-basis-color} \@date}%
+%     {\large \color{myart-basis-color} \@date}%
 %     % \vfill
 %   \end{center}
 %   \clearpage
@@ -265,12 +265,12 @@
     separator sign={.},},
   defstyle/.style={
     common,
-    colframe=mynote-main-color,
-    colback=mynote-main-color!5,
-    colbacktitle=mynote-main-color,
+    colframe=myart-main-color,
+    colback=myart-main-color!5,
+    colbacktitle=myart-main-color,
     overlay unbroken and last={
       \node[anchor=south east, outer sep=0pt] at (\linewidth-width,0) {
-        \textcolor{mynote-main-color}{$\clubsuit$}};}},
+        \textcolor{myart-main-color}{$\clubsuit$}};}},
   mystyle/.style={
     common,
     coltitle=gray2,
@@ -280,12 +280,12 @@
     },
   thmstyle/.style={
     common,
-    colframe=mynote-second-color,
-    colback=mynote-second-color!5,
-    colbacktitle=mynote-second-color,
+    colframe=myart-second-color,
+    colback=myart-second-color!5,
+    colbacktitle=myart-second-color,
     overlay unbroken and last={
       \node[anchor=south east, outer sep=0pt] at (\linewidth-width,0) {
-        \textcolor{mynote-second-color}{$\heartsuit$}};}},
+        \textcolor{myart-second-color}{$\heartsuit$}};}},
   prostyle/.style={
     common,
     colframe=third,
@@ -293,8 +293,8 @@
     colbacktitle=third,
     overlay unbroken and last={
       \node[anchor=south east, outer sep=0pt] at (\linewidth-width,0) {
-        \textcolor{mynote-third-color}{$\spadesuit$}};}},
-  MYNOTE@title/.code n args={2}
+        \textcolor{myart-third-color}{$\spadesuit$}};}},
+  MYART@title/.code n args={2}
     {
 
       \tcbset
@@ -307,23 +307,23 @@
             }
         }
     },
-  MYNOTE@label/.code n args={2}
+  MYART@label/.code n args={2}
     {
       \ifblank{#2}
         {}{\tcbset{label={#1:#2}}}
     }
   }
 
-% define an internal control sequence \MYNOTE@newtheorem for fancy mode's newtheorem
+% define an internal control sequence \MYART@newtheorem for fancy mode's newtheorem
 % #1 is the environment name, #2 is the prefix of label, #3 is the style
 % style: thmstyle, defstyle, prostyle
-% e.g. \MYNOTE@newtheorem{theorem}{thm}{thmstyle}
+% e.g. \MYART@newtheorem{theorem}{thm}{thmstyle}
 % will define two environments: numbered ``theorem'' and no-numbered ``theorem*''
 % WARNING FOR MULTILINGUAL: this cs will automatically find \theoremname's definition,
 % WARNING FOR MULTILINGUAL: it should be defined in language settings.
-\NewDocumentCommand \MYNOTE@newtheorem { m m m O{} }{
+\NewDocumentCommand \MYART@newtheorem { m m m O{} }{
   \ifcsundef{#1name}{%
-    \ClassError{mynote}{%
+    \ClassError{myart}{%
       \ #1name undefined, \MessageBreak
       Please check in language setting
     }{}
@@ -340,39 +340,39 @@
   \DeclareTColorBox[auto counter,usesamecnt,usecnt]{#1}{ g o t\label g }{
       common,#3,
       IfValueTF={##1}
-        {MYNOTE@title={#1}{##1}}
+        {MYART@title={#1}{##1}}
         {
           IfValueTF={##2}
-          {MYNOTE@title={#1}{##2}}
-          {MYNOTE@title={#1}{}}
+          {MYART@title={#1}{##2}}
+          {MYART@title={#1}{}}
         },
       IfValueT={##4}
         {
           IfBooleanTF={##3}
             {label={##4}}
-            {MYNOTE@label={#2}{##4}}
+            {MYART@label={#2}{##4}}
         }
     }
   \DeclareTColorBox{#1*}{ g o }{
       common,#3,
       IfValueTF={##1}
-        {MYNOTE@title={#1}{##1}}
+        {MYART@title={#1}{##1}}
         {
           IfValueTF={##2}
-          {MYNOTE@title={#1}{##2}}
-          {MYNOTE@title={#1}{}}
+          {MYART@title={#1}{##2}}
+          {MYART@title={#1}{}}
         },
     }
 }
 % define several environment 
 % we define headers like \definitionname before
-\MYNOTE@newtheorem{theorem}{thm}{thmstyle}
-\MYNOTE@newtheorem{definition}{def}{defstyle}
-\MYNOTE@newtheorem{postulate}{pos}{thmstyle}
-\MYNOTE@newtheorem{axiom}{axi}{thmstyle}
-\MYNOTE@newtheorem{corollary}{cor}{thmstyle}
-\MYNOTE@newtheorem{lemma}{lem}{thmstyle}
-\MYNOTE@newtheorem{proposition}{pro}{prostyle}
+\MYART@newtheorem{theorem}{thm}{thmstyle}
+\MYART@newtheorem{definition}{def}{defstyle}
+\MYART@newtheorem{postulate}{pos}{thmstyle}
+\MYART@newtheorem{axiom}{axi}{thmstyle}
+\MYART@newtheorem{corollary}{cor}{thmstyle}
+\MYART@newtheorem{lemma}{lem}{thmstyle}
+\MYART@newtheorem{proposition}{pro}{prostyle}
 
 %% Example with counter
 \newcounter{exam}[section]
@@ -380,7 +380,7 @@
 \renewcommand{\theexam}{\thesection.\arabic{exam}}
 \newenvironment{example}[1][]{
   \refstepcounter{exam}
-  \par\noindent\textbf{\color{mynote-main-color}{\examplename} \theexam #1 }\rmfamily}{
+  \par\noindent\textbf{\color{myart-main-color}{\examplename} \theexam #1 }\rmfamily}{
   \par\ignorespacesafterend}
 
 %% Exercise with counter
@@ -391,7 +391,7 @@
   \refstepcounter{exer}
   \par\noindent\makebox[-3pt][r]{
     \scriptsize\color{red!90}\HandPencilLeft\quad}
-    \textbf{\color{mynote-main-color}{\exercisename} \theexer #1 }\rmfamily}{
+    \textbf{\color{myart-main-color}{\exercisename} \theexer #1 }\rmfamily}{
     \par\ignorespacesafterend}
 
 %% Problem with counter
@@ -402,12 +402,12 @@
 \newenvironment{note}{
   \par\noindent\makebox[-3pt][r]{
     \scriptsize\color{red!90}\textdbend\quad}
-    \textbf{\color{mynote-second-color}\notename} \kaishu}{\par}
+    \textbf{\color{myart-second-color}\notename} \kaishu}{\par}
 
-\newenvironment{assumption}{\par\noindent\textbf{\color{mynote-third-color}\assumptionname} \kaishu}{\par}
-\newenvironment{conclusion}{\par\noindent\textbf{\color{mynote-third-color}\conclusionname} \kaishu}{\par}
-\newenvironment{property}{\par\noindent\textbf{\color{mynote-third-color}\propertyname} \kaishu}{\par}
-\newenvironment{custom}[1]{\par\noindent\textbf{\color{mynote-third-color} #1} \kaishu}{\par}
+\newenvironment{assumption}{\par\noindent\textbf{\color{myart-third-color}\assumptionname} \kaishu}{\par}
+\newenvironment{conclusion}{\par\noindent\textbf{\color{myart-third-color}\conclusionname} \kaishu}{\par}
+\newenvironment{property}{\par\noindent\textbf{\color{myart-third-color}\propertyname} \kaishu}{\par}
+\newenvironment{custom}[1]{\par\noindent\textbf{\color{myart-third-color} #1} \kaishu}{\par}
 
 \definecolor{probsolu-tcbcolor}{HTML}{F9F7ED}
 \NewDocumentEnvironment{probsolu}{O{} m +b}{%
