@@ -29,7 +29,25 @@
 
 1. Ubuntu 系统
 
+   ```bash
+   sudo apt-get install build-essential qemu-system
+   ```
+
 2. Archlinux
+
+   ```bash
+   sudo pacman -Sy base-devel qemu-base
+   ```
+
+后续我们需要对应平台的 GDB 进行调试，一般在交叉编译链工具包中包含 GDB 工具。
+Ubuntu 系统一般可以正常运行这些 GDB 工具。
+但是在 Arch 这种实时更新的 Linux 发行版上可能会出现库不兼容问题，如果出现这种问题，那么解决方案有 2 种：
+
+1. 安装 GDB。
+2. 解决库依赖问题或可安装兼容库。
+
+我们推荐第一种解决方法，快速解决。
+但是当您有能力解决库依赖问题时，尽可能尝试解决。
 
 ## 通过 buildroot 构建内核镜像和 rootfs
 
@@ -45,7 +63,7 @@
    将所需平台的配置下载后重命名为 .config 到 buildroot 源码目录（解压的 buildroot 目录）。
    当然，如果你需要进行配置，可以在 buildroot 源码目录下运行 make menuconfig。
 3. 编译与等待。
-   配置过后即可编译，编译方法非常简单，运行 make -j$(($(nproc) - 1)) 然后等待编译完成。
+   配置过后即可编译，编译方法非常简单，运行 `make -j$(($(nproc) - 1))` 然后等待编译完成。
    编译过程中可能会遇到一些问题，如果有能力可以自行解决，或可以联系[我](wang_borong@163.com)。
    也可以向 https://github.com/wang-borong/devenv 仓库提 issue。
 4. 从 buildroot 抽离 rootfs 和内核源码。
@@ -63,6 +81,29 @@ QEMU 模拟器功能非常强大，可以模拟几乎所有的主流架构。
 如果您想要进阶使用 QEMU 模拟器，比如想要模拟一个外设，但不知该如何添加命令。
 那么，最好的办法是参考 [QEMU 的文档](https://www.qemu.org/docs/master/)。
 注意文档版本。
+
+## Linux 源码编译
+
+1. 配置交叉编译环境。
+
+   解压提取的交叉编译链到合适的地方，下面以 HOME 目录为例。
+   配置环境变量。
+
+   ```bash
+   echo 'export PATH=$HOME/<xtool-dir>/bin:$PATH' >> ~/.bashrc # or .zshrc
+   source ~/.bashrc
+   ```
+
+2. 进入开发目录，并解压内核源码。
+
+3. 从 buildroot 中提取内核的配置文件。
+
+   首先，运行 `grep LINUX_KERNEL_CUSTOM_CONFIG_FILE buildroot-config` 获取内核配置文件路径，buildroot-config 是从 https://github.com/wang-borong/devenv/tree/main/buildroot 所下载的 buildroot 配置。
+   然后，到 buildroot 下提取内核配置文件即可。
+
+4. 将提取到的内核配置文件重命名为 .config 到解压的内核源码目录中。
+5. 如果需要配置内核运行 `make ARCH=<arch> CROSS_COMPILE=<arch>-linux-gnu- menuconfig`。
+6. 配置完成后，运行 `make ARCH=<arch> CROSS_COMPILE=<arch>-linux-gnu- -j$(($(nproc) - 1))` 进行编译。
 
 ## 调试
 
