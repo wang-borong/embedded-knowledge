@@ -1,6 +1,6 @@
 LATEXMK := latexmk
 FIGENERATOR := python3 tool/figure-generator.py
-BITFIELD := npx bit-field
+BITFIELD := python tool/bit-field.py
 CONTFORM := perl tool/content-formatter.pl
 PANDOCMK := tool/pandoc.mk
 # set metadata file for pandoc (located in pandoc/data/metadata)
@@ -52,9 +52,9 @@ format: $(TEXES)
 
 figures: $(FIGSRC) $(SVGSRC)
 	@mkdir -p figures
-	@for json in dac/*.json; do $(BITFIELD) --fontsize=9 -i $$json > figures/$$(basename $${json%%.*}).svg; done
-	$(FIGENERATOR) -c $(SVGSRC) figures/*.svg
-	$(FIGENERATOR) $(FIGSRC)
+	@$(FIGENERATOR) $(FIGSRC)
+	@for json in dac/*.json; do $(BITFIELD) --fontsize=9 $$json figures/$$(basename $${json%%.*}).svg; done
+	@$(FIGENERATOR) -c $(SVGSRC) figures/*.svg
 
 latex-view: latex
 	@$(LATEXMK) -f -pvc -view=pdf $(BUILDIR)/$(TARGET) $(NOINFO) &
