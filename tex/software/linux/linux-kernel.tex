@@ -1,33 +1,33 @@
-\section{Linux 内核}
+\chapter{Linux 内核开发}
 
-\subsection{启动}
+\section{启动}
 
 关于 Linux 的启动分析（ARMv8 架构），我们专门在另外一个文档撰写。
 所以在此不再浪费篇幅。
 
-\subsection{内存管理}
+\section{内存管理}
 
-\subsection{task}
+\section{task}
 
-\subsection{网络}
+\section{网络}
 
-\subsection{内核开发}
+\section{内核开发}
 
-\subsection{驱动架构及子系统}
-\subsubsection{UART}
+\section{驱动架构及子系统}
+\subsection{UART}
 
-\subsubsection{Timer}
+\subsection{Timer}
 
-\subsubsection{WDT}
+\subsection{WDT}
 
-\subsubsection{DMA}
+\subsection{DMA}
 
-\paragraph{DMA 引擎控制器}
+\subsubsection{DMA 引擎控制器}
 
 如果您要构建一个 DMA 控制器驱动，那么需要查阅这个文档
 \url{https://www.kernel.org/doc/Documentation/dmaengine/provider.txt}。
 
-\paragraph{DMA 客户端和接口使用}
+\subsubsection{DMA 客户端和接口使用}
 
 如果您需要在设备驱动中使用 DMA，那么以下文档是您必须要理解的。
 
@@ -148,7 +148,7 @@
 
 以上只是简单的提炼，具体细节可以查阅相关文档。
 
-\paragraph{scatterlist}
+\subsubsection{scatterlist}
 
 关于 scatterlist，可以参阅 \href{https://lwn.net/Articles/234617/}{LWN 介绍文章}，下面是该文章的翻译。
 
@@ -238,18 +238,18 @@ Jens 的补丁修复了许多驱动程序，特别是在块子系统中。
 无需进行侵入性的内存管理更改。
 \end{quote}
 
-\subsubsection{I2C/I3C}
+\subsection{I2C/I3C}
 
-\subsubsection{SPI/QSPI}
+\subsection{SPI/QSPI}
 
-\subsubsection{CAN}
+\subsection{CAN}
 
-\subsubsection{Ethernet}
+\subsection{Ethernet}
 
-\subsubsection{USB}
+\subsection{USB}
 
-\subsubsection{PCI/PCIe}
+\subsection{PCI/PCIe}
 
-\subsection{文件系统}
+\section{文件系统}
 
-\subsubsection{ext2 简介}
+\subsection{ext2 简介}
