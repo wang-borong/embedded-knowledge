@@ -1,5 +1,79 @@
 \chapter{编程}
 
+\section{GNU toolchain}
+
+当今的编程工具离不开 GNU toolchain，可以说没有 GNU 工具链计算机编程不会发展的如此丰富多彩。
+
+GNU 工具链是 GNU 项目生成的广泛的编程工具集合。
+它在 Linux 开发和嵌入式系统软件以及一些 BSD 系统开发上扮演着至关重要的角色。
+因此，我们要在首节就对 GNU 工具链进行介绍。
+
+GNU 工具链由以下工具组成：
+
+\begin{itemize}
+  \item GNU Autotools（构建系统）——GNU 软件打包工具
+  \item GNU Binutils——可执行代码开发工具
+  \item GNU Bison——Yacc 兼容的解析生成工具
+  \item GNU C Library——GNU 工程实现的标准标准 C 库
+  \item GNU Compiler Collection——支持不同编程语言的自由开源的编译器集
+  \item GNU Debugger——代码级调试器
+  \item GNU m4——通用宏处理器
+  \item GNU make——自动化软件构建工具
+\end{itemize}
+
+\subsection{GNU Autotools}
+
+Autotools 由 GNU 工具 Autoconf、Automake 和 Libtool 组成。
+与它经常一起使用的其他相关工具包括 GNU make、GNU gettext、pkg-config 和 GNU 编译器套件（GCC）。
+
+\begin{description}
+  \item[Autoconf] \hfill \\
+    Autoconf 基于 configure.ac 文件的内容生成一个 configure 脚本，该文件描述了特定源代码体系的特征。
+    运行 configure 脚本时，它会扫描构建环境并生成一个次级的 config.status 脚本，然后将其他输入文件（通常是 Makefile.in）转换为适合该构建环境的输出文件（Makefile）。
+    最后，make 程序使用 Makefile 从源代码生成可执行程序。
+
+    Autotools 的复杂性反映了源代码可能被构建的各种情况。
+
+    \begin{itemize}
+      \item 如果更改了源代码文件，则只需重新运行 make，它只会重新编译受更改影响的源代码部分。
+      \item 如果.in 文件已更改，则只需重新运行 config.status 和 make。
+      \item 如果将源代码体系复制到另一台计算机上，则只需重新运行 configure（它运行 config.status）和 make。
+        （因此，使用 Autotools 的源代码通常在不包含 configure 生成的文件的情况下进行分发。）
+      \item 如果源代码体系发生更根本性的变化，则需要更改 configure.ac 和.in 文件，并且还需要遵循所有后续步骤。
+    \end{itemize}
+
+    为了处理文件，autoconf 使用 GNU 实现的 m4 宏系统。
+
+    Autoconf 附带了几个辅助程序，例如 autoheader，用于帮助管理 C 头文件；
+    autoscan，可以为 Autoconf 创建一个初始输入文件；
+    以及 ifnames，可以列出程序中使用的 C 预处理器标识符。
+
+  \item[Automake] \hfill \\
+    Automake 帮助创建可移植的 Makefile，这些 Makefile 又会被 make 实用程序处理。
+    它以 Makefile.am 作为输入，并将其转换为 Makefile.in，该文件由 configure 脚本使用以生成 Makefile 输出文件。
+    它还执行自动依赖项跟踪；
+    每当编译源文件时，依赖项列表（例如 C 头文件）都会被记录下来。
+    稍后，每次运行 make 并且依赖项似乎已更改时，相关文件将被重新构建。
+
+  \item[Libtool] \hfill \\
+    Libtool 帮助在各种类 Unix 操作系统上管理静态和动态库的创建。
+    Libtool 通过抽象化库创建过程来实现这一点，隐藏了各种系统之间的差异（例如 Linux 系统与 Solaris）。
+\end{description}
+
+\subsection{GNU Binutils}
+
+\subsection{GNU Bison}
+
+\subsection{GNU C Library}
+
+\subsection{GNU Compiler Collection}
+
+\subsection{GNU Debugger}
+
+\subsection{GNU m4}
+
+\subsection{GNU make}
+
 \section{ARMv8 汇编}
 
 \section{RISC-V 汇编}
@@ -8,7 +82,7 @@
 
 \section{硬件层 C 编程}
 \subsection{基础}
-\subsection{MCU 与RTOS}
+\subsection{MCU 与 RTOS}
 
 \section{软件架构思想}
 
@@ -22,4 +96,4 @@
 
 \section{Rust 编程}
 
-\section{Cpp 编程}
+\section{C++ 编程}
