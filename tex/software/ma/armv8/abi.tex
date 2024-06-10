@@ -1,6 +1,6 @@
 \subsection{ABI}
 
-ARM 架构的 ABI（Application Binary Interface）指定了所有可执行本机代码模块都必须遵循的最基础规则，
+ARM 架构的 \textit{Application Binary Interface}（ABI）指定了所有可执行本机代码模块都必须遵循的最基础规则，
 只有严格遵循这些规则，这些执行程序才能正确的共同工作。
 特定的编程语言（如 C++）会补充一些额外的规则。
 操作系统或执行环境（例如 Linux）也会添加一些规则以满足它们特定需求。
@@ -77,7 +77,7 @@ AArch64 架构有若干 ABI 组成元素：
 
 \subsubsection{间接结果地址}
 
-重申一下，X8（XR）寄存器用于传输间接结果地址。
+再说明一下，X8（XR）寄存器用于传输间接结果地址。
 以下是相关例子：
 
 \begin{lstlisting}[
@@ -191,7 +191,7 @@ AAPC64 的栈帧如下图所示。
 链上的最后一个帧指针应该设置为 0。
 栈指针必须 16 byte 对齐。
 堆栈框架的确切布局可能存在一些变化，特别是可变参数或无帧的函数。
-具体细节可以参考 AAPCS64 文档。
+具体细节可以参考 AAPCS64 文档\footnote{ARM abi 相关文档仓库 \url{https://github.com/ARM-software/abi-aa}} \url{https://github.com/wang-borong/devdoc/blob/main/arm/aapcs64.pdf}。
 
 \Figure[caption={栈帧}, label={fig:stack-frame}, width=0.4]{stack-frame}
 

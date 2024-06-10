@@ -1,6 +1,7 @@
 \subsection{A64 指令集}
 
-一般情况下我们只需要记住指令的助记符即可，不需要在意更底层的指令编码，指令编码的事情留给汇编器来完成。
+在使用汇编编程时，一般情况下我们只需要记住指令的助记符即可。
+而不需要在意更底层的指令编码（如果需要那就查阅参考手册），指令编码的事情留给汇编器来完成。
 
 我们将指令集按照其功能分类，有如下几类指令：\footnote{
   关于指令集的快速参考可以使用 \url{
@@ -49,9 +50,9 @@
   \hline[1pt]
 \end{stblr}
 
-另外，有些指令的后缀带 S，表明该指令会更新状态 flags。
+另外，有些指令的后缀带 S，表明这些指令会更新处理器的状态位（flags）。
 这些指令可以配合跳转指令使用。
-注意，CMP、CMN 和 TST 不带后缀 S。
+注意，CMP、CMN 和 TST 也会更新状态位但是不带后缀 S。
 
 \paragraph{乘法与除法指令}
 
@@ -101,7 +102,7 @@
     \hline[1pt]
 \end{ltblr}
 
-下图形象展示了移位指令的执行。
+下图形象展示了移位指令的操作。
 
 \Figure[caption={移位操作}, label={fig:shift-ops}, width=1]{shift-ops}
 
@@ -130,8 +131,8 @@
 
 \paragraph{状态位操作指令}
 
-A64 支持处理器状态位有 NZCV，分别位 Negative、Zero、Carry 和 Overflow。
-C flag 在无符号数操作溢出时被设置，而 V 类似，但是是在有符号数操作溢出时被设置。
+A64 支持处理器的状态位有 NZCV，分别为 Negative、Zero、Carry 和 Overflow。
+C 状态位在无符号数操作溢出时被设置，而 V 状态位类似，但是是在有符号数操作溢出时被设置。
 
 \begin{ltblr}[caption={Condition codes}, label={tbl:condcode}]
   {colspec={cc>{\centering\arraybackslash}X>{\centering\arraybackslash}Xc}, width=1\textwidth}
@@ -203,11 +204,11 @@ A64 中使用到条件码的指令，大致可以总结为：
 这意味着没有数据处理指令直接对内存中的数据进行操作。
 数据必须首先被加载到寄存器中，进行修改，然后存储到内存中。
 必须在程序中指定一个地址，要传输的数据大小，以及一个源寄存器或目标寄存器。
-还有一些额外的加载和存储指令，提供了更多的选择，如非时间性的加载 / 存储，加载 / 存储排他性，以及获取 / 释放。
+还有一些额外的加载和存储指令，提供了更多的选择，如非时间性的加载 / 存储，排他性的加载 / 存储，以及获取 / 释放指令等。
 
 内存指令可以以非对齐方式访问普通内存（见 Memory ordering 章节~\ref{sec:memory-ordering}）。
 但是独占访问、加载获取或存储释放等变种访问方式不支持非对齐方式访问。
-如果不需要非对齐访问，可以将上述变种访问方式配置为故障（非对齐访问时产生故障异常）。
+如果不需要非对齐访问，可以将上述变种访问方式配置为 exception。
 
 \paragraph{Load}
 
@@ -299,7 +300,7 @@ Load 和 Store 指令同样支持访问浮点 / NEON 寄存器。
 \paragraph{Load 和 Store 指令中的地址指定}
 
 A64 可用的寻址模式与 A32 和 T32 中的相似。
-有一些额外的限制以及一些新的功能，但是对于熟悉 A32 或 T32 的人来说，A64 可用的寻址模式并不新奇。
+有一些额外的限制以及一些新的功能，但是对于熟悉 A32 或 T32 的人来说，A64 可用的寻址模式并不陌生。
 
 在 A64 中，一个地址操作数的基寄存器必须总是一个 X 寄存器。
 但是，有几条零扩展或符号扩展的指令可以使用，来满足通过 W 寄存器来提供 32 位偏移。
@@ -344,6 +345,7 @@ void example_dup(int32_t a[], int32_t length) {
 通常情况下，只能为索引模式提供立即数偏移。
 
 索引模式有两种变体：
+
 \begin{itemize}
   \item 在访问内存之前施加偏移量的预索引模式。
   \item 以及在访问内存之后施加偏移量的后索引模式。
@@ -384,8 +386,8 @@ A64 添加了另外一个专门用于获取 literal pool 的寻址模式。
 Literal pool 是编码成一个指令流的数据块。
 它们不会被执行，但是其数据可以通过周围的代码相对于 PC 的内存地址获取到。
 Literal pool 经常用于编码常数，而这些常数不能被塞进一个简单的 move-immediate 指令（因为留给立即数的编码位数不足）中。
-A32 和 T32 指令集中，PC 寄存器可以当作一个通用寄存器来读，所以可以通过指定 PC 作为基地址寄存器简单的访问 literal pool。
 
+A32 和 T32 指令集中，PC 寄存器可以当作一个通用寄存器来读，所以可以通过指定 PC 作为基地址寄存器简单的访问 literal pool。
 然而，在 A64 下，PC 寄存器不可以用通常的方式获取了，但是提供了一个特殊的寻址模式（只针对 load 指令）来获取 PC 相对地址。
 这个特殊作用的寻址模式也极大扩展了 PC 相对加载的范围（相比于 A32 和 T32），所以可以更稀疏地定位 literal pool 。
 
@@ -412,8 +414,8 @@ A32 和 T32 指令集中，PC 寄存器可以当作一个通用寄存器来读�
 \paragraph{获取多个地址位置}
 
 A64 中不存在 A32 和 T32 类似的 Load Multiple (LDM) 或 Store Multiple (STM) 指令。
+但是添加了 Load Pair (LDP) 和 Store Pair (STP) 指令。
 
-然而，在 A64 代码中，含有 Load Pair (LDP) 和 Store Pair (STP) 指令。
 与 A32 LDRD 和 STRD 指令不同的是，LDP 和 STP 可以读写任何两个整型寄存器。
 LDP 和 STP 指令从相邻的内存地址读写数据。
 这两个指令的内存取址模式的选项比其它内存访问指令更加受限。
@@ -437,7 +439,8 @@ A64 的 LDTR 和 STTR 指令用于非特权级的数据加载和存储操作。
 
 \paragraph{预取内存访问}
 
-\textit{Prefetch from Memory}（PRFM）指令向代码提供了一个给内存系统暗示的功能，暗示内存系统一个特定的地址将很快就会被当前程序用到。
+\textit{Prefetch from Memory}（PRFM）指令向代码提供了一个给内存系统暗示的功能。
+暗示内存系统一个特定的地址将很快就会被当前程序用到。
 该功能的效果\textbf{由具体实现定义}，典型的实现是将数据或指令加载到 Cache 中。
 
 该指令的语法为：
@@ -496,12 +499,12 @@ ARMv7 和 ARMv8 都提供了不同的 barrier 操作支持。
 这些操作会在~\ref{sec:memory-ordering} 更加详尽的描述。
 
 \begin{itemize}
-  \item Data Memory Barrier (DMB)。
-  该指令强制所有按照程序顺序的早期内存访问变成全局可见后才会执行后续的访问操作。
-  \item Data Synchronization Barrier (DSB)。
+  \item \textit{Data Memory Barrier} (DMB)。
+    该指令强制所有按照程序顺序的早期内存访问变成全局可见后才会执行后续的访问操作。
+  \item \textit{Data Synchronization Barrier} (DSB)。
     在程序运行之前，所有挂起的加载和存储指令、Cache 维护指令和所有 TLB 维护指令都必须先完成。
     DSB 类似 DMB，但是附加了其它属性。
-  \item Instruction Synchronization Barrier (ISB)。
+  \item \textit{Instruction Synchronization Barrier} (ISB)。
     这个指令刷新 CPU 的流水线和预取 buffer，致使 ISB 后续的指令需要从缓存或内存中预取（或重新预取）。
 \end{itemize}
 
@@ -527,7 +530,7 @@ Monitor 也可能虚假的被清除，例如 cache 驱逐操作（evictions）�
 \textit{软件必须要避免在 LDXR 和 STXR 指令对之间含有内存访问、系统控制寄存器更新或缓存维护指令。}
 
 另外，还有一对 Acquire/Store Release 相关的互斥指令是 LDAXR 和 STLXR。
-详见关于同步的章节。
+详见关于同步的章节~\ref{sec:synchronization}。
 
 \subsubsection{流程控制指令}
 
