@@ -71,7 +71,12 @@
 
 \renewcommand{\lstlistingname}{代码}
 \AtBeginDocument{
-  \renewcommand{\thelstlisting}{\thesection{}-\arabic{lstlisting}}
+  \renewcommand{\thetable}{\thechapter{}-\arabic{table}}
+  \renewcommand{\thefigure}{\thechapter{}-\arabic{figure}}
+  \renewcommand{\thelstlisting}{\thechapter{}-\arabic{lstlisting}}
+  \counterwithin*{figure}{chapter}
+  \counterwithin*{table}{chapter}
+  \counterwithin*{lstlisting}{chapter}
 }
 
 % ctex settings
@@ -103,9 +108,6 @@
     format += \zihao{5} \color{mybook-basis-color} \bfseries \rmfamily \raggedright
   }
 }
-
-\renewcommand{\thetable}{\thesection{}-\arabic{table}}
-\renewcommand{\thefigure}{\thesection{}-\arabic{figure}}
 
 \RequirePackage{enumerate}
 \RequirePackage[shortlabels,inline]{enumitem}
