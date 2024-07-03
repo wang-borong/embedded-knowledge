@@ -21,7 +21,9 @@ GNU 工具链由以下工具组成：
   \item GNU make——自动化软件构建工具
 \end{itemize}
 
-\subsection{GNU Autotools}
+\subsection{简介}
+
+\subsubsection{GNU Autotools}
 
 Autotools 由 GNU 工具 Autoconf、Automake 和 Libtool 组成。
 与它经常一起使用的其他相关工具包括 GNU make、GNU gettext、pkg-config 和 GNU 编译器套件（GCC）。
@@ -60,25 +62,40 @@ Autotools 由 GNU 工具 Autoconf、Automake 和 Libtool 组成。
     Libtool 通过抽象化库创建过程来实现这一点，隐藏了各种系统之间的差异（例如 Linux 系统与 Solaris）。
 \end{description}
 
-\subsection{GNU Binutils}
+\subsubsection{GNU Binutils}
 
-\subsection{GNU Bison}
+\subsubsection{GNU Bison}
 
-\subsection{GNU C Library}
+\subsubsection{GNU C Library}
 
-\subsection{GNU Compiler Collection}
+\subsubsection{GNU Compiler Collection}
 
-\subsection{GNU Debugger}
+\subsubsection{GNU Debugger}
 
-\subsection{GNU m4}
+\subsubsection{GNU m4}
 
-\subsection{GNU make}
+\subsubsection{GNU make}
+
+\subsection{使用教程}
+
+\subsection{交叉编译链制作}
+
+\subsubsection{crosstool-ng}
 
 \section{ARMv8 汇编}
 
 \section{RISC-V 汇编}
 
 \section{ELF 程序结构}
+
+\section{bare metal 编程}
+
+\subsection{GNU 编译器选项}
+
+\begin{itemize}
+  \item 编译器选项 \lstinline!-ffreestanding!
+  \item 链接器选项 \lstinline!-nostdlib!
+\end{itemize}
 
 \section{硬件层 C 编程}
 \subsection{基础}
