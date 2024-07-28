@@ -1,5 +1,7 @@
 # How to use remote desktop between windows and linux
 
+## install and configure
+
 1. install xrdp and xorgxrdp
 
    xrdp only supports Xvnc as the backend.
@@ -122,3 +124,19 @@ get_session(){
 
 exec $(get_session)
 ```
+
+## Tips
+
+1. change $HOME/thinclient_drives to $HOME/.thinclient_drives.
+
+   change /etc/xrdp/sesman.ini as:
+
+   ```ini
+   [Chansrv]
+   ; drive redirection
+   ; See sesman.ini(5) for the format of this parameter
+   #FuseMountName=/run/user/%u/thinclient_drives
+   #FuseMountName=/media/thinclient_drives/%U/thinclient_drives
+   #FuseMountName=thinclient_drives
+   FuseMountName=.thinclient_drives
+   ```
