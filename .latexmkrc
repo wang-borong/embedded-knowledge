@@ -6,7 +6,7 @@
 # variable or setting it to the empty string would have LaTeX search the
 # default texmf directory location, which we can only avoid by using an
 # invalid path)
-$ENV{"TEXMFHOME"} = "./texmf//:";
+$ENV{"TEXMFHOME"} = "./texmf//:$ENV{HOME}/.local/share/omnidoc/texmf//:";
 
 # PDF-generating modes are:
 # 1: pdflatex, as specified by $pdflatex variable (still largely in use)

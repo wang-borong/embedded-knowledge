@@ -1,8 +1,11 @@
+XDG_DATA_DIR := $(HOME)/.local/share
+OMNIDOC_LIB  := $(XDG_DATA_DIR)/omnidoc
+
 LATEXMK := latexmk
-FIGENERATOR := python3 tool/figure-generator.py
-BITFIELD := python tool/bit-field.py
-CONTFORM := perl tool/content-formatter.pl
-PANDOCMK := tool/pandoc.mk
+FIGENERATOR := python3 $(OMNIDOC_LIB)/tool/figure-generator.py
+BITFIELD := python3 $(OMNIDOC_LIB)/tool/bit-field.py
+CONTFORM := perl $(OMNIDOC_LIB)/tool/content-formatter.pl
+PANDOCMK := $(OMNIDOC_LIB)/tool/pandoc.mk
 # set metadata file for pandoc (located in pandoc/data/metadata)
 # or eleg-book, eleg-paper, eleg-note
 # METADATA_FILE  ?= eleg-book
@@ -24,8 +27,7 @@ SVGSRC := $(wildcard figure/*.svg)
 
 TARGET ?= 嵌入式知识体系总结
 
-export TEXMFHOME=texmf
-export TARGET CONTFORM BUILDIR METADATA_FILE
+export TARGET CONTFORM BUILDIR METADATA_FILE XDG_DATA_DIR OMNIDOC_LIB
 
 all: $(BUILDIR)
 	@if [[ ${MAIN} == "main.md" ]]; then make pandoc; else make latex; fi
