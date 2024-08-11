@@ -1,5 +1,5 @@
 XDG_DATA_DIR := $(HOME)/.local/share
-OMNIDOC_LIB  := $(XDG_DATA_DIR)/omnidoc
+OMNIDOC_LIB  ?= $(XDG_DATA_DIR)/omnidoc
 
 LATEXMK := latexmk
 FIGENERATOR := python3 $(OMNIDOC_LIB)/tool/figure-generator.py
@@ -11,7 +11,7 @@ PANDOCMK := $(OMNIDOC_LIB)/tool/pandoc.mk
 # METADATA_FILE  ?= eleg-book
 
 OUTDIR ?= build
-BUILDIR := $(PWD)/$(OUTDIR)
+BUILDIR := $(OUTDIR)
 
 ifeq ($(V),)
 	TEXOPTS += -quiet
@@ -25,8 +25,9 @@ FIGSRC := $(wildcard drawio/*.drawio)
 FIGSRC += $(wildcard dac/*)
 SVGSRC := $(wildcard figure/*.svg)
 
-TARGET ?= 嵌入式知识体系总结
+TARGET := 嵌入式知识体系总结
 
+export TEXMFHOME=$(OMNIDOC_LIB)/texmf
 export TARGET CONTFORM BUILDIR METADATA_FILE XDG_DATA_DIR OMNIDOC_LIB
 
 all: $(BUILDIR)
@@ -41,9 +42,6 @@ pandoc: $(BUILDIR)
 
 $(BUILDIR)/$(TARGET).tex: $(MAIN) $(BUILDIR)
 	@if [[ ! -f $@ ]]; then ln -sf ../$< $@; fi
-
-$(BUILDIR):
-	@mkdir -p $@
 
 pandoc-tex: $(BUILDIR)
 	@make -f $(PANDOCMK) tex

@@ -320,7 +320,4 @@ figures
 *.err
 *~
 *.drawio.dtmp
-pandoc/data/reference.*
-texmf/ls-R
 *.mod
-*.patch

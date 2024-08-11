@@ -6,8 +6,9 @@
 # variable or setting it to the empty string would have LaTeX search the
 # default texmf directory location, which we can only avoid by using an
 # invalid path)
-$ENV{"TEXMFHOME"} = "./texmf//:$ENV{HOME}/.local/share/omnidoc/texmf//:";
-
+if (not defined $ENV{"TEXMFHOME"}) {
+	$ENV{"TEXMFHOME"} = "$ENV{HOME}/.local/share/omnidoc/texmf//:";
+}
 # PDF-generating modes are:
 # 1: pdflatex, as specified by $pdflatex variable (still largely in use)
 # 2: postscript conversion, as specified by the $ps2pdf variable (useless)
@@ -50,13 +51,21 @@ $biber = "biber --validate-datamodel %O %S";
 $interaction = "nonstopmode";
 
 # Reset all search paths
-$ENV{"BIBINPUTS"} = "./biblio//:";
+if (not defined $ENV{"BIBINPUTS"}) {
+	$ENV{"BIBINPUTS"} = "./biblio//:";
+}
 # $ENV{"BSTINPUTS"} = "./include//:";
-$ENV{"TEXINPUTS"} = "./tex//:";
+if (not defined $ENV{"TEXINPUTS"}) {
+	$ENV{"TEXINPUTS"} = "./tex//:";
+}
 
 $clean_ext = 'synctex.gz';
 
-$out_dir = 'build';
+if (defined $ENV{OUTDIR}) {
+	$out_dir = $ENV{OUTDIR};
+} else {
+	$out_dir = "build";
+}
 
 $pdf_update_method = 2;
 # $pdf_previewer = "xdg-open %S";
