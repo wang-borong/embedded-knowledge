@@ -250,6 +250,181 @@ Jens 的补丁修复了许多驱动程序，特别是在块子系统中。
 
 \subsection{PCI/PCIe}
 
+\subsubsection{设备驱动}
+
+添加 PCIe 设备驱动需要的头文件。
+
+\begin{lstlisting}[language=C]
+#include <linux/module.h>
+#include <linux/pci.h>
+#include <linux/slab.h>
+#include <linux/miscdevice.h>
+\end{lstlisting}
+
+顺便我们先将 PCIe 设备的 ID（PID 与 VID）填充到 \lstinline!pci_device_id! 数组中。
+
+\begin{lstlisting}[language=C]
+static struct pci_device_id my_pcidev_ids[] = {
+	{ PCI_DEVICE(0x1234, 0x5678) },
+	{ },
+};
+MODULE_DEVICE_TABLE(pci, my_pcidev_ids);
+\end{lstlisting}
+
+下面我们构建模块初始化函数，一般从文件的底部开始构建。
+
+\begin{lstlisting}[language=c]
+  module_init(my_pcidev_init);
+  module_exit(my_pcidev_exit);
+
+  MODULE_AUTHOR("Jason Wang (wang_borong@163.com)");
+  MODULE_LICENSE("GPL v2");
+  MODULE_DESCRIPTION("A simple kernel pci device driver");
+  MODULE_VERSION("0.1");
+\end{lstlisting}
+
+让我们继续向上实现 \lstinline!my_pcidev_init! 和 \lstinline!my_pcidev_exit!。
+
+\begin{lstlisting}
+static struct pci_driver my_pcidev_drv = {
+	.name = "my_pcidev",
+	.id_table = my_pcidev_ids,
+	.probe = my_pcidev_probe,
+	.remove = my_pcidev_remove,
+};
+
+static int __init my_pcidev_init(void)
+{
+	return pci_register_driver(&my_pcidev_drv);
+}
+
+static void __exit my_pcidev_exit(void)
+{
+	pci_unregister_driver(&my_pcidev_drv);
+}
+\end{lstlisting}
+
+可以看到 \lstinline!pci_register_driver! 注册了 PCIe 设备的驱动结构体实例。
+而我们就在这个结构体中填充 probe 和 remove 回调函数。
+设备的驱动初始化就在它的 probe 函数中实现。
+
+\begin{lstlisting}[language=C]
+
+struct test_data {
+	struct pci_dev *pdev;
+	void __iomem *ptr_bar0;
+};
+
+static int my_pcidev_probe(struct pci_dev *dev, const struct pci_device_id *pci_id)
+{
+	int status;
+	int id;
+	char name[24];
+	struct test_data *my_data;
+	struct miscdevice *misc_device;
+
+	status = pci_resource_len(dev, 0);
+	pr_info("my_pcidev: bar0 is %d bytes in size\n", status);
+	status = pci_resource_len(dev, 1);
+	pr_info("my_pcidev: bar1 is %d bytes in size\n", status);
+
+	status = pcim_enable_device(dev);
+	if (status < 0) {
+		pr_info("my_pcidev: Could not enable device\n");
+		return status;
+	}
+
+	status = pcim_iomap_regions(dev, BIT(0), DRV_MODULE_NAME);
+	if (status < 0) {
+		pr_info("my_pcidev: BAR0 is already in use! (ret: %d)\n", status);
+		goto err_disable_pdev;
+	}
+
+	status = pcim_iomap_regions(dev, BIT(1), DRV_MODULE_NAME);
+	if (status < 0) {
+		pr_info("my_pcidev: BAR1 is already in use! (ret: %d)\n", status);
+		goto err_disable_pdev;
+	}
+
+	my_data = devm_kzalloc(&dev->dev, sizeof(struct test_data), GFP_KERNEL);
+	if (my_data == NULL) {
+		status = -ENOMEM;
+		pr_info("my_pcidev: Error! Out of memory\n");
+		goto err_iounmap;
+	}
+
+	my_data->ptr_bar0 = pcim_iomap_table(dev)[0];
+	if (my_data->ptr_bar0 == NULL || my_data->ptr_bar1 == NULL) {
+		status = -ENOMEM;
+		pr_info("my_pcidev: BAR0 pointer is invalid\n");
+		goto err_iounmap;
+	}
+
+	pci_set_master(dev);
+
+	my_data->pdev = dev;
+	pci_set_drvdata(dev, my_data);
+  // ...
+  // 我们省略了后面的异常处理
+}
+
+static void my_pcidev_remove(struct pci_dev *dev)
+{
+	int id;
+	struct test_data *my_data = pci_get_drvdata(dev);
+
+	pcim_iounmap_regions(dev, BIT(0));
+	pcim_iounmap_regions(dev, BIT(1));
+	pci_disable_device(dev);
+	devm_kfree(&dev->dev, my_data);
+}
+\end{lstlisting}
+
+以上是一个基本的 PCIe 设备驱动框架，如果需要其他的功能需要相应的添加。
+
+\subsubsection{PCIe 解析}
+
+\paragraph{配置空间}
+
+每个 PCI 设备都有自己的配置空间，这个配置空间存在于 PCI 设备的内部空间中。
+PCIe 主设备枚举到设备后，会将设备的配置空间映射到一块分配的内存地址中。
+主设备通过 lspci 可以看到系统枚举到的所有 PCI 设备以及他们对应的配置空间。
+
+\begin{lstlisting}
+01:00.0 Non-Volatile memory controller: Biwin Storage Technology Co., Ltd. HP EX950 NVMe SSD (rev 03)
+02:00.0 Ethernet controller: Realtek Semiconductor Co., Ltd. RTL8111/8168/8211/8411 PCI Express Gigabit Ethernet Controller (rev 02)
+\end{lstlisting}
+
+从以上的输出可以看到前面的数字标号（16 进制）如 \lstinline!02:00.0!。
+这些标号的意义为，总线编号（Bus Number）、设备编号（Device Number）和功能编号（Function Number）。
+协议规定系统中可以存在 256 个总线，每个总线可以挂载 32 个设备，每个设备可以有 8 个功能。
+如果使用 lspci -D 去查看设备，你会发现最前面还有一列数字，这列数字是 Domain Number。
+
+使用 lspci 可以指定查看某个设备的配置空间。
+
+\begin{lstlisting}
+> lspci -s 02:00.0 -x
+02:00.0 Ethernet controller: Realtek Semiconductor Co., Ltd. RTL8111/8168/8211/8411 PCI Express Gigabit Ethernet Controller (rev 02)
+00: ec 10 68 81 07 00 10 00 02 00 00 02 10 00 00 00
+10: 01 40 00 00 00 00 00 00 04 00 10 84 00 00 00 00
+20: 0c 00 00 00 60 00 00 00 00 00 00 00 ec 10 23 01
+30: 00 00 00 00 40 00 00 00 00 00 00 00 ff 01 00 00
+\end{lstlisting}
+
+实际上，我们也可以从 sysfs 中获取配置空间内容，这也是 lspci 的获取途径。
+
+\begin{lstlisting}
+> hexyl --no-characters --border=none /sys/bus/pci/devices/0000:02:00.0/config
+ 00000000  ec 10 68 81 07 00 10 00   02 00 00 02 10 00 00 00  
+ 00000010  01 40 00 00 00 00 00 00   04 00 10 84 00 00 00 00  
+ 00000020  0c 00 00 00 60 00 00 00   00 00 00 00 ec 10 23 01  
+ 00000030  00 00 00 00 40 00 00 00   00 00 00 00 ff 01 00 00
+\end{lstlisting}
+
+协议规定配置空间有两种类型，一种用于普通的 EP 设备，一种用于 Bridge 设备。
+
+
+
 \section{文件系统}
 
 \subsection{ext2 简介}
