@@ -316,6 +316,48 @@
 
 \subsection{tcpdump}
 
+\subsubsection{抓取 IPv6 网络包}
+
+\begin{itemize}
+  \item IPv6 and TCP
+\begin{lstcode}
+tcpdump -w ipv6_traffic.pcap ip6 proto 6
+tcpdump -w ipv6_traffic.pcap ip6 protochain 6
+\end{lstcode}
+  \item IPv6 and UDP
+\begin{lstcode}
+tcpdump -w ipv6_traffic.pcap ip6 proto 17
+tcpdump -w ipv6_traffic.pcap ip6 and udp
+\end{lstcode}
+
+  \item IPv6, hostIPv6 and host fec0:0:0:bebe::2
+\begin{lstcode}
+tcpdump -w ipv6_traffic.pcap ip6 host fec0:0:0:bebe::2
+\end{lstcode}
+
+  \item IPv6, host fec0:0:0:bebe::2 and TCP port 22
+\begin{lstcode}
+tcpdump -w ipv6_traffic.pcap ip6 host fec0:0:0:bebe::2 and tcp port 22
+\end{lstcode}
+
+  \item IPv6, host fec0:0:0:bebe::2 and everything except TCP port 22
+\begin{lstcode}
+tcpdump -w ipv6_traffic.pcap ip6 host fec0:0:0:bebe::2 and not tcp port 22
+tcpdump -w ipv6_traffic.pcap ip6 host fec0:0:0:bebe::2 and protochain 6 and not tcp port 22
+\end{lstcode}
+
+  \item IPv6, host fec0:0:0:bebe::2, and all traffic to destination port TCP 22
+\begin{lstcode}
+tcpdump -w ipv6_traffic.pcap ip6 host fec0:0:0:bebe::2 and tcp dst port 22
+\end{lstcode}
+
+  \item IPv6, host fec0:0:0:bebe::2, and all traffic from source port TCP 22
+\begin{lstcode}
+tcpdump -w ipv6_traffic.pcap ip6 host fec0:0:0:bebe::2 and tcp src port 22
+\end{lstcode}
+
+\end{itemize}
+
 \section{文档}
 
 \subsection{\LaTeX}
