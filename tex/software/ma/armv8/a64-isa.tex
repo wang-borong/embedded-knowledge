@@ -548,7 +548,7 @@ A64 指令集提供一些不同类型的跳转指令（见下表~\ref{tbl:a64-is
   \lstinline!BL (offset)! & As B but store the return address in X30, and hint to branch prediction logic that this is a function call. \\
   \lstinline!BR Xn! & Absolute branch to address in Xn. \\
   \lstinline!BLR Xn! & As BR but store the return address in X30, and hint to branch prediction logic that this is a function call. \\
-  \lstinline!RET{Xn}! & As BR, but hint to branch prediction logic that this is a function return. Returns to the address in X30 by default, but a different register can be specified. \\
+  \lstinline!RET\{Xn\}! & As BR, but hint to branch prediction logic that this is a function return. Returns to the address in X30 by default, but a different register can be specified. \\
   \hline
   & Conditional branch 指令 \\
   \hline
