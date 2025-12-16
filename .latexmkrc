@@ -1,4 +1,4 @@
-#!/usr/bin/env perl
+#!/usr/bin/env perl -w
 
 # Ignore any locally installed files to make builds reproducible
 #
@@ -6,8 +6,11 @@
 # variable or setting it to the empty string would have LaTeX search the
 # default texmf directory location, which we can only avoid by using an
 # invalid path)
-$ENV{"TEXMFHOME"} = "./texmf//:";
-
+if ((not defined $ENV{"TEXMFHOME"}) or ($ENV{"TEXMFHOME"} eq "")) {
+    ensure_path('TEXMFHOME', "$ENV{HOME}/.local/share/omnidoc/texmf");
+} else {
+    ensure_path('TEXMFHOME', "$ENV{HOME}/.local/share/omnidoc/texmf", $ENV{TEXMFHOME});
+}
 # PDF-generating modes are:
 # 1: pdflatex, as specified by $pdflatex variable (still largely in use)
 # 2: postscript conversion, as specified by the $ps2pdf variable (useless)
@@ -50,13 +53,24 @@ $biber = "biber --validate-datamodel %O %S";
 $interaction = "nonstopmode";
 
 # Reset all search paths
-$ENV{"BIBINPUTS"} = "./biblio//:";
+if ((not defined $ENV{"BIBINPUTS"}) or ($ENV{"BIBINPUTS"} eq "")) {
+    ensure_path('BIBINPUTS', "biblio")
+} else {
+    ensure_path('BIBINPUTS', "biblio", "$ENV{BIBINPUTS}")
+}
 # $ENV{"BSTINPUTS"} = "./include//:";
-$ENV{"TEXINPUTS"} = "./tex//:";
+if ((not defined $ENV{"TEXINPUTS"}) or ($ENV{"TEXINPUTS"} eq "")) {
+    ensure_path('TEXINPUTS', "tex");
+} else {
+    ensure_path('TEXINPUTS', "tex", "$ENV{TEXINPUTS}");
+}
 
 $clean_ext = 'synctex.gz';
 
-$out_dir = 'build';
+# Make it compatible with sphinx
+if (defined $ENV{OUTDIR}) {
+	$out_dir = $ENV{OUTDIR};
+}
 
 $pdf_update_method = 2;
 # $pdf_previewer = "xdg-open %S";
