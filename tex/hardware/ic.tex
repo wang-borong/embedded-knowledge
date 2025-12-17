@@ -488,74 +488,76 @@ PMIC 广泛应用于便携式设备、智能手机、平板电脑等，可以简
 
 单稳态模式用于产生固定宽度的脉冲，电路如图~\ref{fig:555-monostable} 所示。
 
-\begin{figure}[H]
-  \centering
-  \begin{circuitikz}[american,scale=1.0]
-    \tikzset{ic555/.style={muxdemux,
-            muxdemux def={Lh=10, NL=5, Rh=10, NR=5,
-            NB=2, w=6, NT=2, square pins=1},
-        no input leads, external pins width=0.4,
-        circuitikz/muxdemuxes/fill=blue!10}
-    }
-    % 555 Timer Chip
-    \node [ic555, font=\small\ttfamily,align=center](A) at (4,2.5) {555\\Timer};
+% \begin{figure}[H]
+%   \centering
+%   \begin{circuitikz}[american,scale=1.0]
+%     \tikzset{ic555/.style={muxdemux,
+%             muxdemux def={Lh=10, NL=5, Rh=10, NR=5,
+%             NB=2, w=6, NT=2, square pins=1},
+%         no input leads, external pins width=0.4,
+%         circuitikz/muxdemuxes/fill=blue!10}
+%     }
+%     % 555 Timer Chip
+%     \node [ic555, font=\small\ttfamily,align=center](A) at (4,2.5) {555\\Timer};
 
-    % Pin assignments based on standard 555 pinout
-    % Left: 2 (Trigger), 6 (Threshold), 7 (Discharge) - arbitrary mapping to mux pins
-    % Right: 3 (Output)
-    % Top: 8 (VCC), 4 (Reset)
-    % Bottom: 1 (GND), 5 (Control)
+%     % Pin assignments based on standard 555 pinout
+%     % Left: 2 (Trigger), 6 (Threshold), 7 (Discharge) - arbitrary mapping to mux pins
+%     % Right: 3 (Output)
+%     % Top: 8 (VCC), 4 (Reset)
+%     % Bottom: 1 (GND), 5 (Control)
 
-    % Define pins for readability
-    % Using muxdemux pins: lpin (left), rpin (right), tpin (top), bpin (bottom)
-    % We map schematic logic to visual pins
+%     % Define pins for readability
+%     % Using muxdemux pins: lpin (left), rpin (right), tpin (top), bpin (bottom)
+%     % We map schematic logic to visual pins
 
-    % Left side
-    \draw (A.lpin 2) -- (A.blpin 2) node[midway, blue, font=\tiny, above]{7} node[right, font=\tiny]{DISCH};
-    \draw (A.lpin 3) -- (A.blpin 3) node[midway, blue, font=\tiny, above]{6} node[right, font=\tiny]{THRES};
-    \draw (A.lpin 4) -- (A.blpin 4) node[midway, blue, font=\tiny, above]{2} node[right, font=\tiny]{TRIG};
+%     % Left side
+%     \draw (A.lpin 2) -- (A.blpin 2) node[midway, blue, font=\tiny, above]{7} node[right, font=\tiny]{DISCH};
+%     \draw (A.lpin 3) -- (A.blpin 3) node[midway, blue, font=\tiny, above]{6} node[right, font=\tiny]{THRES};
+%     \draw (A.lpin 4) -- (A.blpin 4) node[midway, blue, font=\tiny, above]{2} node[right, font=\tiny]{TRIG};
 
-    % Right side
-    \draw (A.rpin 3) -- (A.brpin 3) node[midway, blue, font=\tiny, above]{3} node[left, font=\tiny]{OUT};
+%     % Right side
+%     \draw (A.rpin 3) -- (A.brpin 3) node[midway, blue, font=\tiny, above]{3} node[left, font=\tiny]{OUT};
 
-    % Top side
-    \draw (A.tpin 1) -- (A.btpin 1) node[midway, blue, font=\tiny, left]{8} node[below, font=\tiny]{VCC};
-    \draw (A.tpin 2) -- (A.btpin 2) node[midway, blue, font=\tiny, left]{4} node[below, font=\tiny]{RESET};
+%     % Top side
+%     \draw (A.tpin 1) -- (A.btpin 1) node[midway, blue, font=\tiny, left]{8} node[below, font=\tiny]{VCC};
+%     \draw (A.tpin 2) -- (A.btpin 2) node[midway, blue, font=\tiny, left]{4} node[below, font=\tiny]{RESET};
 
-    % Bottom side
-    \draw (A.bpin 1) -- (A.bbpin 1) node[midway, blue, font=\tiny, left]{5} node[above, font=\tiny]{CTRL};
-    \draw (A.bpin 2) -- (A.bbpin 2) node[midway, blue, font=\tiny, left]{1} node[above, font=\tiny]{GND};
+%     % Bottom side
+%     \draw (A.bpin 1) -- (A.bbpin 1) node[midway, blue, font=\tiny, left]{5} node[above, font=\tiny]{CTRL};
+%     \draw (A.bpin 2) -- (A.bbpin 2) node[midway, blue, font=\tiny, left]{1} node[above, font=\tiny]{GND};
 
-    % External Circuitry for Monostable
+%     % External Circuitry for Monostable
 
-    % VCC connection
-    \draw (A.btpin 1) -- ++(0,1) node[vcc] {$V_{CC}$};
-    \draw (A.btpin 2) -- ++(0,0.5) -- ++(-1.5,0) -- ++(0,0.5); % Reset to VCC
+%     % VCC connection
+%     \draw (A.btpin 1) -- ++(0,1) node[vcc] {$V_{CC}$};
+%     \draw (A.btpin 2) -- ++(0,0.5) -- ++(-1.5,0) -- ++(0,0.5); % Reset to VCC
 
-    % RC Network
-    \draw (A.btpin 1) ++(0,1) -- ++(-4,0) coordinate (vcc_line);
-    \draw (vcc_line) to[R=$R$] ++(0,-2.5) coordinate (rc_node);
-    \draw (rc_node) to[C=$C$] ++(0,-2) coordinate (gnd_line) node[ground] {};
+%     % RC Network
+%     \draw (A.btpin 1) ++(0,1) -- ++(-4,0) coordinate (vcc_line);
+%     \draw (vcc_line) to[R=$R$] ++(0,-2.5) coordinate (rc_node);
+%     \draw (rc_node) to[C=$C$] ++(0,-2) coordinate (gnd_line) node[ground] {};
 
-    % Connections to chip
-    \draw (rc_node) -- (rc_node -| A.blpin 2) -- (A.blpin 2); % To Discharge
-    \draw (rc_node) -- (rc_node -| A.blpin 3) -- (A.blpin 3); % To Threshold
+%     % Connections to chip
+%     \draw (rc_node) -- (rc_node -| A.blpin 2) -- (A.blpin 2); % To Discharge
+%     \draw (rc_node) -- (rc_node -| A.blpin 3) -- (A.blpin 3); % To Threshold
 
-    % Trigger Input
-    \draw (A.blpin 4) -- ++(-1,0) node[left] {Trigger Input};
+%     % Trigger Input
+%     \draw (A.blpin 4) -- ++(-1,0) node[left] {Trigger Input};
 
-    % Output
-    \draw (A.brpin 3) -- ++(1,0) node[right] {Output};
+%     % Output
+%     \draw (A.brpin 3) -- ++(1,0) node[right] {Output};
 
-    % Ground
-    \draw (A.bbpin 2) -- ++(0,-0.5) node[ground] {};
+%     % Ground
+%     \draw (A.bbpin 2) -- ++(0,-0.5) node[ground] {};
 
-    % Control Voltage (Capacitor usually)
-    \draw (A.bbpin 1) to[C=10nF] ++(0,-1) node[ground] {};
+%     % Control Voltage (Capacitor usually)
+%     \draw (A.bbpin 1) to[C=10nF] ++(0,-1) node[ground] {};
 
-  \end{circuitikz}
-  \caption{555 单稳态电路}\label{fig:555-monostable}
-\end{figure}
+%   \end{circuitikz}
+%   \caption{555 单稳态电路}\label{fig:555-monostable}
+% \end{figure}
+
+\Figure[caption={555 单稳态电路}, label={fig:555-monostable}, width=0.95]{555-monostable}
 
 输出脉冲宽度为：
 
@@ -567,65 +569,67 @@ T = 1.1 RC \label{eq:555-monostable}
 
 无稳态模式用于产生方波振荡，电路如图~\ref{fig:555-astable} 所示。
 
-\begin{figure}[H]
-  \centering
-  \begin{circuitikz}[american,scale=1.0]
-    \tikzset{ic555/.style={muxdemux,
-            muxdemux def={Lh=10, NL=5, Rh=10, NR=5,
-            NB=2, w=6, NT=2, square pins=1},
-        no input leads, external pins width=0.4,
-        circuitikz/muxdemuxes/fill=blue!10}
-    }
-    % 555 Timer Chip
-    \node [ic555, font=\small\ttfamily,align=center](A) at (4,2.5) {555\\Timer};
+% \begin{figure}[H]
+%   \centering
+%   \begin{circuitikz}[american,scale=1.0]
+%     \tikzset{ic555/.style={muxdemux,
+%             muxdemux def={Lh=10, NL=5, Rh=10, NR=5,
+%             NB=2, w=6, NT=2, square pins=1},
+%         no input leads, external pins width=0.4,
+%         circuitikz/muxdemuxes/fill=blue!10}
+%     }
+%     % 555 Timer Chip
+%     \node [ic555, font=\small\ttfamily,align=center](A) at (4,2.5) {555\\Timer};
 
-    % Pin Mapping
-    % Left: 7 (Discharge), 6 (Threshold), 2 (Trigger)
-    \draw (A.lpin 2) -- (A.blpin 2) node[midway, blue, font=\tiny, above]{7} node[right, font=\tiny]{DISCH};
-    \draw (A.lpin 3) -- (A.blpin 3) node[midway, blue, font=\tiny, above]{6} node[right, font=\tiny]{THRES};
-    \draw (A.lpin 4) -- (A.blpin 4) node[midway, blue, font=\tiny, above]{2} node[right, font=\tiny]{TRIG};
+%     % Pin Mapping
+%     % Left: 7 (Discharge), 6 (Threshold), 2 (Trigger)
+%     \draw (A.lpin 2) -- (A.blpin 2) node[midway, blue, font=\tiny, above]{7} node[right, font=\tiny]{DISCH};
+%     \draw (A.lpin 3) -- (A.blpin 3) node[midway, blue, font=\tiny, above]{6} node[right, font=\tiny]{THRES};
+%     \draw (A.lpin 4) -- (A.blpin 4) node[midway, blue, font=\tiny, above]{2} node[right, font=\tiny]{TRIG};
 
-    % Right: 3 (Output)
-    \draw (A.rpin 3) -- (A.brpin 3) node[midway, blue, font=\tiny, above]{3} node[left, font=\tiny]{OUT};
+%     % Right: 3 (Output)
+%     \draw (A.rpin 3) -- (A.brpin 3) node[midway, blue, font=\tiny, above]{3} node[left, font=\tiny]{OUT};
 
-    % Top: 8 (VCC), 4 (Reset)
-    \draw (A.tpin 1) -- (A.btpin 1) node[midway, blue, font=\tiny, left]{8} node[below, font=\tiny]{VCC};
-    \draw (A.tpin 2) -- (A.btpin 2) node[midway, blue, font=\tiny, left]{4} node[below, font=\tiny]{RESET};
+%     % Top: 8 (VCC), 4 (Reset)
+%     \draw (A.tpin 1) -- (A.btpin 1) node[midway, blue, font=\tiny, left]{8} node[below, font=\tiny]{VCC};
+%     \draw (A.tpin 2) -- (A.btpin 2) node[midway, blue, font=\tiny, left]{4} node[below, font=\tiny]{RESET};
 
-    % Bottom: 5 (Control), 1 (GND)
-    \draw (A.bpin 1) -- (A.bbpin 1) node[midway, blue, font=\tiny, left]{5} node[above, font=\tiny]{CTRL};
-    \draw (A.bpin 2) -- (A.bbpin 2) node[midway, blue, font=\tiny, left]{1} node[above, font=\tiny]{GND};
+%     % Bottom: 5 (Control), 1 (GND)
+%     \draw (A.bpin 1) -- (A.bbpin 1) node[midway, blue, font=\tiny, left]{5} node[above, font=\tiny]{CTRL};
+%     \draw (A.bpin 2) -- (A.bbpin 2) node[midway, blue, font=\tiny, left]{1} node[above, font=\tiny]{GND};
 
-    % External Circuitry for Astable
+%     % External Circuitry for Astable
 
-    % VCC connection
-    \draw (A.btpin 1) -- ++(0,1) node[vcc] {$V_{CC}$};
-    \draw (A.btpin 2) -- ++(0,0.5) -- ++(-1.5,0) -- ++(0,0.5); % Reset to VCC
+%     % VCC connection
+%     \draw (A.btpin 1) -- ++(0,1) node[vcc] {$V_{CC}$};
+%     \draw (A.btpin 2) -- ++(0,0.5) -- ++(-1.5,0) -- ++(0,0.5); % Reset to VCC
 
-    % Resistor Network
-    \draw (A.btpin 1) ++(0,1) -- ++(-4,0) coordinate (vcc_line);
-    \draw (vcc_line) to[R=$R_1$] ++(0,-2) coordinate (r1_node);
-    \draw (r1_node) to[R=$R_2$] ++(0,-2) coordinate (r2_node);
-    \draw (r2_node) to[C=$C$] ++(0,-1.5) coordinate (gnd_line) node[ground] {};
+%     % Resistor Network
+%     \draw (A.btpin 1) ++(0,1) -- ++(-4,0) coordinate (vcc_line);
+%     \draw (vcc_line) to[R=$R_1$] ++(0,-2) coordinate (r1_node);
+%     \draw (r1_node) to[R=$R_2$] ++(0,-2) coordinate (r2_node);
+%     \draw (r2_node) to[C=$C$] ++(0,-1.5) coordinate (gnd_line) node[ground] {};
 
-    % Connections to chip
-    \draw (r1_node) -- (r1_node -| A.blpin 2) -- (A.blpin 2); % To Discharge (Pin 7)
+%     % Connections to chip
+%     \draw (r1_node) -- (r1_node -| A.blpin 2) -- (A.blpin 2); % To Discharge (Pin 7)
 
-    \draw (r2_node) -- (r2_node -| A.blpin 3) -- (A.blpin 3); % To Threshold (Pin 6)
-    \draw (r2_node) -- ++(0.5,0) |- (A.blpin 4); % To Trigger (Pin 2) - Trigger connected to Threshold in Astable
+%     \draw (r2_node) -- (r2_node -| A.blpin 3) -- (A.blpin 3); % To Threshold (Pin 6)
+%     \draw (r2_node) -- ++(0.5,0) |- (A.blpin 4); % To Trigger (Pin 2) - Trigger connected to Threshold in Astable
 
-    % Output
-    \draw (A.brpin 3) -- ++(1,0) node[right] {$V_{out}$};
+%     % Output
+%     \draw (A.brpin 3) -- ++(1,0) node[right] {$V_{out}$};
 
-    % Ground
-    \draw (A.bbpin 2) -- ++(0,-0.5) node[ground] {};
+%     % Ground
+%     \draw (A.bbpin 2) -- ++(0,-0.5) node[ground] {};
 
-    % Control Voltage
-    \draw (A.bbpin 1) to[C=10nF] ++(0,-1) node[ground] {};
+%     % Control Voltage
+%     \draw (A.bbpin 1) to[C=10nF] ++(0,-1) node[ground] {};
 
-  \end{circuitikz}
-  \caption{555 无稳态电路}\label{fig:555-astable}
-\end{figure}
+%   \end{circuitikz}
+%   \caption{555 无稳态电路}\label{fig:555-astable}
+% \end{figure}
+
+\Figure[caption={555 无稳态电路}, label={fig:555-astable}, width=0.95]{555-astable}
 
 振荡频率为：
 
@@ -638,6 +642,10 @@ f = \frac{1.44}{(R_1 + 2R_2)C} \label{eq:555-frequency}
 \begin{equation}
 D = \frac{R_1 + R_2}{R_1 + 2R_2} \label{eq:555-duty-cycle}
 \end{equation}
+
+电容充放电与周期关系图：
+
+\Figure[caption={电容充放电与周期关系图}, label={fig:555-astable-seq}, width=0.6]{555-astable-seq}
 
 \paragraph{双稳态模式（Bistable Mode）}
 
