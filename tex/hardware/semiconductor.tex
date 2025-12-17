@@ -1,72 +1,842 @@
 \chapter{分立半导体元件}
 
-\section{Diode}
+半导体元件是现代电子系统的基础，理解其工作原理对于电路设计和分析至关重要。本章将系统介绍二极管、双极型晶体管（BJT）、结型场效应管（JFET）和金属氧化物半导体场效应管（MOSFET）等主要分立半导体元件。
 
-\subsection{Zener}
+\section{二极管}
 
-A Zener diode is a special type of diode designed to reliably allow current to flow "backwards" (inverted polarity) when a certain set reverse voltage, known as the Zener voltage, is reached. \footnote{本节内容源于 Wikipedia。}
+二极管是最基本的半导体元件，由一个 PN 结构成。二极管具有单向导电性，在电子电路中广泛应用于整流、稳压、开关、限幅等功能。
 
-Zener diodes are manufactured with a great variety of Zener voltages and some are even variable. Some Zener diodes have an abrupt, heavily doped p–n junction with a low Zener voltage, in which case the reverse conduction occurs due to electron quantum tunnelling in the short distance between p and n regions − this is known as the Zener effect, after Clarence Zener. Diodes with a higher Zener voltage have lighter doped junctions which causes their mode of operation to involve avalanche breakdown. Both breakdown types are present in Zener diodes with the Zener effect predominating at lower voltages and avalanche breakdown at higher voltages.
+\subsection{PN 结基础}
 
-They are used to generate low-power stabilized supply rails from a higher voltage and to provide reference voltages for circuits, especially stabilized power supplies. They are also used to protect circuits from overvoltage, especially electrostatic discharge.
+\subsubsection{PN 结的形成}
 
-\BlockDesc{构造}
+PN 结是半导体器件的基础结构。当 P 型半导体和 N 型半导体紧密接触时，由于载流子浓度梯度的存在，会发生载流子的扩散运动：
 
-The Zener diode's operation depends on the heavy doping of its p–n junction. The depletion region formed in the diode is very thin (<1 µm) and the electric field is consequently very high (about 500 kV/m) even for a small reverse bias voltage of about 5 V, allowing electrons to tunnel from the valence band of the p-type material to the conduction band of the n-type material.
+\begin{itemize}
+  \item P 区的空穴向 N 区扩散
+  \item N 区的电子向 P 区扩散
+\end{itemize}
 
-At the atomic scale, this tunneling corresponds to the transport of valence band electrons into the empty conduction band states; as a result of the reduced barrier between these bands and high electric fields that are induced due to the high levels of doping on both sides.[3] The breakdown voltage can be controlled quite accurately by the doping process. Adding impurities, or doping, changes the behaviour of the semiconductor material in the diode. In the case of Zener diodes, this heavy doping creates a situation where the diode can operate in the breakdown region. While tolerances within 0.07\% are available, commonly available tolerances are 5\% and 10\%. Breakdown voltage for commonly available Zener diodes can vary from 1.2 V to 200 V.
+扩散的结果是在接触面附近形成一个空间电荷区（耗尽层），其中：
+\begin{itemize}
+  \item P 区一侧留下带负电的受主离子
+  \item N 区一侧留下带正电的施主离子
+\end{itemize}
 
-For diodes that are lightly doped, the breakdown is dominated by the avalanche effect rather than the Zener effect. Consequently, the breakdown voltage is higher (over 5.6 V) for these devices.
+这些固定电荷形成内建电场，方向从 N 区指向 P 区，阻碍载流子的进一步扩散。当扩散电流与漂移电流达到动态平衡时，PN 结处于平衡状态。
 
-\BlockDesc{使用}
+\subsubsection{内建电势}
 
-\begin{wrapfigure}{r}{2cm}
-   \includegraphics[width=1.5cm,height=3cm]{Zener_3D_and_ckt}
-   % \caption{Zener 二极管器件及符号}
-\end{wrapfigure}
+平衡状态下，PN 结存在内建电势差 $V_{bi}$：
 
-Zener diodes are widely used as voltage references and as shunt regulators to regulate the voltage across small circuits. When connected in parallel with a variable voltage source so that it is reverse biased, a Zener diode conducts when the voltage reaches the diode's reverse breakdown voltage. From that point on, the low impedance of the diode keeps the voltage across the diode at that value.
+\begin{equation}
+V_{bi} = \frac{kT}{q} \ln\left(\frac{N_A N_D}{n_i^2}\right) \label{eq:built-in-potential}
+\end{equation}
 
-\Figure[caption={Zener 稳压电路}, label={fig:zener-stabilized-circuit}, width=0.4]{Zener_diode_voltage_regulator}
+其中：
+\begin{itemize}
+  \item $k$：玻尔兹曼常数（$1.38 \times 10^{-23}$ J/K）
+  \item $T$：绝对温度（K）
+  \item $q$：电子电荷（$1.6 \times 10^{-19}$ C）
+  \item $N_A$：P 区受主浓度
+  \item $N_D$：N 区施主浓度
+  \item $n_i$：本征载流子浓度
+\end{itemize}
 
-In this circuit, a typical voltage reference or regulator, an input voltage, Uin (with + on the top), is regulated down to a stable output voltage Uout. The breakdown voltage of diode D is stable over a wide current range and holds Uout approximately constant even though the input voltage may fluctuate over a wide range. Because of the low impedance of the diode when operated like this, resistor R is used to limit current through the circuit.
+在室温（300 K）下，$V_{bi}$ 的典型值约为 0.6--0.8 V（对于硅材料）。
 
-In the case of this simple reference, the current flowing in the diode is determined using Ohm's law and the known voltage drop across the resistor R;
+\subsubsection{耗尽层宽度}
 
-\[
-I_{diode} = \frac{U_{in} - U_{out}}{R}
-\]
+耗尽层的宽度 $W$ 与掺杂浓度和偏置电压有关：
 
-The value of R must satisfy two conditions:
+\begin{equation}
+W = \sqrt{\frac{2\epsilon_s}{q}\left(\frac{1}{N_A} + \frac{1}{N_D}\right)(V_{bi} - V)} \label{eq:depletion-width}
+\end{equation}
+
+其中 $\epsilon_s$ 是半导体的介电常数，$V$ 是外加电压（正偏时 $V > 0$，反偏时 $V < 0$）。
+
+\subsection{二极管的伏安特性}
+
+\subsubsection{理想二极管的特性}
+
+理想二极管在正向偏置（P 区接正，N 区接负）时完全导通，相当于短路；在反向偏置时完全截止，相当于开路。
+
+\subsubsection{实际二极管的伏安特性}
+
+实际二极管的电流-电压关系由肖克利方程（Shockley equation）描述：
+
+\begin{equation}
+I = I_S \left(e^{V/(nV_T)} - 1\right) \label{eq:diode-current}
+\end{equation}
+
+其中：
+\begin{itemize}
+  \item $I_S$：反向饱和电流（Reverse Saturation Current），典型值在 $10^{-12}$--$10^{-6}$ A 范围
+  \item $V$：二极管两端电压（正偏时为正）
+  \item $n$：发射系数（Emission Coefficient），理想情况下为 1，实际值通常在 1--2 之间
+  \item $V_T = kT/q$：热电压（Thermal Voltage），室温下约为 26 mV
+\end{itemize}
+
+\subsubsection{正向特性}
+
+当 $V > 0$ 且 $V \gg V_T$ 时，式~\ref{eq:diode-current} 可简化为：
+
+\begin{equation}
+I \approx I_S e^{V/(nV_T)} \label{eq:diode-forward}
+\end{equation}
+
+正向导通时，二极管两端存在一个近似恒定的压降：
+\begin{itemize}
+  \item 硅二极管：约 0.6--0.7 V
+  \item 锗二极管：约 0.2--0.3 V
+  \item 肖特基二极管：约 0.3--0.4 V
+\end{itemize}
+
+\subsubsection{反向特性}
+
+当 $V < 0$ 且 $|V| \gg V_T$ 时，式~\ref{eq:diode-current} 可简化为：
+
+\begin{equation}
+I \approx -I_S \label{eq:diode-reverse}
+\end{equation}
+
+反向电流很小，近似等于反向饱和电流 $I_S$。但当反向电压达到击穿电压 $V_{BR}$ 时，会发生击穿，反向电流急剧增加。
+
+\subsubsection{温度特性}
+
+二极管特性受温度影响显著：
+
+\begin{itemize}
+  \item 反向饱和电流 $I_S$ 随温度升高而指数增加，温度每升高 10$^\circ$C，$I_S$ 约增加一倍
+  \item 正向压降具有负温度系数，温度每升高 1$^\circ$C，正向压降约减小 2 mV
+  \item 击穿电压具有正温度系数
+\end{itemize}
+
+\subsection{齐纳二极管}
+
+齐纳二极管（Zener Diode）是一种特殊设计的二极管，能够在反向击穿状态下稳定工作，主要用于电压基准和稳压电路。
+
+\subsubsection{工作原理}
+
+齐纳二极管的工作原理基于 PN 结的反向击穿机制。根据击穿电压的不同，击穿机制主要有两种：
+
+\paragraph{齐纳击穿（Zener Breakdown）}
+
+当击穿电压较低（通常 $V_Z < 5.6$ V）时，主要发生齐纳击穿。齐纳二极管采用重掺杂的 PN 结，耗尽层非常薄（小于 1 $\mu$m）。即使在较小的反向偏压下（约 5 V），耗尽层内的电场强度也非常高（约 500 kV/m）。
+
+在强电场作用下，价带电子通过量子隧穿效应直接进入导带，形成大量载流子，导致反向电流急剧增加。齐纳击穿具有负温度系数，即温度升高时击穿电压降低。
+
+\paragraph{雪崩击穿（Avalanche Breakdown）}
+
+当击穿电压较高（通常 $V_Z > 5.6$ V）时，主要发生雪崩击穿。此时耗尽层较宽，电场强度虽然不足以直接产生隧穿，但足以使载流子获得足够能量。
+
+高能载流子与晶格原子碰撞，产生电子-空穴对，这些新产生的载流子又被加速，继续碰撞产生更多载流子，形成雪崩倍增效应。雪崩击穿具有正温度系数，即温度升高时击穿电压升高。
+
+\paragraph{击穿电压范围}
+
+实际齐纳二极管中，两种击穿机制往往同时存在：
+\begin{itemize}
+  \item 低电压（$V_Z < 5$ V）：齐纳效应占主导
+  \item 中等电压（$V_Z \approx 5.6$ V）：两种效应相当，温度系数接近零
+  \item 高电压（$V_Z > 5.6$ V）：雪崩效应占主导
+\end{itemize}
+
+商用齐纳二极管的击穿电压范围通常为 1.2 V 到 200 V，精度可达 0.07\%，常见精度为 5\% 和 10\%。
+
+\subsubsection{齐纳二极管的特性参数}
+
+\paragraph{齐纳电压 $V_Z$}
+
+齐纳电压是齐纳二极管在指定测试电流下的反向击穿电压。该电压在较宽的电流范围内保持相对稳定，这是齐纳二极管作为电压基准的基础。
+
+\paragraph{动态电阻 $r_Z$}
+
+动态电阻定义为齐纳电压变化量与电流变化量的比值：
+
+\begin{equation}
+r_Z = \frac{\Delta V_Z}{\Delta I_Z} \label{eq:zener-resistance}
+\end{equation}
+
+$r_Z$ 越小，齐纳二极管的稳压性能越好。典型值在几欧姆到几十欧姆之间。
+
+\paragraph{温度系数}
+
+温度系数表示齐纳电压随温度的变化率，单位为 mV/$^\circ$C 或 ppm/$^\circ$C。如前所述，不同击穿电压的齐纳二极管具有不同的温度系数。
+
+\paragraph{最大功耗 $P_{max}$}
+
+最大功耗限制了齐纳二极管的最大工作电流：
+
+\begin{equation}
+I_{Z,max} = \frac{P_{max}}{V_Z} \label{eq:zener-max-current}
+\end{equation}
+
+\subsubsection{齐纳稳压电路}
+
+齐纳二极管最典型的应用是作为并联稳压器（Shunt Regulator），如图~\ref{fig:zener-stabilized-circuit} 所示。
+
+\Figure[caption={齐纳稳压电路}, label={fig:zener-stabilized-circuit}, width=0.4]{Zener_diode_voltage_regulator}
+
+在该电路中，输入电压 $V_{in}$ 通过限流电阻 $R$ 连接到齐纳二极管。当输入电压高于齐纳电压时，齐纳二极管反向击穿，将输出电压 $V_{out}$ 稳定在 $V_Z$ 附近。
+
+\paragraph{工作原理}
 
 \begin{enumerate}
-\item R must be small enough that the current through D keeps D in reverse breakdown. The value of this current is given in the data sheet for D. For example, the common BZX79C5V6 device, a 5.6 V 0.5 W Zener diode, has a recommended reverse current of 5 mA. If insufficient current exists through D, then Uout is unregulated and less than the nominal breakdown voltage (this differs from voltage-regulator tubes where the output voltage is higher than nominal and could rise as high as Uin). When calculating R, allowance must be made for any current through the external load, not shown in this diagram, connected across Uout.
-\item R must be large enough that the current through D does not destroy the device. If the current through D is ID, its breakdown voltage VB and its maximum power dissipation Pmax correlate as such: $I_{D}V_{B}<P_{max}$.
+  \item 当 $V_{in} < V_Z$ 时，齐纳二极管未击穿，处于截止状态，输出电压随输入电压变化
+  \item 当 $V_{in} \geq V_Z$ 时，齐纳二极管击穿，输出电压被箝位在 $V_Z$ 附近
+  \item 当输入电压或负载电流变化时，通过齐纳二极管电流的自动调节，维持输出电压基本恒定
 \end{enumerate}
 
-A load may be placed across the diode in this reference circuit, and as long as the Zener stays in reverse breakdown, the diode provides a stable voltage source to the load. Zener diodes in this configuration are often used as stable references for more advanced voltage regulator circuits.
+\paragraph{电路分析}
 
-Shunt regulators are simple, but the requirements that the ballast resistor be small enough to avoid excessive voltage drop during worst-case operation (low input voltage concurrent with high load current) tends to leave a lot of current flowing in the diode much of the time, making for a fairly wasteful regulator with high quiescent power dissipation, suitable only for smaller loads.
+根据基尔霍夫电流定律，流过限流电阻 $R$ 的电流为：
 
-These devices are also encountered, typically in series with a base-emitter junction, in transistor stages where selective choice of a device centered on the avalanche or Zener point can be used to introduce compensating temperature co-efficient balancing of the transistor p–n junction. An example of this kind of use would be a DC error amplifier used in a regulated power supply circuit feedback loop system.
+\begin{equation}
+I_R = I_Z + I_L = \frac{V_{in} - V_{out}}{R} \label{eq:zener-current-balance}
+\end{equation}
 
-Zener diodes are also used in surge protectors to limit transient voltage spikes.
+其中 $I_Z$ 是齐纳二极管电流，$I_L$ 是负载电流。
 
-\section{BJT}
+齐纳二极管电流为：
 
-\subsection{三极管分析步骤}
+\begin{equation}
+I_Z = \frac{V_{in} - V_{out}}{R} - I_L \label{eq:zener-diode-current}
+\end{equation}
 
-\subsubsection{静态工作点 DC 分析}
+\paragraph{限流电阻的选择}
 
-\subsubsection{动态小信号模型 AC 分析}
+限流电阻 $R$ 的选择必须满足两个条件：
 
-\subsection{共射}
+\begin{enumerate}
+  \item \textbf{最小电流条件}：$R$ 必须足够小，确保即使在最小输入电压和最大负载电流的情况下，流过齐纳二极管的电流 $I_Z$ 仍大于最小齐纳电流 $I_{Z,min}$（通常为 1--5 mA），以维持齐纳二极管处于击穿状态。
 
-\subsection{共集}
+  最小电阻值为：
+  \begin{equation}
+  R_{max} = \frac{V_{in,min} - V_Z}{I_{Z,min} + I_{L,max}} \label{eq:zener-r-min}
+  \end{equation}
 
-\subsection{共基}
+  \item \textbf{最大功耗条件}：$R$ 必须足够大，确保即使在最大输入电压和最小负载电流的情况下，齐纳二极管的功耗不超过最大允许值。
 
-\section{JFET}
+  最大电阻值为：
+  \begin{equation}
+  R_{min} = \frac{V_{in,max} - V_Z}{I_{Z,max} + I_{L,min}} = \frac{V_{in,max} - V_Z}{P_{max}/V_Z + I_{L,min}} \label{eq:zener-r-max}
+  \end{equation}
 
-\section{MOSFET}
+  因此，$R$ 的选择范围为：$R_{min} < R < R_{max}$
+\end{enumerate}
 
+\paragraph{稳压性能}
+
+齐纳稳压电路的稳压性能主要受以下因素影响：
+
+\begin{itemize}
+  \item \textbf{输入电压变化}：输出电压变化 $\Delta V_{out} \approx r_Z \Delta I_Z$，其中 $\Delta I_Z$ 由输入电压变化引起
+  \item \textbf{负载电流变化}：负载电流变化时，齐纳电流反向变化以补偿，但受动态电阻 $r_Z$ 影响
+  \item \textbf{温度变化}：齐纳电压的温度系数导致输出电压随温度漂移
+\end{itemize}
+
+\paragraph{应用限制}
+
+并联稳压器虽然简单，但存在以下缺点：
+
+\begin{itemize}
+  \item \textbf{效率低}：限流电阻和齐纳二极管始终消耗功率，特别是在轻载或无载情况下
+  \item \textbf{功率限制}：受齐纳二极管最大功耗限制，只能用于小功率应用
+  \item \textbf{精度有限}：稳压精度受齐纳二极管动态电阻和温度系数影响
+\end{itemize}
+
+因此，齐纳稳压电路主要用于：
+\begin{itemize}
+  \item 低功率电压基准
+  \item 简单稳压电路
+  \item 更复杂稳压电路的参考电压源
+\end{itemize}
+
+\subsubsection{其他应用}
+
+\paragraph{温度补偿}
+
+齐纳二极管可以与晶体管的基极-发射极结串联使用，利用齐纳击穿和雪崩击穿的不同温度系数，实现温度补偿，提高电路的温度稳定性。这在精密稳压电源的误差放大器中经常使用。
+
+\paragraph{过压保护}
+
+齐纳二极管可用于浪涌保护器（Surge Protector）中，限制瞬态电压尖峰，保护敏感电路免受静电放电（ESD）或电源浪涌的损害。
+
+\paragraph{电压箝位}
+
+在信号处理电路中，齐纳二极管可用于电压箝位，限制信号幅度。
+
+\subsection{其他类型二极管}
+
+\subsubsection{肖特基二极管}
+
+肖特基二极管（Schottky Diode）由金属和半导体接触形成，而非 PN 结。其主要特点：
+
+\begin{itemize}
+  \item 正向压降低（约 0.3--0.4 V）
+  \item 开关速度快，反向恢复时间极短
+  \item 反向漏电流较大
+  \item 主要用于高频整流和开关电路
+\end{itemize}
+
+\subsubsection{发光二极管（LED）}
+
+发光二极管（Light Emitting Diode，LED）在正向偏置时会发光，广泛应用于显示和照明。不同材料可产生不同颜色的光。
+
+\subsubsection{光电二极管}
+
+光电二极管（Photodiode）在光照下会产生电流，用于光检测和光通信。
+
+\section{双极型晶体管（BJT）}
+
+双极型晶体管（Bipolar Junction Transistor，BJT）是一种电流控制型三端器件，由两个 PN 结组成。BJT 具有放大作用，是模拟电路和数字电路中的重要元件。
+
+\subsection{BJT 的基本结构}
+
+BJT 有两种基本类型：
+\begin{itemize}
+  \item \textbf{NPN 型}：中间是 P 型区（基区），两侧是 N 型区（发射区和集电区）
+  \item \textbf{PNP 型}：中间是 N 型区（基区），两侧是 P 型区（发射区和集电区）
+\end{itemize}
+
+三个电极分别为：
+\begin{itemize}
+  \item \textbf{发射极（Emitter，E）}：发射载流子
+  \item \textbf{基极（Base，B）}：控制载流子
+  \item \textbf{集电极（Collector，C）}：收集载流子
+\end{itemize}
+
+\subsection{BJT 的工作原理}
+
+以 NPN 型 BJT 为例说明工作原理。
+
+\subsubsection{工作模式}
+
+BJT 有三种工作模式，由两个 PN 结的偏置状态决定：
+
+\begin{enumerate}
+  \item \textbf{放大模式（Active Mode）}：发射结正偏，集电结反偏
+    \begin{itemize}
+      \item 这是 BJT 的正常放大工作状态
+      \item 集电极电流 $I_C$ 受基极电流 $I_B$ 控制
+      \item $I_C = \beta I_B$，其中 $\beta$ 是电流放大系数
+    \end{itemize}
+
+  \item \textbf{饱和模式（Saturation Mode）}：发射结正偏，集电结正偏
+    \begin{itemize}
+      \item BJT 相当于一个闭合的开关
+      \item $V_{CE} \approx 0.2$ V（饱和压降）
+      \item 集电极电流由外电路决定
+    \end{itemize}
+
+  \item \textbf{截止模式（Cutoff Mode）}：发射结反偏，集电结反偏
+    \begin{itemize}
+      \item BJT 相当于一个断开的开关
+      \item 各极电流近似为零
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{放大原理}
+
+在放大模式下，BJT 的放大作用基于以下物理过程：
+
+\begin{enumerate}
+  \item 发射结正偏，大量电子从发射区注入基区
+  \item 由于基区很薄且轻掺杂，大部分电子能够扩散到集电结
+  \item 集电结反偏，强电场将到达集电结的电子拉入集电区，形成集电极电流
+  \item 只有少量电子在基区与空穴复合，形成基极电流
+\end{enumerate}
+
+因此，集电极电流远大于基极电流，实现电流放大。
+
+\subsubsection{电流关系}
+
+在放大模式下，BJT 的电流关系为：
+
+\begin{align}
+I_E &= I_B + I_C \label{eq:bjt-current-sum} \\
+I_C &= \beta I_B \label{eq:bjt-current-gain} \\
+I_E &= (\beta + 1) I_B = \alpha I_C \label{eq:bjt-emitter-current}
+\end{align}
+
+其中：
+\begin{itemize}
+  \item $\beta$：共发射极电流放大系数，典型值 50--300
+  \item $\alpha = \frac{\beta}{\beta + 1}$：共基极电流放大系数，接近 1（通常 0.95--0.99）
+\end{itemize}
+
+\subsection{BJT 的伏安特性}
+
+\subsubsection{输入特性}
+
+输入特性描述 $I_B$ 与 $V_{BE}$ 的关系，类似于二极管的伏安特性：
+
+\begin{equation}
+I_B = I_{S,B} \left(e^{V_{BE}/(nV_T)} - 1\right) \label{eq:bjt-base-current}
+\end{equation}
+
+其中 $I_{S,B}$ 是基极反向饱和电流。
+
+\subsubsection{输出特性}
+
+输出特性描述 $I_C$ 与 $V_{CE}$ 的关系，以 $I_B$ 为参变量。输出特性曲线分为三个区域：
+
+\begin{enumerate}
+  \item \textbf{截止区}：$I_B \approx 0$，$I_C \approx 0$
+  \item \textbf{放大区}：$I_C$ 主要由 $I_B$ 决定，$V_{CE}$ 对 $I_C$ 影响较小（存在 Early 效应）
+  \item \textbf{饱和区}：$V_{CE}$ 很小，$I_C$ 主要由外电路决定
+\end{enumerate}
+
+\subsection{BJT 的直流分析}
+
+\subsubsection{静态工作点（Q 点）}
+
+静态工作点是指无信号输入时，BJT 各极的直流电压和电流值，通常用 $I_{CQ}$、$V_{CEQ}$、$I_{BQ}$、$V_{BEQ}$ 表示。
+
+静态工作点的选择对放大器的性能至关重要：
+\begin{itemize}
+  \item Q 点应位于放大区中央，以获得最大动态范围
+  \item Q 点应稳定，不受温度等因素影响
+  \item Q 点应满足功耗要求
+\end{itemize}
+
+\subsubsection{偏置电路}
+
+偏置电路的作用是建立合适的静态工作点。常见的偏置方式包括：
+
+\paragraph{固定偏置}
+
+最简单的偏置方式，但温度稳定性差，很少使用。
+
+\paragraph{分压式偏置（最常用）}
+
+采用基极分压电阻和发射极电阻，具有良好的温度稳定性。
+
+\paragraph{电流源偏置}
+
+使用电流源提供基极电流，稳定性最好，但电路复杂。
+
+\subsubsection{直流分析步骤}
+
+\begin{enumerate}
+  \item 画出直流通路（将所有电容视为开路，交流源视为短路）
+  \item 假设 BJT 工作于放大模式（$V_{BE} \approx 0.7$ V，$I_C = \beta I_B$）
+  \item 应用基尔霍夫定律列写方程
+  \item 求解得到静态工作点
+  \item 验证 BJT 确实工作于放大模式（$V_{CE} > V_{CE,sat} \approx 0.2$ V）
+\end{enumerate}
+
+\subsection{BJT 的小信号模型}
+
+\subsubsection{混合 $\pi$ 模型}
+
+在低频小信号情况下，BJT 可以用混合 $\pi$ 模型表示，主要参数包括：
+
+\begin{itemize}
+  \item $r_{\pi} = \frac{V_T}{I_B}$：基极输入电阻
+  \item $g_m = \frac{I_C}{V_T} = \frac{\beta}{r_{\pi}}$：跨导
+  \item $r_o = \frac{V_A}{I_C}$：输出电阻（$V_A$ 是 Early 电压）
+  \item $C_{\pi}$、$C_{\mu}$：结电容（高频时考虑）
+\end{itemize}
+
+\subsubsection{简化 $h$ 参数模型}
+
+在低频分析中，常使用简化的 $h$ 参数模型：
+
+\begin{itemize}
+  \item $h_{ie} = r_{\pi}$：输入电阻
+  \item $h_{fe} = \beta$：电流放大系数
+  \item $h_{oe} = 1/r_o$：输出电导（通常可忽略）
+  \item $h_{re}$：反向电压传输比（通常可忽略）
+\end{itemize}
+
+\subsubsection{交流分析步骤}
+
+\begin{enumerate}
+  \item 确定静态工作点
+  \item 画出交流通路（将所有电容视为短路，直流源视为短路）
+  \item 用 BJT 小信号模型替换 BJT
+  \item 应用电路分析方法（节点法、网孔法等）求解
+  \item 计算电压增益、电流增益、输入电阻、输出电阻等参数
+\end{enumerate}
+
+\subsection{基本放大电路}
+
+\subsubsection{共发射极（CE）放大器}
+
+共发射极放大器是最常用的放大器配置，具有以下特点：
+
+\begin{itemize}
+  \item \textbf{电压增益}：高（通常 10--1000）
+  \item \textbf{电流增益}：高（$\beta$）
+  \item \textbf{输入电阻}：中等
+  \item \textbf{输出电阻}：中等
+  \item \textbf{相位关系}：输入与输出反相（180$^\circ$ 相位差）
+\end{itemize}
+
+共发射极放大器电路如图~\ref{fig:ce-amplifier} 所示。
+
+\begin{figure}[htbp]
+  \centering
+  \begin{circuitikz}[american,scale=1.0]
+    % Common Emitter Amplifier
+    % Transistor
+    \node[npn] (Q) at (7.75, 5.25){};
+
+    % Bias Network
+    \node[ground] at (6.5, 2){};
+    \draw (6.5, 8) to[american resistor, l={$R_{B1}$}] (6.5, 6);
+    \draw (6.5, 4.5) to[american resistor, l={$R_{B2}$}] (6.5, 2.5);
+    \draw (6.5, 6) -- (6.5, 4.5); % Vertical connection
+    \draw (6.5, 2.5) -- (6.5, 2); % To ground
+    \draw (6.5, 5.25) to[short, *-] (Q.B); % To Base, with dot
+
+    % Input
+    \node[ground] at (4.5, 2){};
+    \draw (4.5, 2.5) to[sinusoidal voltage source, l={$v_{in}$}] (4.5, 4.5);
+    \draw (4.5, 2.5) -- (4.5, 2);
+    \draw (4.5, 4.5) |- (5, 5.25) to[capacitor, l={$C_1$}] (6.5, 5.25);
+
+    % Collector
+    \draw (7.75, 8) to[american resistor, l={$R_C$}] (7.75, 6);
+    \draw (Q.C) -- (7.75, 6);
+
+    % Emitter
+    \draw (7.75, 4.5) to[american resistor, l={$R_E$}] (7.75, 2.5);
+    \draw (Q.E) -- (7.75, 4.5);
+    \draw (7.75, 2.5) -- (7.75, 2) node[ground]{};
+
+    % Emitter Bypass
+    \draw (8.75, 4) to[capacitor, l={$C_E$}] (8.75, 2.75);
+    \draw (7.75, 4.5) to[short, *-] (8.75, 4.5) -- (8.75, 4); % Dot at junction
+    \draw (8.75, 2.75) -- (8.75, 2) node[ground]{};
+
+    % VCC
+    \node[vcc] at (7.75, 8.5){$V_{CC}$};
+    \draw (7.75, 8) -- (7.75, 8.5);
+    \draw (6.5, 8) |- (7.75, 8.25) node[circ]{}; % Dot at junction
+
+    % Output
+    \draw (7.75, 6) to[short, *-] (9, 6) to[capacitor, l={$C_2$}] (10.5, 6); % Dot at junction
+    \draw (10.5, 5) to[american resistor, l={$R_L$}] (10.5, 3);
+    \draw (10.5, 6) -- (10.5, 5);
+    \draw (10.5, 3) -- (10.5, 2) node[ground]{};
+    \draw (10.5, 6) to[short, *-o] (11, 6) node[right]{$v_{out}$}; % Dot and circle
+  \end{circuitikz}
+  \caption{共发射极（CE）放大器电路}
+  \label{fig:ce-amplifier}
+\end{figure}
+
+电压增益为：
+
+\begin{equation}
+A_v = \frac{v_{out}}{v_{in}} = -\frac{R_C \parallel R_L}{r_e + R_E} \approx -\frac{R_C \parallel R_L}{r_e} \label{eq:ce-voltage-gain}
+\end{equation}
+
+其中 $r_e = \frac{V_T}{I_E} \approx \frac{26\text{ mV}}{I_E}$ 是发射极动态电阻。
+
+\subsubsection{共集电极（CC）放大器（射极跟随器）}
+
+共集电极放大器也称为射极跟随器（Emitter Follower），具有以下特点：
+
+\begin{itemize}
+  \item \textbf{电压增益}：接近 1（略小于 1）
+  \item \textbf{电流增益}：高（$\beta + 1$）
+  \item \textbf{输入电阻}：高
+  \item \textbf{输出电阻}：低
+  \item \textbf{相位关系}：输入与输出同相
+\end{itemize}
+
+共集电极放大器电路如图~\ref{fig:cc-amplifier} 所示。
+
+\begin{figure}[htbp]
+  \centering
+  \begin{circuitikz}[american,scale=1.0]
+    % Common Collector Amplifier (Emitter Follower)
+    % Transistor
+    \node[npn] (Q) at (7.75, 5.25){};
+
+    % Bias Network
+    \node[ground] at (6.5, 2){};
+    \draw (6.5, 8) to[american resistor, l={$R_{B1}$}] (6.5, 6);
+    \draw (6.5, 4.5) to[american resistor, l={$R_{B2}$}] (6.5, 2.5);
+    \draw (6.5, 6) -- (6.5, 4.5); % Connect resistors
+    \draw (6.5, 2.5) -- (6.5, 2);
+    \draw (6.5, 5.25) to[short, *-] (Q.B); % Dot at base
+
+    % Input
+    \node[ground] at (4.5, 2){};
+    \draw (4.5, 2.5) to[sinusoidal voltage source, l={$v_{in}$}] (4.5, 4.5);
+    \draw (4.5, 2.5) -- (4.5, 2);
+    \draw (4.5, 4.5) |- (5, 5.25) to[capacitor, l={$C_1$}] (6.5, 5.25);
+
+    % Collector (Direct to VCC)
+    \draw (Q.C) -- (7.75, 8);
+    \draw (7.75, 8) -- (7.75, 8.5);
+
+    % Emitter
+    \draw (7.75, 4.5) to[american resistor, l={$R_E$}] (7.75, 2.5);
+    \draw (Q.E) -- (7.75, 4.5);
+    \draw (7.75, 2.5) -- (7.75, 2) node[ground]{};
+
+    % VCC
+    \node[vcc] at (7.75, 8.5){$V_{CC}$};
+    \draw (6.5, 8) |- (7.75, 8.25) node[circ]{}; % Dot at VCC
+
+    % Output (from Emitter)
+    \draw (7.75, 4.5) to[short, *-] (9, 4.5) to[capacitor, l={$C_2$}] (10.5, 4.5); % Dot at Emitter
+    \draw (10.5, 4.5) to[american resistor, l={$R_L$}] (10.5, 2) node[ground]{};
+    \draw (10.5, 4.5) to[short, *-o] (11, 4.5) node[right]{$v_{out}$}; % Dot and circle
+  \end{circuitikz}
+  \caption{共集电极（CC）放大器电路（射极跟随器）}
+  \label{fig:cc-amplifier}
+\end{figure}
+
+电压增益为：
+
+\begin{equation}
+A_v = \frac{(R_E \parallel R_L)}{r_e + (R_E \parallel R_L)} \approx 1 \label{eq:cc-voltage-gain}
+\end{equation}
+
+射极跟随器主要用于阻抗变换和缓冲。
+
+\subsubsection{共基极（CB）放大器}
+
+共基极放大器具有以下特点：
+
+\begin{itemize}
+  \item \textbf{电压增益}：高（与 CE 相当）
+  \item \textbf{电流增益}：低（$\alpha \approx 1$）
+  \item \textbf{输入电阻}：低
+  \item \textbf{输出电阻}：高
+  \item \textbf{相位关系}：输入与输出同相
+\end{itemize}
+
+共基极放大器电路如图~\ref{fig:cb-amplifier} 所示。
+
+\begin{figure}[htbp]
+  \centering
+  \begin{circuitikz}[american,scale=1.0]
+    % Common Base Amplifier
+    % Transistor
+    \node[npn] (Q) at (7.75, 5.25){};
+
+    % Bias Network (Base)
+    \node[ground] at (6.5, 2){};
+    \draw (6.5, 8) to[american resistor, l={$R_{B1}$}] (6.5, 6);
+    \draw (6.5, 4.5) to[american resistor, l={$R_{B2}$}] (6.5, 2.5);
+    \draw (6.5, 6) -- (6.5, 4.5); % Connect resistors
+    \draw (6.5, 2.5) -- (6.5, 2);
+    \draw (6.5, 5.25) to[short, *-] (Q.B); % Dot at Base
+
+    % Base Capacitor to Ground
+    \draw (6.5, 5.25) -- (5.5, 5.25) to[capacitor, l={$C_B$}] (5.5, 2) node[ground]{};
+
+    % Input (to Emitter)
+    \node[ground] at (4.5, 2){};
+    \draw (4.5, 2.5) to[sinusoidal voltage source, l={$v_{in}$}] (4.5, 4.5);
+    \draw (4.5, 2.5) -- (4.5, 2);
+    \draw (4.5, 4.5) -- (5, 4.5) to[capacitor, l={$C_1$}] (7.75, 4.5); % Connect to Emitter node
+
+    % Collector
+    \draw (7.75, 8) to[american resistor, l={$R_C$}] (7.75, 6);
+    \draw (Q.C) -- (7.75, 6);
+
+    % Emitter
+    \draw (7.75, 4.5) to[american resistor, l={$R_E$}] (7.75, 2.5);
+    \draw (Q.E) -- (7.75, 4.5);
+    \draw (7.75, 2.5) -- (7.75, 2) node[ground]{};
+    \draw (7.75, 4.5) node[circ]{}; % Dot at Emitter junction
+
+    % VCC
+    \node[vcc] at (7.75, 8.5){$V_{CC}$};
+    \draw (7.75, 8) -- (7.75, 8.5);
+    \draw (6.5, 8) |- (7.75, 8.25) node[circ]{}; % Dot at VCC
+
+    % Output (from Collector)
+    \draw (7.75, 6) to[short, *-] (9, 6) to[capacitor, l={$C_2$}] (10.5, 6); % Dot at Collector
+    \draw (10.5, 5) to[american resistor, l={$R_L$}] (10.5, 3);
+    \draw (10.5, 6) -- (10.5, 5);
+    \draw (10.5, 3) -- (10.5, 2) node[ground]{};
+    \draw (10.5, 6) to[short, *-o] (11, 6) node[right]{$v_{out}$}; % Dot and circle
+  \end{circuitikz}
+  \caption{共基极（CB）放大器电路}
+  \label{fig:cb-amplifier}
+\end{figure}
+
+电压增益为：
+
+\begin{equation}
+A_v = \frac{R_C \parallel R_L}{r_e} \label{eq:cb-voltage-gain}
+\end{equation}
+
+共基极放大器主要用于高频应用，因为其频率响应好。
+
+\section{结型场效应管（JFET）}
+
+结型场效应管（Junction Field-Effect Transistor，JFET）是一种电压控制型单极器件，通过栅极电压控制沟道电阻，从而控制漏极电流。
+
+\subsection{JFET 的基本结构}
+
+JFET 有两种类型：
+\begin{itemize}
+  \item \textbf{N 沟道 JFET}：P 型栅极，N 型沟道
+  \item \textbf{P 沟道 JFET}：N 型栅极，P 型沟道
+\end{itemize}
+
+三个电极：
+\begin{itemize}
+  \item \textbf{源极（Source，S）}：载流子源
+  \item \textbf{栅极（Gate，G）}：控制电极
+  \item \textbf{漏极（Drain，D）}：载流子漏
+\end{itemize}
+
+\subsection{JFET 的工作原理}
+
+以 N 沟道 JFET 为例。
+
+\subsubsection{工作模式}
+
+\begin{enumerate}
+  \item \textbf{截止区}：$V_{GS} < V_P$（夹断电压），沟道完全夹断，$I_D = 0$
+  \item \textbf{线性区（欧姆区）}：$V_{GS} > V_P$ 且 $V_{DS} < V_{GS} - V_P$，沟道未夹断，JFET 相当于可变电阻
+  \item \textbf{饱和区（恒流区）}：$V_{GS} > V_P$ 且 $V_{DS} > V_{GS} - V_P$，沟道在漏极端夹断，$I_D$ 主要由 $V_{GS}$ 控制
+\end{enumerate}
+
+\subsubsection{输出特性}
+
+在饱和区，漏极电流为：
+
+\begin{equation}
+I_D = I_{DSS} \left(1 - \frac{V_{GS}}{V_P}\right)^2 \label{eq:jfet-saturation}
+\end{equation}
+
+其中：
+\begin{itemize}
+  \item $I_{DSS}$：$V_{GS} = 0$ 时的饱和漏极电流
+  \item $V_P$：夹断电压（Pinch-off Voltage），为负值
+\end{itemize}
+
+\subsubsection{转移特性}
+
+转移特性描述 $I_D$ 与 $V_{GS}$ 的关系，在饱和区满足式~\ref{eq:jfet-saturation}。
+
+\subsection{JFET 的特点}
+
+\begin{itemize}
+  \item 输入阻抗极高（栅极反偏，输入电流极小）
+  \item 噪声低
+  \item 温度稳定性好
+  \item 制造工艺相对简单
+  \item 但跨导较低，增益不如 BJT
+\end{itemize}
+
+\section{金属氧化物半导体场效应管（MOSFET）}
+
+金属氧化物半导体场效应管（Metal-Oxide-Semiconductor Field-Effect Transistor，MOSFET）是现代集成电路的基础，具有输入阻抗高、功耗低、易于集成等优点。
+
+\subsection{MOSFET 的基本结构}
+
+MOSFET 由金属栅极、氧化物绝缘层（SiO$_2$）和半导体衬底组成。根据沟道类型和导电方式，分为：
+
+\begin{itemize}
+  \item \textbf{N 沟道增强型（NMOS）}：$V_{GS} = 0$ 时无沟道，需要正栅压形成沟道
+  \item \textbf{P 沟道增强型（PMOS）}：$V_{GS} = 0$ 时无沟道，需要负栅压形成沟道
+  \item \textbf{N 沟道耗尽型}：$V_{GS} = 0$ 时已有沟道
+  \item \textbf{P 沟道耗尽型}：$V_{GS} = 0$ 时已有沟道
+\end{itemize}
+
+四个电极：
+\begin{itemize}
+  \item \textbf{源极（Source，S）}
+  \item \textbf{栅极（Gate，G）}
+  \item \textbf{漏极（Drain，D）}
+  \item \textbf{衬底（Body，B）}：通常与源极相连
+\end{itemize}
+
+\subsection{MOSFET 的工作原理}
+
+以 N 沟道增强型 MOSFET 为例。
+
+\subsubsection{阈值电压}
+
+当栅极电压 $V_{GS}$ 达到阈值电压 $V_{TH}$ 时，栅极下方的半导体表面反型，形成导电沟道。
+
+\subsubsection{工作模式}
+
+\begin{enumerate}
+  \item \textbf{截止区}：$V_{GS} < V_{TH}$，无沟道，$I_D = 0$
+  \item \textbf{线性区（三极管区）}：$V_{GS} > V_{TH}$ 且 $V_{DS} < V_{GS} - V_{TH}$，沟道未夹断
+  \item \textbf{饱和区}：$V_{GS} > V_{TH}$ 且 $V_{DS} > V_{GS} - V_{TH}$，沟道在漏极端夹断
+\end{enumerate}
+
+\subsubsection{输出特性}
+
+在饱和区，漏极电流为：
+
+\begin{equation}
+I_D = \frac{1}{2}\mu_n C_{ox} \frac{W}{L} (V_{GS} - V_{TH})^2 (1 + \lambda V_{DS}) \label{eq:mosfet-saturation}
+\end{equation}
+
+其中：
+\begin{itemize}
+  \item $\mu_n$：电子迁移率
+  \item $C_{ox}$：栅氧化层单位面积电容
+  \item $W/L$：沟道宽长比
+  \item $\lambda$：沟道长度调制系数
+\end{itemize}
+
+定义跨导参数：
+
+\begin{equation}
+k_n = \mu_n C_{ox} \frac{W}{L} \label{eq:mosfet-kn}
+\end{equation}
+
+则：
+
+\begin{equation}
+I_D = \frac{k_n}{2} (V_{GS} - V_{TH})^2 (1 + \lambda V_{DS}) \label{eq:mosfet-saturation-simple}
+\end{equation}
+
+在线性区：
+
+\begin{equation}
+I_D = k_n \left[(V_{GS} - V_{TH})V_{DS} - \frac{V_{DS}^2}{2}\right] \label{eq:mosfet-linear}
+\end{equation}
+
+\subsection{MOSFET 的特点}
+
+\begin{itemize}
+  \item \textbf{输入阻抗极高}：栅极与沟道之间由氧化物绝缘，直流输入电流几乎为零
+  \item \textbf{功耗低}：静态功耗极低，适合大规模集成
+  \item \textbf{易于集成}：制造工艺简单，适合大规模生产
+  \item \textbf{开关速度快}：适合数字电路应用
+  \item \textbf{跨导较低}：模拟应用时增益不如 BJT
+\end{itemize}
+
+\subsection{MOSFET 的应用}
+
+\subsubsection{数字电路}
+
+MOSFET 是 CMOS（Complementary MOS）数字电路的基础，用于构建逻辑门、存储器、微处理器等。
+
+\subsubsection{模拟电路}
+
+MOSFET 用于构建放大器、电流源、开关等模拟电路。
+
+\subsubsection{功率应用}
+
+功率 MOSFET 用于开关电源、电机驱动等大功率应用。
+
+\subsection{CMOS 技术}
+
+CMOS（Complementary MOS）技术将 NMOS 和 PMOS 互补使用，具有以下优点：
+
+\begin{itemize}
+  \item 静态功耗极低（只有动态功耗）
+  \item 噪声容限大
+  \item 工作电压范围宽
+  \item 集成度高
+\end{itemize}
+
+CMOS 是现代数字集成电路的主流技术。

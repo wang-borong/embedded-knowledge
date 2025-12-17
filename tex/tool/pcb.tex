@@ -1,5 +1,1687 @@
 \chapter{硬件设计软件使用}
 
+硬件设计软件是电子工程师进行电路设计和 PCB 制作的核心工具。本章将系统介绍主流 PCB 设计软件的使用方法，包括原理图绘制、PCB 布局、封装库管理、设计规则设置、制造文件输出等关键内容，帮助读者掌握专业的 PCB 设计工具使用技巧。
+
 \section{OrCAD 原理图绘制}
 
-\section{PCB 制作}
+OrCAD 是 Cadence 公司推出的专业原理图设计工具，广泛应用于工业界。OrCAD Capture 是其中的原理图编辑器，功能强大且易于使用。
+
+\subsection{OrCAD Capture 基础}
+
+\subsubsection{项目结构}
+
+OrCAD 项目采用层次化结构：
+
+\begin{itemize}
+  \item \textbf{项目文件（.opj）}：项目主文件，包含项目配置信息
+  \item \textbf{原理图文件（.dsn）}：设计文件，包含所有原理图页面
+  \item \textbf{库文件（.olb）}：元件符号库文件
+  \item \textbf{输出文件}：网表、BOM 等输出文件
+\end{itemize}
+
+\subsubsection{工作界面}
+
+OrCAD Capture 的主要工作区域包括：
+
+\begin{enumerate}
+  \item \textbf{项目管理器（Project Manager）}
+    \begin{itemize}
+      \item 显示项目层次结构
+      \item 管理设计文件、库文件
+      \item 访问设计规则检查（DRC）工具
+    \end{itemize}
+
+  \item \textbf{原理图编辑窗口}
+    \begin{itemize}
+      \item 绘制和编辑原理图
+      \item 放置元件、连接网络
+      \item 添加标注和说明
+    \end{itemize}
+
+  \item \textbf{元件库浏览器}
+    \begin{itemize}
+      \item 浏览和搜索元件符号
+      \item 预览元件符号
+      \item 放置元件到原理图
+    \end{itemize}
+
+  \item \textbf{属性编辑器}
+    \begin{itemize}
+      \item 编辑元件属性
+      \item 设置网络属性
+      \item 配置设计参数
+    \end{itemize}
+\end{enumerate}
+
+\subsection{创建新项目}
+
+\BlockDesc{创建新项目}
+
+创建新项目的步骤：
+
+\begin{enumerate}
+  \item 启动 OrCAD Capture
+  \item 选择 \lstinline{File > New > Project}
+  \item 选择项目类型：
+    \begin{itemize}
+      \item \textbf{Analog or Mixed A/D}：模拟或混合信号设计
+      \item \textbf{PC Board Wizard}：PCB 设计向导
+      \item \textbf{Programmable Logic Wizard}：可编程逻辑设计
+      \item \textbf{Schematic}：纯原理图设计
+    \end{itemize}
+  \item 指定项目名称和保存路径
+  \item 选择原理图页面大小（如 A4、A3 等）
+  \item 完成项目创建
+\end{enumerate}
+
+\subsection{元件库管理}
+
+\subsubsection{库文件结构}
+
+OrCAD 库文件（.olb）包含元件符号，库文件可以包含多个元件。每个元件包含：
+
+\begin{itemize}
+  \item \textbf{符号图形}：元件的图形表示
+  \item \textbf{引脚定义}：引脚名称、编号、类型
+  \item \textbf{属性}：元件值、封装、制造商等
+\end{itemize}
+
+\subsubsection{使用现有库}
+
+OrCAD 自带丰富的元件库，位于安装目录的 \lstinline{Library} 文件夹：
+
+\begin{itemize}
+  \item \textbf{discrete.olb}：分立元件（电阻、电容、电感等）
+  \item \textbf{connector.olb}：连接器
+  \item \textbf{opamp.olb}：运算放大器
+  \item \textbf{74xx.olb}：74 系列逻辑芯片
+  \item \textbf{memory.olb}：存储器
+\end{itemize}
+
+\BlockDesc{添加库到项目}
+
+添加库文件的步骤：
+
+\begin{enumerate}
+  \item 在项目管理器中，右键点击 \lstinline{Library} 文件夹
+  \item 选择 \lstinline{Add File}
+  \item 浏览并选择库文件（.olb）
+  \item 库文件将出现在库列表中
+\end{enumerate}
+
+\subsubsection{创建自定义元件}
+
+当需要使用的元件不在现有库中时，需要创建自定义元件：
+
+\BlockDesc{创建新元件}
+
+\begin{enumerate}
+  \item 创建新库文件或打开现有库文件
+  \item 选择 \lstinline{Design > New Part}
+  \item 设置元件属性：
+    \begin{itemize}
+      \item \textbf{Name}：元件名称
+      \item \textbf{Part Reference Prefix}：元件编号前缀（如 R、C、U）
+      \item \textbf{PCB Footprint}：PCB 封装名称
+    \end{itemize}
+  \item 绘制元件符号：
+    \begin{itemize}
+      \item 使用绘图工具绘制元件外形
+      \item 添加引脚（\lstinline{Place > Pin}）
+      \item 设置引脚属性（名称、编号、类型）
+    \end{itemize}
+  \item 保存元件到库文件
+\end{enumerate}
+
+\subsubsection{引脚类型}
+
+OrCAD 中引脚类型包括：
+
+\begin{itemize}
+  \item \textbf{Input}：输入引脚
+  \item \textbf{Output}：输出引脚
+  \item \textbf{Bidirectional}：双向引脚
+  \item \textbf{Power}：电源引脚
+  \item \textbf{Passive}：无源引脚
+  \item \textbf{3-State}：三态引脚
+  \item \textbf{Open Collector}：开集电极
+  \item \textbf{Open Emitter}：开发射极
+\end{itemize}
+
+\subsection{原理图绘制}
+
+\subsubsection{放置元件}
+
+\BlockDesc{放置元件到原理图}
+
+\begin{enumerate}
+  \item 在原理图编辑窗口中，选择 \lstinline{Place > Part} 或按快捷键 \lstinline{P}
+  \item 在元件库浏览器中选择元件
+  \item 点击 \lstinline{Place} 按钮
+  \item 在原理图上点击放置位置
+  \item 可以连续放置多个相同元件
+  \item 按 \lstinline{ESC} 键退出放置模式
+\end{enumerate}
+
+\subsubsection{连接网络}
+
+\BlockDesc{连接元件}
+
+\begin{enumerate}
+  \item 选择 \lstinline{Place > Wire} 或按快捷键 \lstinline{W}
+  \item 点击起始引脚
+  \item 移动鼠标到目标引脚
+  \item 点击目标引脚完成连接
+  \item 可以继续连接其他网络
+  \item 按 \lstinline{ESC} 键退出连线模式
+\end{enumerate}
+
+\subsubsection{网络命名}
+
+\BlockDesc{命名网络}
+
+\begin{enumerate}
+  \item 选择网络（点击网络线）
+  \item 右键选择 \lstinline{Edit Properties} 或按快捷键 \lstinline{Alt+Enter}
+  \item 在属性对话框中设置网络名称
+  \item 也可以使用 \lstinline{Place > Net Alias} 添加网络标签
+\end{enumerate}
+
+网络命名规范：
+
+\begin{itemize}
+  \item 电源网络：$V_{CC}$、$V_{DD}$、$V_{SS}$、GND、AGND 等
+  \item 信号网络：使用有意义的名称，如 \lstinline{CLK}、\lstinline{RESET}、\lstinline{DATA[0:7]} 等
+  \item 差分信号：使用 \lstinline{+} 和 \lstinline{-} 后缀，如 \lstinline{USB_D+}、\lstinline{USB_D-}
+\end{itemize}
+
+\subsubsection{总线设计}
+
+对于多位总线，可以使用总线符号简化原理图：
+
+\BlockDesc{使用总线}
+
+\begin{enumerate}
+  \item 选择 \lstinline{Place > Bus} 或按快捷键 \lstinline{B}
+  \item 绘制总线路径
+  \item 使用 \lstinline{Place > Bus Entry} 添加总线入口
+  \item 连接信号线到总线入口
+  \item 使用 \lstinline{Place > Net Alias} 命名总线，如 \lstinline{DATA[0:7]}
+  \item 命名连接到总线的信号，如 \lstinline{DATA0}、\lstinline{DATA1} 等
+\end{enumerate}
+
+\subsubsection{电源和地符号}
+
+\BlockDesc{放置电源和地符号}
+
+\begin{enumerate}
+  \item 选择 \lstinline{Place > Power} 或按快捷键 \lstinline{F}
+  \item 在对话框中选择电源或地符号类型
+  \item 设置网络名称（如 \lstinline{VCC}、\lstinline{GND}）
+  \item 放置到原理图上
+\end{enumerate}
+
+常用电源符号：
+
+\begin{itemize}
+  \item \textbf{VCC\_CIRCLE}：圆形 $V_{CC}$ 符号
+  \item \textbf{VDD\_CIRCLE}：圆形 $V_{DD}$ 符号
+  \item \textbf{GND\_EARTH}：地符号
+  \item \textbf{GND\_POWER}：电源地符号
+  \item \textbf{GND\_SIGNAL}：信号地符号
+\end{itemize}
+
+\subsubsection{层次化设计}
+
+对于复杂电路，可以使用层次化设计：
+
+\BlockDesc{创建层次化设计}
+
+\begin{enumerate}
+  \item 创建顶层原理图
+  \item 选择 \lstinline{Place > Hierarchical Block}
+  \item 设置模块名称和实例名称
+  \item 绘制模块框图
+  \item 添加端口（\lstinline{Place > Hierarchical Port}）
+  \item 创建子图（\lstinline{Design > New Page}）
+  \item 在子图中实现具体电路
+  \item 使用 \lstinline{Place > Off-Page Connector} 连接跨页信号
+\end{enumerate}
+
+\subsection{元件属性设置}
+
+\subsubsection{元件属性}
+
+每个元件都有多个属性，重要的属性包括：
+
+\begin{itemize}
+  \item \textbf{Reference}：元件编号（如 R1、C1、U1）
+  \item \textbf{Value}：元件值（如 10k、100nF）
+  \item \textbf{PCB Footprint}：PCB 封装名称
+  \item \textbf{Part}：元件型号
+  \item \textbf{Manufacturer}：制造商
+  \item \textbf{Part Number}：料号
+\end{itemize}
+
+\BlockDesc{编辑元件属性}
+
+\begin{enumerate}
+  \item 选择元件
+  \item 右键选择 \lstinline{Edit Properties} 或按快捷键 \lstinline{Alt+Enter}
+  \item 在属性对话框中编辑各项属性
+  \item 可以批量编辑多个相同类型的元件
+\end{enumerate}
+
+\subsubsection{自动编号}
+
+\BlockDesc{自动编号元件}
+
+\begin{enumerate}
+  \item 选择 \lstinline{Tools > Annotate}
+  \item 在对话框中设置编号规则：
+    \begin{itemize}
+      \item \textbf{Scope}：编号范围（整个设计或选中的页面）
+      \item \textbf{Action}：编号动作（增量、重置等）
+      \item \textbf{Physical Packaging}：物理封装选项
+    \end{itemize}
+  \item 点击 \lstinline{OK} 执行自动编号
+\end{enumerate}
+
+\subsection{设计规则检查（DRC）}
+
+\subsubsection{电气规则检查（ERC）}
+
+OrCAD 可以检查原理图的电气规则：
+
+\BlockDesc{运行 ERC}
+
+\begin{enumerate}
+  \item 选择 \lstinline{Tools > Design Rules Check}
+  \item 在对话框中设置检查选项：
+    \begin{itemize}
+      \item \textbf{Check design rules}：检查设计规则
+      \item \textbf{Check hierarchical port connection}：检查层次端口连接
+      \item \textbf{Check unconnected nets}：检查未连接的网络
+      \item \textbf{Check SDT compatibility}：检查 SDT 兼容性
+    \end{itemize}
+  \item 点击 \lstinline{OK} 运行检查
+  \item 查看检查报告，修复错误和警告
+\end{enumerate}
+
+常见 ERC 错误：
+
+\begin{itemize}
+  \item 未连接的输入引脚
+  \item 电源冲突
+  \item 网络名称不一致
+  \item 层次端口不匹配
+\end{itemize}
+
+\subsection{生成输出文件}
+
+\subsubsection{生成网表}
+
+网表（Netlist）是连接原理图和 PCB 布局的桥梁：
+
+\BlockDesc{生成网表}
+
+\begin{enumerate}
+  \item 选择 \lstinline{Tools > Create Netlist}
+  \item 选择网表格式：
+    \begin{itemize}
+      \item \textbf{Allegro}：用于 Cadence Allegro PCB Editor
+      \item \textbf{Altium}：用于 Altium Designer
+      \item \textbf{EDIF}：通用格式
+      \item \textbf{SPICE}：用于电路仿真
+    \end{itemize}
+  \item 设置输出路径和文件名
+  \item 点击 \lstinline{OK} 生成网表
+\end{enumerate}
+
+\subsubsection{生成物料清单（BOM）}
+
+\BlockDesc{生成 BOM}
+
+\begin{enumerate}
+  \item 选择 \lstinline{Tools > Bill of Materials}
+  \item 在对话框中设置：
+    \begin{itemize}
+      \item \textbf{Header}：表头信息
+      \item \textbf{Combined property string}：组合属性字符串
+      \item \textbf{Place each part entry on a separate line}：每个元件占一行
+    \end{itemize}
+  \item 选择输出格式（文本、CSV、Excel 等）
+  \item 设置输出路径
+  \item 点击 \lstinline{OK} 生成 BOM
+\end{enumerate}
+
+\subsubsection{生成 PDF}
+
+\BlockDesc{导出原理图为 PDF}
+
+\begin{enumerate}
+  \item 选择 \lstinline{File > Print}
+  \item 在打印对话框中选择 PDF 打印机
+  \item 设置打印选项：
+    \begin{itemize}
+      \item \textbf{Scale}：缩放比例
+      \item \textbf{Color}：颜色选项
+      \item \textbf{Page Setup}：页面设置
+    \end{itemize}
+  \item 点击 \lstinline{Print} 生成 PDF
+\end{enumerate}
+
+\section{Altium Designer PCB 设计}
+
+Altium Designer 是业界领先的 PCB 设计工具，集成了原理图设计、PCB 布局、仿真、制造输出等功能。
+
+\subsection{Altium Designer 基础}
+
+\subsubsection{项目结构}
+
+Altium Designer 项目（.PrjPcb）包含：
+
+\begin{itemize}
+  \item \textbf{原理图文件（.SchDoc）}：原理图设计文件
+  \item \textbf{PCB 文件（.PcbDoc）}：PCB 布局文件
+  \item \textbf{库文件}：
+    \begin{itemize}
+      \item 原理图库（.SchLib）
+      \item PCB 封装库（.PcbLib）
+      \item 集成库（.IntLib）
+    \end{itemize}
+  \item \textbf{输出文件}：Gerber、钻孔文件、BOM 等
+\end{itemize}
+
+\subsubsection{工作界面}
+
+Altium Designer 的主要工作区域：
+
+\begin{enumerate}
+  \item \textbf{项目管理器（Projects Panel）}
+    \begin{itemize}
+      \item 显示项目文件结构
+      \item 管理设计文件
+    \end{itemize}
+
+  \item \textbf{原理图编辑器}
+    \begin{itemize}
+      \item 绘制原理图
+      \item 放置元件和连接
+    \end{itemize}
+
+  \item \textbf{PCB 编辑器}
+    \begin{itemize}
+      \item PCB 布局和走线
+      \item 3D 视图
+      \item 设计规则检查
+    \end{itemize}
+
+  \item \textbf{库编辑器}
+    \begin{itemize}
+      \item 创建和编辑元件符号
+      \item 创建和编辑 PCB 封装
+    \end{itemize}
+
+  \item \textbf{属性面板（Properties Panel）}
+    \begin{itemize}
+      \item 编辑选中对象的属性
+      \item 实时更新
+    \end{itemize}
+\end{enumerate}
+
+\subsection{创建新项目}
+
+\BlockDesc{创建 Altium Designer 项目}
+
+\begin{enumerate}
+  \item 选择 \lstinline{File > New > Project > PCB Project}
+  \item 在项目管理器中右键项目，选择 \lstinline{Add New to Project > Schematic}
+  \item 添加 PCB 文件：\lstinline{Add New to Project > PCB}
+  \item 保存项目和相关文件
+\end{enumerate}
+
+\subsection{原理图设计}
+
+\subsubsection{放置元件}
+
+\BlockDesc{从库中放置元件}
+
+\begin{enumerate}
+  \item 在原理图编辑器中，点击 \lstinline{Place > Part} 或按快捷键 \lstinline{P}
+  \item 在元件放置对话框中：
+    \begin{itemize}
+      \item 选择库文件
+      \item 搜索元件
+      \item 设置元件属性
+    \end{itemize}
+  \item 点击 \lstinline{OK} 放置元件
+  \item 在原理图上点击放置位置
+\end{enumerate}
+
+\subsubsection{连接网络}
+
+\BlockDesc{连接元件}
+
+\begin{enumerate}
+  \item 选择 \lstinline{Place > Wire} 或按快捷键 \lstinline{W}
+  \item 点击起始引脚
+  \item 移动鼠标绘制走线
+  \item 点击目标引脚完成连接
+  \item 可以继续连接其他网络
+  \item 按 \lstinline{ESC} 键退出连线模式
+\end{enumerate}
+
+\subsubsection{网络标签}
+
+\BlockDesc{添加网络标签}
+
+\begin{enumerate}
+  \item 选择 \lstinline{Place > Net Label} 或按快捷键 \lstinline{N}
+  \item 在属性面板中设置网络名称
+  \item 放置到网络线上
+  \item 相同名称的网络标签会自动连接
+\end{enumerate}
+
+\subsubsection{更新到 PCB}
+
+\BlockDesc{将原理图更新到 PCB}
+
+\begin{enumerate}
+  \item 在原理图编辑器中，选择 \lstinline{Design > Update PCB Document}
+  \item 在工程变更订单（ECO）对话框中：
+    \begin{itemize}
+      \item 查看变更列表
+      \item 验证变更
+      \item 执行变更
+    \end{itemize}
+  \item 点击 \lstinline{Execute Changes} 应用变更
+  \item 元件和网络将出现在 PCB 编辑器中
+\end{enumerate}
+
+\subsection{PCB 布局}
+
+\subsubsection{板框设计}
+
+\BlockDesc{定义板框}
+
+\begin{enumerate}
+  \item 在 PCB 编辑器中，切换到 \lstinline{Keep-Out Layer}
+  \item 选择 \lstinline{Place > Line} 或按快捷键 \lstinline{P > L}
+  \item 绘制板框轮廓
+  \item 选择所有板框线
+  \item 选择 \lstinline{Design > Board Shape > Define from selected objects}
+  \item 板框将根据选中的线条定义
+\end{enumerate}
+
+也可以从机械层导入板框：
+
+\begin{enumerate}
+  \item 在机械层绘制板框
+  \item 选择板框线条
+  \item 选择 \lstinline{Design > Board Shape > Define from selected objects}
+\end{enumerate}
+
+\subsubsection{层叠管理}
+
+\BlockDesc{设置层叠结构}
+
+\begin{enumerate}
+  \item 选择 \lstinline{Design > Layer Stack Manager}
+  \item 在层叠管理器中：
+    \begin{itemize}
+      \item 添加或删除层
+      \item 设置层类型（信号层、平面层）
+      \item 设置介质厚度
+      \item 设置铜箔厚度
+      \item 设置介电常数
+    \end{itemize}
+  \item 可以保存和加载层叠模板
+  \item 点击 \lstinline{OK} 应用设置
+\end{enumerate}
+
+\subsubsection{元件布局}
+
+\BlockDesc{元件布局原则}
+
+\begin{enumerate}
+  \item \textbf{功能分区}
+    \begin{itemize}
+      \item 模拟和数字电路分开
+      \item 高速和低速电路分开
+      \item 电源电路单独分区
+    \end{itemize}
+
+  \item \textbf{关键元件优先}
+    \begin{itemize}
+      \item 先放置核心 IC（MCU、FPGA 等）
+      \item 再放置外围元件
+      \item 考虑信号流向
+    \end{itemize}
+
+  \item \textbf{热考虑}
+    \begin{itemize}
+      \item 发热元件分散放置
+      \item 远离温度敏感元件
+      \item 考虑散热路径
+    \end{itemize}
+
+  \item \textbf{机械约束}
+    \begin{itemize}
+      \item 接插件放在边缘
+      \item 考虑安装和维修
+      \item 符合机械设计要求
+    \end{itemize}
+\end{enumerate}
+
+\BlockDesc{元件对齐和分布}
+
+\begin{enumerate}
+  \item 选择多个元件
+  \item 使用对齐工具：
+    \begin{itemize}
+      \item \lstinline{Edit > Align > Align Left/Right/Top/Bottom}
+      \item \lstinline{Edit > Align > Distribute Horizontally/Vertically}
+    \end{itemize}
+  \item 或使用快捷键和右键菜单
+\end{enumerate}
+
+\subsubsection{设计规则设置}
+
+设计规则（Design Rules）是 PCB 设计的核心约束：
+
+\BlockDesc{设置设计规则}
+
+\begin{enumerate}
+  \item 选择 \lstinline{Design > Rules}
+  \item 在规则编辑器中设置各类规则：
+    \begin{itemize}
+      \item \textbf{Electrical}：电气规则
+        \begin{itemize}
+          \item Clearance：间距规则
+          \item Short-Circuit：短路规则
+          \item Un-Routed Net：未布线网络
+          \item Un-Connected Pin：未连接引脚
+        \end{itemize}
+      \item \textbf{Routing}：布线规则
+        \begin{itemize}
+          \item Width：线宽规则
+          \item Routing Topology：拓扑规则
+          \item Routing Priority：优先级
+          \item Routing Layers：布线层
+          \item Routing Corners：拐角规则
+          \item Routing Via Style：过孔样式
+        \end{itemize}
+      \item \textbf{Manufacturing}：制造规则
+        \begin{itemize}
+          \item Minimum Solder Mask Sliver：阻焊间隙
+          \item Silk to Solder Mask Clearance：丝印到阻焊间距
+          \item Hole Size：孔径规则
+        \end{itemize}
+      \item \textbf{Plane}：平面规则
+        \begin{itemize}
+          \item Power Plane Connect Style：电源平面连接样式
+          \item Power Plane Clearance：电源平面间距
+        \end{itemize}
+      \item \textbf{Testpoint}：测试点规则
+      \item \textbf{High Speed}：高速规则
+        \begin{itemize}
+          \item Parallel Segment：平行段规则
+          \item Length：长度规则
+          \item Matched Net Lengths：等长规则
+          \item Differential Pairs Routing：差分对布线
+        \end{itemize}
+      \item \textbf{Placement}：布局规则
+      \item \textbf{Signal Integrity}：信号完整性规则
+    \end{itemize}
+  \item 为不同网络类设置不同规则
+  \item 点击 \lstinline{OK} 应用规则
+\end{enumerate}
+
+\subsubsection{阻抗控制}
+
+\BlockDesc{设置阻抗控制规则}
+
+\begin{enumerate}
+  \item 在层叠管理器中设置正确的介质参数
+  \item 选择 \lstinline{Design > Rules > Routing > Width}
+  \item 创建新的线宽规则
+  \item 设置：
+    \begin{itemize}
+      \item \textbf{Name}：规则名称（如 \lstinline{50Ohm_Single})
+      \item \textbf{Where the First object matches}：适用范围
+      \item \textbf{Preferred Width}：首选线宽
+      \item \textbf{Min Width}：最小线宽
+      \item \textbf{Max Width}：最大线宽
+    \end{itemize}
+  \item 使用阻抗计算工具验证：
+    \begin{itemize}
+      \item \lstinline{Tools > Impedance Calculation}
+      \item 输入层叠参数
+      \item 计算特性阻抗
+      \item 调整线宽以达到目标阻抗
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{走线}
+
+\BlockDesc{手动走线}
+
+\begin{enumerate}
+  \item 选择 \lstinline{Route > Interactive Routing} 或按快捷键 \lstinline{P > T}
+  \item 点击起始焊盘
+  \item 移动鼠标绘制走线
+  \item 可以切换层（按数字键或 \lstinline{+/-} 键）
+  \item 自动添加过孔
+  \item 点击目标焊盘完成走线
+  \item 按 \lstinline{ESC} 键退出走线模式
+\end{enumerate}
+
+走线技巧：
+
+\begin{itemize}
+  \item 使用 \lstinline{Shift+Space} 切换走线模式（45°、90°、圆弧等）
+  \item 使用 \lstinline{Space} 切换走线方向
+  \item 使用 \lstinline{Backspace} 撤销上一步
+  \item 使用 \lstinline{Ctrl+Click} 完成走线并继续
+  \item 使用 \lstinline{Tab} 键打开属性面板，调整走线参数
+\end{itemize}
+
+\BlockDesc{差分对走线}
+
+\begin{enumerate}
+  \item 在原理图中定义差分对网络（使用 \lstinline{_P} 和 \lstinline{_N} 后缀）
+  \item 更新到 PCB
+  \item 在 PCB 编辑器中，选择 \lstinline{Design > Classes > Differential Pair Classes}
+  \item 创建差分对类并添加差分对
+  \item 选择 \lstinline{Route > Interactive Differential Pair Routing} 或按快捷键 \lstinline{P > I}
+  \item 点击差分对的任意一个焊盘开始走线
+  \item 两条线将同时走线，保持间距
+  \item 可以调整间距（\lstinline{Shift+,} 减小，\lstinline{Shift+.} 增大）
+\end{enumerate}
+
+\subsubsection{过孔}
+
+\BlockDesc{放置过孔}
+
+\begin{enumerate}
+  \item 在走线过程中，按 \lstinline{+} 或 \lstinline{-} 键切换层
+  \item 自动添加过孔
+  \item 也可以手动放置：\lstinline{Place > Via} 或按快捷键 \lstinline{P > V}
+  \item 在属性面板中设置过孔参数：
+    \begin{itemize}
+      \item \textbf{Hole Size}：孔径
+      \item \textbf{Diameter}：过孔直径
+      \item \textbf{Start Layer}：起始层
+      \item \textbf{End Layer}：结束层
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{铺铜}
+
+\BlockDesc{铺铜操作}
+
+\begin{enumerate}
+  \item 选择 \lstinline{Place > Polygon Pour} 或按快捷键 \lstinline{P > G}
+  \item 在属性面板中设置：
+    \begin{itemize}
+      \item \textbf{Net}：连接到哪个网络（通常是 GND 或电源）
+      \item \textbf{Layer}：铺铜层
+      \item \textbf{Pour Over All Same Net Objects}：覆盖同网络对象
+      \item \textbf{Remove Dead Copper}：移除死铜
+      \item \textbf{Grid Size}：网格大小
+      \item \textbf{Track Width}：网格线宽
+    \end{itemize}
+  \item 绘制铺铜区域轮廓
+  \item 右键完成绘制
+  \item 铺铜将自动填充并避让其他对象
+\end{enumerate}
+
+\BlockDesc{重新铺铜}
+
+\begin{enumerate}
+  \item 选择铺铜对象
+  \item 右键选择 \lstinline{Polygon Actions > Repour Selected}
+  \item 或选择 \lstinline{Tools > Polygon Pours > Repour All}
+\end{enumerate}
+
+\subsubsection{等长走线}
+
+对于需要等长的信号（如 DDR、并行总线），需要等长走线：
+
+\BlockDesc{等长走线}
+
+\begin{enumerate}
+  \item 选择 \lstinline{Route > Interactive Length Tuning} 或按快捷键 \lstinline{P > Y}
+  \item 点击需要调整长度的走线
+  \item 移动鼠标创建蛇形走线
+  \item 在属性面板中设置：
+    \begin{itemize}
+      \item \textbf{Target Length}：目标长度
+      \item \textbf{Amplitude}：振幅
+      \item \textbf{Gap}：间距
+      \item \textbf{Style}：样式（Mitered、Rounded、Rounded 45°）
+    \end{itemize}
+  \item 可以查看长度信息（\lstinline{Reports > Measure Distance}）
+\end{enumerate}
+
+\BlockDesc{使用等长规则}
+
+\begin{enumerate}
+  \item 选择 \lstinline{Design > Rules > High Speed > Matched Net Lengths}
+  \item 创建新规则
+  \item 设置：
+    \begin{itemize}
+      \item \textbf{Scope}：适用范围
+      \item \textbf{Tolerance}：容差
+      \item \textbf{Style}：等长样式
+    \end{itemize}
+  \item 在 PCB 编辑器中，选择 \lstinline{Route > Interactive Length Tuning}
+  \item 走线长度信息会实时显示
+  \item 达到目标长度后完成
+\end{enumerate}
+
+\subsection{设计规则检查（DRC）}
+
+\BlockDesc{运行 DRC}
+
+\begin{enumerate}
+  \item 选择 \lstinline{Tools > Design Rule Check}
+  \item 在 DRC 对话框中：
+    \begin{itemize}
+      \item 选择要检查的规则类别
+      \item 选择检查范围（整个板或选中的对象）
+      \item 设置报告选项
+    \end{itemize}
+  \item 点击 \lstinline{Run Design Rule Check}
+  \item 查看检查报告
+  \item 在 PCB 编辑器中，违反规则的地方会高亮显示
+  \item 修复所有错误和警告
+\end{enumerate}
+
+\subsection{3D 视图}
+
+\BlockDesc{查看 3D 视图}
+
+\begin{enumerate}
+  \item 选择 \lstinline{View > 3D Layout Mode} 或按快捷键 \lstinline{3}
+  \item 使用鼠标操作：
+    \begin{itemize}
+      \item 左键拖动：旋转视图
+      \item 右键拖动：平移视图
+      \item 滚轮：缩放
+      \item \lstinline{Shift + 右键拖动}：调整视角
+    \end{itemize}
+  \item 可以导出 3D 模型（\lstinline{File > Export > STEP 3D}）
+\end{enumerate}
+
+\subsection{输出制造文件}
+
+\subsubsection{Gerber 文件}
+
+\BlockDesc{生成 Gerber 文件}
+
+\begin{enumerate}
+  \item 选择 \lstinline{File > Fabrication Outputs > Gerber Files}
+  \item 在 Gerber 设置对话框中：
+    \begin{itemize}
+      \item \textbf{General}：通用设置
+        \begin{itemize}
+          \item Units：单位（Inches 或 Millimeters）
+          \item Format：格式（2:3、2:4、2:5）
+        \end{itemize}
+      \item \textbf{Layers}：层设置
+        \begin{itemize}
+          \item Plot Layers：选择要输出的层
+          \item Mirror Layers：镜像层
+        \end{itemize}
+      \item \textbf{Drill Drawing}：钻孔图
+      \item \textbf{Apertures}：光圈表
+      \item \textbf{Advanced}：高级设置
+    \end{itemize}
+  \item 点击 \lstinline{OK} 生成 Gerber 文件
+  \item 文件将保存在项目输出文件夹中
+\end{enumerate}
+
+\subsubsection{钻孔文件}
+
+\BlockDesc{生成钻孔文件}
+
+\begin{enumerate}
+  \item 选择 \lstinline{File > Fabrication Outputs > NC Drill Files}
+  \item 在钻孔设置对话框中：
+    \begin{itemize}
+      \item \textbf{Units}：单位
+      \item \textbf{Format}：格式
+      \item \textbf{Leading/Trailing Zeroes}：前导/尾随零
+    \end{itemize}
+  \item 点击 \lstinline{OK} 生成钻孔文件
+  \item 通常生成 .drl 和 .txt 文件
+\end{enumerate}
+
+\subsubsection{贴片坐标文件}
+
+\BlockDesc{生成贴片坐标文件}
+
+\begin{enumerate}
+  \item 选择 \lstinline{File > Assembly Outputs > Generates pick and place files}
+  \item 在对话框中设置：
+    \begin{itemize}
+      \item \textbf{Format}：格式（CSV、TXT）
+      \item \textbf{Units}：单位
+      \item \textbf{Include}：包含的信息
+    \end{itemize}
+  \item 点击 \lstinline{OK} 生成文件
+\end{enumerate}
+
+\subsubsection{物料清单（BOM）}
+
+\BlockDesc{生成 BOM}
+
+\begin{enumerate}
+  \item 选择 \lstinline{Reports > Bill of Materials}
+  \item 在 BOM 对话框中：
+    \begin{itemize}
+      \item 选择要包含的列
+      \item 设置分组和排序
+      \item 选择输出格式（Excel、CSV、PDF 等）
+    \end{itemize}
+  \item 点击 \lstinline{Export} 导出 BOM
+\end{enumerate}
+
+\subsubsection{装配图}
+
+\BlockDesc{生成装配图}
+
+\begin{enumerate}
+  \item 在 PCB 编辑器中，切换到装配层（Top Overlay、Bottom Overlay）
+  \item 选择 \lstinline{File > Smart PDF}
+  \item 在对话框中：
+    \begin{itemize}
+      \item 选择要包含的页面
+      \item 设置 PDF 选项
+      \item 选择输出路径
+    \end{itemize}
+  \item 点击 \lstinline{OK} 生成 PDF
+\end{enumerate}
+
+\section{KiCad PCB 设计}
+
+KiCad 是一款开源、跨平台的 PCB 设计工具，功能强大且完全免费，适合个人和小团队使用。
+
+\subsection{KiCad 基础}
+
+\subsubsection{项目结构}
+
+KiCad 项目包含以下文件：
+
+\begin{itemize}
+  \item \textbf{项目文件（.kicad\_pro）}：项目配置文件
+  \item \textbf{原理图文件（.kicad\_sch）}：原理图设计文件
+  \item \textbf{PCB 文件（.kicad\_pcb）}：PCB 布局文件
+  \item \textbf{库文件}：
+    \begin{itemize}
+      \item 原理图符号库（.kicad\_sym）
+      \item PCB 封装库（.kicad\_mod）
+      \item 3D 模型库
+    \end{itemize}
+\end{itemize}
+
+\subsubsection{工作界面}
+
+KiCad 采用模块化设计，主要程序包括：
+
+\begin{enumerate}
+  \item \textbf{KiCad}：项目管理器
+  \item \textbf{Eeschema}：原理图编辑器
+  \item \textbf{PCB Editor}：PCB 布局编辑器
+  \item \textbf{Footprint Editor}：封装编辑器
+  \item \textbf{Symbol Editor}：符号编辑器
+  \item \textbf{3D Viewer}：3D 查看器
+\end{enumerate}
+
+\subsection{创建新项目}
+
+\BlockDesc{创建 KiCad 项目}
+
+\begin{enumerate}
+  \item 启动 KiCad
+  \item 选择 \lstinline{File > New Project}
+  \item 选择保存位置和项目名称
+  \item 点击 \lstinline{Save} 创建项目
+  \item 项目将包含原理图和 PCB 文件
+\end{enumerate}
+
+\subsection{原理图设计}
+
+\subsubsection{放置元件}
+
+\BlockDesc{从库中放置元件}
+
+\begin{enumerate}
+  \item 在 Eeschema 中，点击工具栏的 \lstinline{Add a symbol} 按钮或按快捷键 \lstinline{A}
+  \item 在符号选择器中：
+    \begin{itemize}
+      \item 浏览或搜索元件
+      \item 预览元件符号
+    \end{itemize}
+  \item 双击元件或点击 \lstinline{OK} 放置
+  \item 在原理图上点击放置位置
+  \item 可以连续放置多个相同元件
+  \item 按 \lstinline{ESC} 键退出放置模式
+\end{enumerate}
+
+\subsubsection{连接网络}
+
+\BlockDesc{连接元件}
+
+\begin{enumerate}
+  \item 点击工具栏的 \lstinline{Add a wire} 按钮或按快捷键 \lstinline{W}
+  \item 点击起始引脚
+  \item 移动鼠标绘制走线
+  \item 点击目标引脚完成连接
+  \item 可以继续连接其他网络
+  \item 按 \lstinline{ESC} 键退出连线模式
+\end{enumerate}
+
+\subsubsection{网络标签}
+
+\BlockDesc{添加网络标签}
+
+\begin{enumerate}
+  \item 点击工具栏的 \lstinline{Add a net label} 按钮或按快捷键 \lstinline{L}
+  \item 在属性对话框中输入网络名称
+  \item 放置到网络线上
+  \item 相同名称的网络标签会自动连接
+\end{enumerate}
+
+\subsubsection{更新到 PCB}
+
+\BlockDesc{将原理图更新到 PCB}
+
+\begin{enumerate}
+  \item 在 Eeschema 中，选择 \lstinline{Tools > Update PCB from Schematic} 或按快捷键 \lstinline{F8}
+  \item 在更新对话框中：
+    \begin{itemize}
+      \item 查看变更列表
+      \item 选择要应用的变更
+    \end{itemize}
+  \item 点击 \lstinline{Update PCB} 应用变更
+  \item 切换到 PCB Editor 查看更新结果
+\end{enumerate}
+
+\subsection{PCB 布局}
+
+\subsubsection{板框设计}
+
+\BlockDesc{定义板框}
+
+\begin{enumerate}
+  \item 在 PCB Editor 中，切换到 \lstinline{Edge.Cuts} 层
+  \item 选择 \lstinline{Add > Graphic Line} 或按快捷键 \lstinline{E}
+  \item 绘制板框轮廓
+  \item 板框将根据绘制的线条自动定义
+\end{enumerate}
+
+也可以从 DXF 文件导入板框：
+
+\begin{enumerate}
+  \item 选择 \lstinline{File > Import > Graphics}
+  \item 选择 DXF 文件
+  \item 设置导入选项
+  \item 导入后调整到 \lstinline{Edge.Cuts} 层
+\end{enumerate}
+
+\subsubsection{层叠管理}
+
+\BlockDesc{设置层叠结构}
+
+\begin{enumerate}
+  \item 选择 \lstinline{Setup > Board Setup > Physical Stackup}
+  \item 在层叠管理器中：
+    \begin{itemize}
+      \item 添加或删除层
+      \item 设置层类型（信号层、平面层）
+      \item 设置介质厚度
+      \item 设置铜箔厚度
+      \item 设置介电常数
+    \end{itemize}
+  \item 可以保存和加载层叠模板
+  \item 点击 \lstinline{OK} 应用设置
+\end{enumerate}
+
+\subsubsection{设计规则设置}
+
+\BlockDesc{设置设计规则}
+
+\begin{enumerate}
+  \item 选择 \lstinline{Setup > Design Rules}
+  \item 在规则编辑器中设置：
+    \begin{itemize}
+      \item \textbf{Net Classes}：网络类
+      \item \textbf{Clearance}：间距规则
+      \item \textbf{Track Width}：线宽规则
+      \item \textbf{Differential Pairs}：差分对规则
+      \item \textbf{Via Sizes}：过孔尺寸规则
+      \item \textbf{Solder Mask/Paste}：阻焊和钢网规则
+    \end{itemize}
+  \item 为不同网络类设置不同规则
+  \item 点击 \lstinline{OK} 应用规则
+\end{enumerate}
+
+\subsubsection{走线}
+
+\BlockDesc{手动走线}
+
+\begin{enumerate}
+  \item 选择 \lstinline{Route > Add Filled Zone} 或按快捷键 \lstinline{X}
+  \item 点击起始焊盘
+  \item 移动鼠标绘制走线
+  \item 可以切换层（按 \lstinline{V} 键添加过孔）
+  \item 点击目标焊盘完成走线
+  \item 按 \lstinline{ESC} 键退出走线模式
+\end{enumerate}
+
+\BlockDesc{差分对走线}
+
+\begin{enumerate}
+  \item 在原理图中定义差分对（使用 \lstinline{_P} 和 \lstinline{_N} 后缀）
+  \item 更新到 PCB
+  \item 在 PCB Editor 中，选择 \lstinline{Setup > Design Rules > Differential Pairs}
+  \item 创建差分对规则
+  \item 选择 \lstinline{Route > Interactive Router}
+  \item 选择差分对开始走线
+  \item 两条线将同时走线，保持间距
+\end{enumerate}
+
+\subsubsection{铺铜}
+
+\BlockDesc{铺铜操作}
+
+\begin{enumerate}
+  \item 选择 \lstinline{Add > Zone} 或按快捷键 \lstinline{Z}
+  \item 在属性对话框中设置：
+    \begin{itemize}
+      \item \textbf{Net}：连接到哪个网络
+      \item \textbf{Layer}：铺铜层
+      \item \textbf{Fill Settings}：填充设置
+    \end{itemize}
+  \item 绘制铺铜区域轮廓
+  \item 双击完成绘制
+  \item 铺铜将自动填充并避让其他对象
+\end{enumerate}
+
+\subsection{输出制造文件}
+
+\subsubsection{Gerber 文件}
+
+\BlockDesc{生成 Gerber 文件}
+
+\begin{enumerate}
+  \item 选择 \lstinline{File > Fabrication Outputs > Gerbers}
+  \item 在 Gerber 输出对话框中：
+    \begin{itemize}
+      \item 选择要输出的层
+      \item 设置格式选项
+      \item 选择输出目录
+    \end{itemize}
+  \item 点击 \lstinline{Generate Drill Files} 生成钻孔文件
+  \item 点击 \lstinline{Plot} 生成 Gerber 文件
+\end{enumerate}
+
+\subsubsection{钻孔文件}
+
+\BlockDesc{生成钻孔文件}
+
+\begin{enumerate}
+  \item 在 Gerber 输出对话框中，点击 \lstinline{Generate Drill Files}
+  \item 在钻孔文件对话框中：
+    \begin{itemize}
+      \item 设置格式选项
+      \item 选择输出目录
+    \end{itemize}
+  \item 点击 \lstinline{Generate Drill File} 生成钻孔文件
+\end{enumerate}
+
+\subsubsection{物料清单（BOM）}
+
+\BlockDesc{生成 BOM}
+
+\begin{enumerate}
+  \item 在 Eeschema 中，选择 \lstinline{Tools > Generate Bill of Materials}
+  \item 在 BOM 对话框中：
+    \begin{itemize}
+      \item 选择 BOM 插件
+      \item 设置输出格式
+      \item 选择输出路径
+    \end{itemize}
+  \item 点击 \lstinline{Generate} 生成 BOM
+\end{enumerate}
+
+\section{封装库管理}
+
+封装库是 PCB 设计的基础，良好的封装库管理能提高设计效率和质量。
+
+\subsection{封装库结构}
+
+\subsubsection{封装组成}
+
+PCB 封装（Footprint）通常包含：
+
+\begin{itemize}
+  \item \textbf{焊盘（Pad）}：元件引脚连接点
+  \item \textbf{丝印（Silkscreen）}：元件外形和标识
+  \item \textbf{阻焊（Solder Mask）}：焊盘开窗
+  \item \textbf{钢网（Paste Mask）}：贴片钢网开窗
+  \item \textbf{3D 模型}：3D 显示用
+  \item \textbf{装配层（Assembly）}：装配图用
+\end{itemize}
+
+\subsubsection{封装命名规范}
+
+封装命名应遵循规范，便于识别和管理：
+
+\begin{itemize}
+  \item \textbf{贴片电阻}：\lstinline{R_0805}、\lstinline{R_0603} 等
+  \item \textbf{贴片电容}：\lstinline{C_0805}、\lstinline{C_0603} 等
+  \item \textbf{IC 封装}：\lstinline{SOIC-8}、\lstinline{QFN-48}、\lstinline{BGA-256} 等
+  \item \textbf{连接器}：\lstinline{CONN_2P54_2X5}、\lstinline{USB-C} 等
+\end{itemize}
+
+\subsection{创建封装}
+
+\subsubsection{从数据手册创建}
+
+\BlockDesc{根据数据手册创建封装}
+
+\begin{enumerate}
+  \item 获取元件数据手册
+  \item 查找封装尺寸图（Package Dimensions）
+  \item 在封装编辑器中：
+    \begin{itemize}
+      \item 设置网格和单位
+      \item 放置焊盘，设置尺寸和位置
+      \item 绘制丝印外形
+      \item 添加标识（如引脚 1 标记）
+    \end{itemize}
+  \item 验证尺寸是否正确
+  \item 保存封装到库文件
+\end{enumerate}
+
+\subsubsection{使用封装向导}
+
+大多数 PCB 工具提供封装向导，可以快速创建标准封装：
+
+\BlockDesc{使用封装向导}
+
+\begin{enumerate}
+  \item 在封装编辑器中，选择封装向导
+  \item 选择封装类型（如 SOIC、QFP、BGA 等）
+  \item 输入封装参数：
+    \begin{itemize}
+      \item 引脚数量
+      \item 引脚间距（Pitch）
+      \item 封装尺寸
+      \item 焊盘尺寸
+    \end{itemize}
+  \item 预览封装
+  \item 生成封装
+  \item 检查和调整
+  \item 保存封装
+\end{enumerate}
+
+\subsection{封装库管理}
+
+\subsubsection{库文件组织}
+
+良好的库文件组织：
+
+\begin{itemize}
+  \item \textbf{按元件类型分类}：电阻库、电容库、IC 库等
+  \item \textbf{按制造商分类}：不同制造商的封装分开
+  \item \textbf{按封装类型分类}：贴片库、通孔库等
+  \item \textbf{使用版本控制}：使用 Git 等工具管理库文件
+\end{itemize}
+
+\subsubsection{封装验证}
+
+\BlockDesc{验证封装正确性}
+
+\begin{enumerate}
+  \item \textbf{尺寸检查}
+    \begin{itemize}
+      \item 对比数据手册尺寸
+      \item 检查焊盘尺寸是否合适
+      \item 检查引脚间距是否正确
+    \end{itemize}
+
+  \item \textbf{3D 模型检查}
+    \begin{itemize}
+      \item 加载 3D 模型
+      \item 检查模型是否匹配
+      \item 检查高度是否正确
+    \end{itemize}
+
+  \item \textbf{设计规则检查}
+    \begin{itemize}
+      \item 运行 DRC 检查
+      \item 检查焊盘间距
+      \item 检查丝印是否覆盖焊盘
+    \end{itemize}
+
+  \item \textbf{实际验证}
+    \begin{itemize}
+      \item 制作测试板
+      \item 实际贴装验证
+      \item 记录问题并修正
+    \end{itemize}
+\end{enumerate}
+
+\section{设计规则和约束}
+
+设计规则是确保 PCB 设计质量和可制造性的关键。
+
+\subsection{间距规则}
+
+\subsubsection{走线间距}
+
+走线间距影响：
+
+\begin{itemize}
+  \item \textbf{串扰}：间距越小，串扰越大
+  \item \textbf{可制造性}：间距必须符合制造能力
+  \item \textbf{成本}：更小的间距通常意味着更高的成本
+\end{itemize}
+
+典型间距设置：
+
+\begin{itemize}
+  \item \textbf{信号线}：3--4 mil（0.075--0.1 mm）
+  \item \textbf{电源线}：根据电压等级，通常 8--20 mil
+  \item \textbf{差分对内部}：根据阻抗要求
+  \item \textbf{差分对之间}：至少 3 倍线宽
+\end{itemize}
+
+\subsubsection{焊盘间距}
+
+焊盘间距必须符合元件封装要求：
+
+\begin{itemize}
+  \item 检查元件数据手册
+  \item 考虑制造公差
+  \item 留有余量
+\end{itemize}
+
+\subsection{线宽规则}
+
+\subsubsection{载流能力}
+
+线宽必须满足载流要求：
+
+\begin{itemize}
+  \item 使用 IPC-2221 标准计算
+  \item 考虑温升限制
+  \item 考虑内层和外层差异
+  \item 考虑铜箔厚度
+\end{itemize}
+
+\subsubsection{阻抗控制}
+
+对于高速信号，线宽必须满足阻抗要求：
+
+\begin{itemize}
+  \item 使用阻抗计算工具
+  \item 考虑层叠结构
+  \item 考虑介电常数
+  \item 与 PCB 厂商确认
+\end{itemize}
+
+\subsection{过孔规则}
+
+\subsubsection{过孔尺寸}
+
+过孔尺寸影响：
+
+\begin{itemize}
+  \item \textbf{可制造性}：最小孔径受制造能力限制
+  \item \textbf{成本}：更小的过孔通常更贵
+  \item \textbf{可靠性}：过孔太小可能影响可靠性
+\end{itemize}
+
+典型过孔设置：
+
+\begin{itemize}
+  \item \textbf{通孔}：孔径 8--12 mil，直径 16--24 mil
+  \item \textbf{盲埋孔}：孔径 4--6 mil，直径 8--12 mil
+  \item \textbf{微孔}：孔径 2--4 mil，直径 4--8 mil
+\end{itemize}
+
+\subsubsection{过孔间距}
+
+过孔间距规则：
+
+\begin{itemize}
+  \item 过孔之间最小间距：通常为过孔直径
+  \item 过孔到走线间距：至少 5 mil
+  \item 过孔到焊盘间距：至少 8 mil
+\end{itemize}
+
+\section{制造文件输出}
+
+制造文件是 PCB 设计和制造之间的桥梁，必须准确无误。
+
+\subsection{Gerber 文件格式}
+
+\subsubsection{Gerber 文件类型}
+
+Gerber 文件包括：
+
+\begin{itemize}
+  \item \textbf{顶层铜层（.GTL）}：Top Layer
+  \item \textbf{底层铜层（.GBL）}：Bottom Layer
+  \item \textbf{内层（.G1、.G2 等）}：Inner Layers
+  \item \textbf{顶层阻焊（.GTS）}：Top Solder Mask
+  \item \textbf{底层阻焊（.GBS）}：Bottom Solder Mask
+  \item \textbf{顶层丝印（.GTO）}：Top Overlay
+  \item \textbf{底层丝印（.GBO）}：Bottom Overlay
+  \item \textbf{顶层钢网（.GTP）}：Top Paste
+  \item \textbf{底层钢网（.GBP）}：Bottom Paste
+  \item \textbf{板框（.GKO 或 .GM1）}：Keep-Out 或 Mechanical
+\end{itemize}
+
+\subsubsection{Gerber 格式}
+
+常用 Gerber 格式：
+
+\begin{itemize}
+  \item \textbf{RS-274X}：扩展 Gerber 格式，包含光圈表
+  \item \textbf{RS-274D}：标准 Gerber 格式，需要单独的光圈文件
+  \item \textbf{ODB++}：更高级的格式，包含更多信息
+\end{itemize}
+
+\subsection{钻孔文件}
+
+\subsubsection{钻孔文件格式}
+
+常用格式：
+
+\begin{itemize}
+  \item \textbf{Excellon}：最常用的格式（.drl、.txt）
+  \item \textbf{IPC-NC-349}：IPC 标准格式
+\end{itemize}
+
+\subsubsection{钻孔文件内容}
+
+钻孔文件包含：
+
+\begin{itemize}
+  \item \textbf{工具列表}：孔径和工具编号对应
+  \item \textbf{钻孔坐标}：每个孔的坐标和工具编号
+  \item \textbf{单位}：英寸或毫米
+  \item \textbf{格式}：坐标精度
+\end{itemize}
+
+\subsection{制造文件检查}
+
+\BlockDesc{检查制造文件}
+
+\begin{enumerate}
+  \item \textbf{使用 Gerber 查看器}
+    \begin{itemize}
+      \item 使用 GC-Prevue、ViewMate 等工具
+      \item 检查所有层是否正确
+      \item 检查尺寸是否正确
+      \item 检查是否有遗漏
+    \end{itemize}
+
+  \item \textbf{对比原始设计}
+    \begin{itemize}
+      \item 在 PCB 工具中生成 PDF
+      \item 与 Gerber 文件对比
+      \item 检查差异
+    \end{itemize}
+
+  \item \textbf{钻孔文件检查}
+    \begin{itemize}
+      \item 检查孔径是否正确
+      \item 检查坐标是否正确
+      \item 检查是否有遗漏的孔
+    \end{itemize}
+
+  \item \textbf{与 PCB 厂商沟通}
+    \begin{itemize}
+      \item 发送文件前先沟通
+      \item 确认文件格式和版本
+      \item 确认特殊要求
+    \end{itemize}
+\end{enumerate}
+
+\section{仿真工具使用}
+
+仿真工具可以帮助在设计阶段验证电路性能，减少设计迭代。
+
+\subsection{SPICE 仿真}
+
+\subsubsection{SPICE 基础}
+
+SPICE（Simulation Program with Integrated Circuit Emphasis）是电路仿真的标准工具。
+
+\BlockDesc{运行 SPICE 仿真}
+
+\begin{enumerate}
+  \item 在原理图工具中，添加仿真模型
+  \item 设置仿真参数：
+    \begin{itemize}
+      \item \textbf{DC Analysis}：直流分析
+      \item \textbf{AC Analysis}：交流分析
+      \item \textbf{Transient Analysis}：瞬态分析
+    \end{itemize}
+  \item 设置激励源
+  \item 运行仿真
+  \item 查看仿真结果
+\end{enumerate}
+
+\subsubsection{常用 SPICE 仿真}
+
+\begin{itemize}
+  \item \textbf{直流工作点分析}：计算静态工作点
+  \item \textbf{交流小信号分析}：频率响应
+  \item \textbf{瞬态分析}：时域响应
+  \item \textbf{参数扫描}：参数变化对性能的影响
+  \item \textbf{蒙特卡洛分析}：考虑元件容差的影响
+\end{itemize}
+
+\subsection{信号完整性仿真}
+
+\subsubsection{SI 仿真工具}
+
+常用 SI 仿真工具：
+
+\begin{itemize}
+  \item \textbf{Altium Designer}：内置 SI 仿真
+  \item \textbf{Cadence Sigrity}：专业 SI/PI 工具
+  \item \textbf{Keysight ADS}：高级 SI 仿真
+  \item \textbf{HyperLynx}：Mentor 的 SI 工具
+\end{itemize}
+
+\BlockDesc{运行 SI 仿真}
+
+\begin{enumerate}
+  \item 在 PCB 工具中，选择要仿真的网络
+  \item 设置仿真参数：
+    \begin{itemize}
+      \item 激励信号（上升时间、幅度等）
+      \item 仿真时间
+      \item 输出节点
+    \end{itemize}
+  \item 运行仿真
+  \item 分析结果：
+    \begin{itemize}
+      \item 眼图
+      \item 信号完整性
+      \item 时序裕量
+    \end{itemize}
+  \item 根据结果调整设计
+\end{enumerate}
+
+\subsection{电源完整性仿真}
+
+\subsubsection{PI 仿真工具}
+
+常用 PI 仿真工具：
+
+\begin{itemize}
+  \item \textbf{Cadence Sigrity PowerDC}：PI 分析工具
+  \item \textbf{Keysight ADS PIPro}：PI 仿真
+  \item \textbf{Altium Designer}：内置 PI 分析
+\end{itemize}
+
+\BlockDesc{运行 PI 仿真}
+
+\begin{enumerate}
+  \item 设置电源分配网络（PDN）
+  \item 设置电流负载
+  \item 运行仿真
+  \item 分析结果：
+    \begin{itemize}
+      \item 电压降
+      \item 电流密度
+      \item 阻抗
+    \end{itemize}
+  \item 优化去耦电容布局
+\end{enumerate}
+
+\section{设计流程和最佳实践}
+
+\subsection{标准设计流程}
+
+\subsubsection{设计阶段}
+
+标准 PCB 设计流程：
+
+\begin{enumerate}
+  \item \textbf{需求分析}
+    \begin{itemize}
+      \item 功能需求
+      \item 性能指标
+      \item 约束条件（尺寸、成本等）
+    \end{itemize}
+
+  \item \textbf{原理图设计}
+    \begin{itemize}
+      \item 电路设计
+      \item 元件选型
+      \item 仿真验证
+    \end{itemize}
+
+  \item \textbf{PCB 布局}
+    \begin{itemize}
+      \item 元件布局
+      \item 层叠设计
+      \item 走线设计
+    \end{itemize}
+
+  \item \textbf{设计验证}
+    \begin{itemize}
+      \item DRC 检查
+      \item SI/PI 仿真
+      \item EMC 考虑
+    \end{itemize}
+
+  \item \textbf{制造文件输出}
+    \begin{itemize}
+      \item Gerber 文件
+      \item 钻孔文件
+      \item BOM 和装配图
+    \end{itemize}
+
+  \item \textbf{制造和测试}
+    \begin{itemize}
+      \item PCB 制造
+      \item 元件贴装
+      \item 功能测试
+    \end{itemize}
+\end{enumerate}
+
+\subsection{设计最佳实践}
+
+\subsubsection{原理图设计}
+
+\begin{itemize}
+  \item 使用有意义的网络名称
+  \item 添加必要的注释和说明
+  \item 使用层次化设计管理复杂电路
+  \item 保持原理图整洁和易读
+  \item 进行 ERC 检查
+\end{itemize}
+
+\subsubsection{PCB 布局}
+
+\begin{itemize}
+  \item 遵循布局原则（功能分区、信号流向等）
+  \item 合理使用层叠结构
+  \item 设置合适的设计规则
+  \item 控制阻抗
+  \item 考虑热设计
+  \item 考虑 EMC
+\end{itemize}
+
+\subsubsection{走线设计}
+
+\begin{itemize}
+  \item 关键信号优先走线
+  \item 避免长距离平行走线
+  \item 使用差分对传输高速信号
+  \item 等长走线满足时序要求
+  \item 避免锐角
+  \item 保持返回路径连续
+\end{itemize}
+
+\subsubsection{文档管理}
+
+\begin{itemize}
+  \item 保持设计文件版本控制
+  \item 记录设计变更
+  \item 保存设计评审记录
+  \item 维护元件库
+  \item 保存制造文件
+\end{itemize}
+
+\section{常见问题和解决方案}
+
+\subsection{原理图问题}
+
+\subsubsection{常见错误}
+
+\begin{itemize}
+  \item \textbf{未连接的引脚}：检查 ERC 报告，连接所有必要的引脚
+  \item \textbf{网络名称不一致}：检查网络标签，确保名称一致
+  \item \textbf{电源冲突}：检查电源网络，避免冲突
+  \item \textbf{封装缺失}：为所有元件指定正确的封装
+\end{itemize}
+
+\subsection{PCB 布局问题}
+
+\subsubsection{常见错误}
+
+\begin{itemize}
+  \item \textbf{DRC 错误}：运行 DRC，修复所有错误
+  \item \textbf{阻抗不匹配}：检查层叠和线宽设置
+  \item \textbf{等长不满足}：使用等长工具调整走线长度
+  \item \textbf{去耦不足}：添加足够的去耦电容
+\end{itemize}
+
+\subsection{制造问题}
+
+\subsubsection{常见问题}
+
+\begin{itemize}
+  \item \textbf{文件格式错误}：确认使用正确的文件格式
+  \item \textbf{尺寸错误}：检查单位设置
+  \item \textbf{层缺失}：确认所有必要的层都已输出
+  \item \textbf{钻孔文件错误}：检查钻孔文件格式和内容
+\end{itemize}
+
+\section{总结}
+
+PCB 设计工具是电子工程师进行电路设计的核心工具。掌握主流 PCB 设计软件的使用方法，包括原理图绘制、PCB 布局、封装库管理、设计规则设置、制造文件输出等，是完成高质量 PCB 设计的基础。随着电子系统向高速、高密度、多功能方向发展，PCB 设计工具也在不断更新和完善。持续学习和实践，掌握工具的高级功能和最佳实践，是提高设计效率和质量的关键。

@@ -101,7 +101,7 @@
     </edit>
   </match>
 
-  
+
   <match target="pattern">
     <test name="lang">
       <string>zh-HK</string>
@@ -246,7 +246,7 @@
       <string>Noto Sans Mono CJK KR</string>
     </edit>
   </match>
-  
+
   <!-- Replace monospace fonts -->
   <match target="pattern">
     <test name="family" compare="contains">
@@ -286,17 +286,1304 @@
 将上述配置文件放到 \lstinline{$HOME/fontconfig/fonts.conf} 下，并且确认安装了 noto-fonts、noto-fonts-cjk、noto-fonts-emoji (ttf-twemoji) 字体包。
 最后执行 \lstinline{fc-cache -fv} 来激活配置，可能需要注销后重新登录。
 
+\subsection{包管理}
+
+\subsubsection{Arch Linux 包管理}
+
+Arch Linux 使用 pacman 作为包管理器。
+
+\BlockDesc{基本包管理操作}
+
+\begin{lstcode}[numbers=none]
+  # 更新系统
+  sudo pacman -Syu
+
+  # 安装软件包
+  sudo pacman -S package_name
+
+  # 删除软件包
+  sudo pacman -R package_name
+
+  # 删除软件包及其依赖
+  sudo pacman -Rs package_name
+
+  # 搜索软件包
+  pacman -Ss keyword
+
+  # 查看已安装的软件包
+  pacman -Q
+
+  # 查看软件包信息
+  pacman -Qi package_name
+
+  # 查看软件包文件列表
+  pacman -Ql package_name
+
+  # 清理包缓存
+  sudo pacman -Sc
+\end{lstcode}
+
+\subsubsection{AUR 使用}
+
+Arch User Repository (AUR) 是社区维护的软件仓库。
+
+\BlockDesc{使用 yay 管理 AUR 包}
+
+\begin{lstcode}[numbers=none]
+  # 安装 yay
+  git clone https://aur.archlinux.org/yay.git
+  cd yay
+  makepkg -si
+
+  # 使用 yay 安装 AUR 包
+  yay -S package_name
+
+  # 搜索 AUR 包
+  yay -Ss keyword
+
+  # 更新 AUR 包
+  yay -Sua
+\end{lstcode}
+
+\subsection{系统服务管理}
+
+\subsubsection{systemd 基础}
+
+现代 Linux 发行版使用 systemd 作为初始化系统和服务管理器。
+
+\BlockDesc{systemd 基本操作}
+
+\begin{lstcode}[numbers=none]
+  # 查看服务状态
+  systemctl status service_name
+
+  # 启动服务
+  sudo systemctl start service_name
+
+  # 停止服务
+  sudo systemctl stop service_name
+
+  # 重启服务
+  sudo systemctl restart service_name
+
+  # 启用服务（开机自启）
+  sudo systemctl enable service_name
+
+  # 禁用服务
+  sudo systemctl disable service_name
+
+  # 查看所有服务
+  systemctl list-units --type=service
+
+  # 查看失败的服务
+  systemctl --failed
+\end{lstcode}
+
+\subsubsection{创建 systemd 服务}
+
+\BlockDesc{创建自定义服务}
+
+创建服务文件 \lstinline{/etc/systemd/system/myapp.service}：
+
+\begin{lstcode}[numbers=none]
+[Unit]
+Description=My Application
+After=network.target
+
+[Service]
+Type=simple
+User=myuser
+WorkingDirectory=/path/to/app
+ExecStart=/path/to/app/start.sh
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+\end{lstcode}
+
+然后执行：
+
+\begin{lstcode}[numbers=none]
+  sudo systemctl daemon-reload
+  sudo systemctl enable myapp.service
+  sudo systemctl start myapp.service
+\end{lstcode}
+
+\subsection{用户和权限管理}
+
+\subsubsection{用户管理}
+
+\BlockDesc{用户管理命令}
+
+\begin{lstcode}[numbers=none]
+  # 创建用户
+  sudo useradd -m -s /bin/bash username
+
+  # 设置密码
+  sudo passwd username
+
+  # 删除用户
+  sudo userdel -r username
+
+  # 修改用户信息
+  sudo usermod -aG groupname username
+
+  # 查看当前用户
+  whoami
+
+  # 查看用户信息
+  id username
+
+  # 切换用户
+  su - username
+\end{lstcode}
+
+\subsubsection{权限管理}
+
+\BlockDesc{文件权限}
+
+\begin{lstcode}[numbers=none]
+  # 查看文件权限
+  ls -l file
+
+  # 修改文件权限
+  chmod 755 file
+  chmod u+x file
+  chmod g-w file
+  chmod o+r file
+
+  # 修改文件所有者
+  sudo chown user:group file
+
+  # 递归修改
+  sudo chown -R user:group directory
+\end{lstcode}
+
+权限说明：
+
+\begin{itemize}
+  \item \textbf{r (read)}：读权限，值为 4
+  \item \textbf{w (write)}：写权限，值为 2
+  \item \textbf{x (execute)}：执行权限，值为 1
+  \item 三个数字分别表示：所有者、组、其他用户的权限
+\end{itemize}
+
+\subsubsection{sudo 配置}
+
+\BlockDesc{配置 sudo}
+
+编辑 \lstinline{/etc/sudoers} 文件（使用 \lstinline{visudo} 命令）：
+
+\begin{lstcode}[numbers=none]
+  # 允许用户无密码使用 sudo
+  username ALL=(ALL) NOPASSWD: ALL
+
+  # 允许用户执行特定命令
+  username ALL=(ALL) NOPASSWD: /usr/bin/pacman
+\end{lstcode}
+
+\subsection{文件系统管理}
+
+\subsubsection{挂载文件系统}
+
+\BlockDesc{挂载操作}
+
+\begin{lstcode}[numbers=none]
+  # 查看已挂载的文件系统
+  mount
+  df -h
+
+  # 挂载文件系统
+  sudo mount /dev/sda1 /mnt
+
+  # 卸载文件系统
+  sudo umount /mnt
+
+  # 自动挂载（编辑 /etc/fstab）
+  sudo vim /etc/fstab
+\end{lstcode}
+
+\lstinline{/etc/fstab} 格式：
+
+\begin{lstcode}[numbers=none]
+  # <file system> <mount point> <type> <options> <dump> <pass>
+  /dev/sda1  /mnt  ext4  defaults  0  2
+\end{lstcode}
+
+\subsubsection{磁盘管理}
+
+\BlockDesc{磁盘操作}
+
+\begin{lstcode}[numbers=none]
+  # 查看磁盘使用情况
+  df -h
+  du -sh directory
+
+  # 查看磁盘分区
+  fdisk -l
+  lsblk
+
+  # 创建分区
+  sudo fdisk /dev/sda
+
+  # 格式化分区
+  sudo mkfs.ext4 /dev/sda1
+
+  # 检查文件系统
+  sudo fsck /dev/sda1
+\end{lstcode}
+
+\subsection{进程管理}
+
+\subsubsection{查看进程}
+
+\BlockDesc{进程管理命令}
+
+\begin{lstcode}[numbers=none]
+  # 查看所有进程
+  ps aux
+  ps -ef
+
+  # 实时查看进程
+  top
+  htop
+
+  # 查看进程树
+  pstree
+
+  # 查找进程
+  pgrep process_name
+  pidof process_name
+
+  # 查看进程详细信息
+  cat /proc/PID/status
+\end{lstcode}
+
+\subsubsection{进程控制}
+
+\BlockDesc{控制进程}
+
+\begin{lstcode}[numbers=none]
+  # 杀死进程
+  kill PID
+  kill -9 PID  # 强制杀死
+
+  # 按名称杀死进程
+  killall process_name
+  pkill process_name
+
+  # 发送信号
+  kill -SIGTERM PID
+  kill -SIGKILL PID
+
+  # 后台运行
+  command &
+
+  # 后台运行并脱离终端
+  nohup command &
+\end{lstcode}
+
+\subsubsection{作业控制}
+
+\BlockDesc{作业管理}
+
+\begin{lstcode}[numbers=none]
+  # 查看作业
+  jobs
+
+  # 前台作业
+  fg %1
+
+  # 后台作业
+  bg %1
+
+  # 暂停进程（Ctrl+Z）
+  # 继续进程
+  fg
+\end{lstcode}
+
+\subsection{网络配置}
+
+\subsubsection{网络接口管理}
+
+\BlockDesc{网络配置}
+
+\begin{lstcode}[numbers=none]
+  # 查看网络接口
+  ip addr
+  ifconfig
+
+  # 查看路由表
+  ip route
+  route -n
+
+  # 配置 IP 地址
+  sudo ip addr add 192.168.1.100/24 dev eth0
+
+  # 启用/禁用接口
+  sudo ip link set eth0 up
+  sudo ip link set eth0 down
+
+  # 查看网络连接
+  netstat -tulpn
+  ss -tulpn
+\end{lstcode}
+
+\subsubsection{网络工具}
+
+\BlockDesc{网络诊断}
+
+\begin{lstcode}[numbers=none]
+  # 测试连通性
+  ping hostname
+  ping -c 4 8.8.8.8
+
+  # 跟踪路由
+  traceroute hostname
+  tracepath hostname
+
+  # DNS 查询
+  nslookup domain
+  dig domain
+  host domain
+
+  # 查看网络统计
+  netstat -s
+  ss -s
+
+  # 抓包
+  sudo tcpdump -i eth0
+  sudo wireshark
+\end{lstcode}
+
+\subsubsection{防火墙配置}
+
+\BlockDesc{使用 firewalld}
+
+\begin{lstcode}[numbers=none]
+  # 查看防火墙状态
+  sudo firewall-cmd --state
+
+  # 查看所有区域
+  sudo firewall-cmd --list-all-zones
+
+  # 开放端口
+  sudo firewall-cmd --permanent --add-port=80/tcp
+  sudo firewall-cmd --reload
+
+  # 允许服务
+  sudo firewall-cmd --permanent --add-service=http
+  sudo firewall-cmd --reload
+
+  # 查看规则
+  sudo firewall-cmd --list-all
+\end{lstcode}
+
+\BlockDesc{使用 iptables}
+
+\begin{lstcode}[numbers=none]
+  # 查看规则
+  sudo iptables -L -n -v
+
+  # 允许端口
+  sudo iptables -A INPUT -p tcp --dport 80 -j ACCEPT
+
+  # 拒绝 IP
+  sudo iptables -A INPUT -s 192.168.1.100 -j DROP
+
+  # 保存规则
+  sudo iptables-save > /etc/iptables/iptables.rules
+
+  # 恢复规则
+  sudo iptables-restore < /etc/iptables/iptables.rules
+\end{lstcode}
+
+\subsection{日志管理}
+
+\subsubsection{系统日志}
+
+\BlockDesc{查看系统日志}
+
+\begin{lstcode}[numbers=none]
+  # 使用 journalctl 查看日志
+  sudo journalctl
+
+  # 查看最近的日志
+  sudo journalctl -n 50
+
+  # 实时查看日志
+  sudo journalctl -f
+
+  # 查看特定服务的日志
+  sudo journalctl -u service_name
+
+  # 查看特定时间的日志
+  sudo journalctl --since "2024-01-01" --until "2024-01-02"
+
+  # 查看内核日志
+  sudo journalctl -k
+  dmesg
+\end{lstcode}
+
+\subsubsection{日志文件}
+
+系统日志文件位置：
+
+\begin{itemize}
+  \item \lstinline{/var/log/messages}：系统消息
+  \item \lstinline{/var/log/syslog}：系统日志
+  \item \lstinline{/var/log/auth.log}：认证日志
+  \item \lstinline{/var/log/kern.log}：内核日志
+  \item \lstinline{/var/log/boot.log}：启动日志
+\end{itemize}
+
+\BlockDesc{查看日志文件}
+
+\begin{lstcode}[numbers=none]
+  # 查看日志
+  tail -f /var/log/messages
+  less /var/log/syslog
+
+  # 搜索日志
+  grep "error" /var/log/messages
+  grep -i "warning" /var/log/syslog
+\end{lstcode}
+
+\subsection{性能监控}
+
+\subsubsection{系统资源监控}
+
+\BlockDesc{监控命令}
+
+\begin{lstcode}[numbers=none]
+  # CPU 和内存使用
+  top
+  htop
+  vmstat 1
+
+  # 内存使用
+  free -h
+  cat /proc/meminfo
+
+  # CPU 信息
+  lscpu
+  cat /proc/cpuinfo
+
+  # 磁盘 I/O
+  iostat -x 1
+  iotop
+
+  # 网络 I/O
+  iftop
+  nethogs
+
+  # 系统负载
+  uptime
+  w
+\end{lstcode}
+
+\subsubsection{性能分析}
+
+\BlockDesc{性能分析工具}
+
+\begin{lstcode}[numbers=none]
+  # 系统性能分析
+  perf top
+  perf record -a
+  perf report
+
+  # 进程性能分析
+  strace -p PID
+  ltrace -p PID
+
+  # 内存分析
+  valgrind --tool=memcheck program
+  valgrind --tool=massif program
+\end{lstcode}
+
 \subsection{Bash/Zsh}
+
+\subsubsection{Shell 基础}
+
+Shell 是用户与 Linux 系统交互的接口。
+
+\BlockDesc{Shell 变量}
+
+\begin{lstcode}[numbers=none]
+  # 定义变量
+  VAR="value"
+  export VAR="value"  # 环境变量
+
+  # 使用变量
+  echo $VAR
+  echo ${VAR}
+
+  # 特殊变量
+  $0  # 脚本名称
+  $1  # 第一个参数
+  $#  # 参数个数
+  $@  # 所有参数
+  $?  # 上一个命令的退出状态
+  $$  # 当前进程 PID
+\end{lstcode}
+
+\subsubsection{Bash 脚本编程}
+
+\BlockDesc{基本语法}
+
+\begin{lstcode}[numbers=none]
+#!/bin/bash
+
+# 条件判断
+if [ condition ]; then
+    commands
+elif [ condition ]; then
+    commands
+else
+    commands
+fi
+
+# 循环
+for var in list; do
+    commands
+done
+
+while [ condition ]; do
+    commands
+done
+
+# 函数
+function_name() {
+    local var="value"
+    commands
+    return value
+}
+\end{lstcode}
+
+\BlockDesc{条件测试}
+
+\begin{lstcode}[numbers=none]
+  # 文件测试
+  [ -f file ]    # 是文件
+  [ -d dir ]     # 是目录
+  [ -r file ]    # 可读
+  [ -w file ]    # 可写
+  [ -x file ]    # 可执行
+  [ -e file ]    # 存在
+
+  # 字符串测试
+  [ -z string ]  # 为空
+  [ -n string ] # 非空
+  [ str1 = str2 ] # 相等
+  [ str1 != str2 ] # 不等
+
+  # 数值测试
+  [ n1 -eq n2 ]  # 相等
+  [ n1 -ne n2 ]  # 不等
+  [ n1 -lt n2 ]  # 小于
+  [ n1 -gt n2 ]  # 大于
+\end{lstcode}
+
+\subsubsection{Zsh 特性}
+
+Zsh 是功能强大的 Shell，提供：
+
+\begin{itemize}
+  \item 更好的自动补全
+  \item 强大的通配符
+  \item 主题和插件支持
+  \item 更好的历史记录
+\end{itemize}
+
+\BlockDesc{Zsh 配置}
+
+配置文件 \lstinline{~/.zshrc}：
+
+\begin{lstcode}[numbers=none]
+  # 启用自动补全
+  autoload -Uz compinit
+  compinit
+
+  # 历史记录
+  HISTSIZE=10000
+  SAVEHIST=10000
+  HISTFILE=~/.zsh_history
+
+  # 启用历史搜索
+  autoload -Uz up-line-or-beginning-search
+  autoload -Uz down-line-or-beginning-search
+  zle -N up-line-or-beginning-search
+  zle -N down-line-or-beginning-search
+  bindkey '^[[A' up-line-or-beginning-search
+  bindkey '^[[B' down-line-or-beginning-search
+
+  # 别名
+  alias ll='ls -alF'
+  alias la='ls -A'
+  alias l='ls -CF'
+\end{lstcode}
+
+\subsubsection{Oh My Zsh}
+
+Oh My Zsh 是 Zsh 的配置框架。
+
+\BlockDesc{安装 Oh My Zsh}
+
+\begin{lstcode}[numbers=none]
+  sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+\end{lstcode}
+
+常用插件：
+
+\begin{itemize}
+  \item \textbf{git}：Git 命令补全
+  \item \textbf{docker}：Docker 命令补全
+  \item \textbf{z}：目录跳转
+  \item \textbf{autosuggestions}：自动建议
+  \item \textbf{syntax-highlighting}：语法高亮
+\end{itemize}
 
 \subsection{Tmux}
 
+Tmux 是终端复用器，允许在单个终端中管理多个会话。
+
+\subsubsection{Tmux 基础}
+
+\BlockDesc{基本操作}
+
+\begin{lstcode}[numbers=none]
+  # 启动 tmux
+  tmux
+
+  # 创建命名会话
+  tmux new -s session_name
+
+  # 列出会话
+  tmux ls
+
+  # 附加到会话
+  tmux attach -t session_name
+
+  # 分离会话（默认 Ctrl+b d）
+  # 在 tmux 中按 Ctrl+b，然后按 d
+
+  # 杀死会话
+  tmux kill-session -t session_name
+\end{lstcode}
+
+\subsubsection{Tmux 快捷键}
+
+默认前缀键是 \lstinline{Ctrl+b}：
+
+\begin{itemize}
+  \item \textbf{Ctrl+b c}：创建新窗口
+  \item \textbf{Ctrl+b n}：下一个窗口
+  \item \textbf{Ctrl+b p}：上一个窗口
+  \item \textbf{Ctrl+b \%}：垂直分割
+  \item \textbf{Ctrl+b "}：水平分割
+  \item \textbf{Ctrl+b 方向键}：切换面板
+  \item \textbf{Ctrl+b x}：关闭面板
+  \item \textbf{Ctrl+b [}：进入复制模式
+  \item \textbf{Ctrl+b ]}：粘贴
+\end{itemize}
+
+\subsubsection{Tmux 配置}
+
+\BlockDesc{配置文件}
+
+创建 \lstinline{~/.tmux.conf}：
+
+\begin{lstcode}[numbers=none]
+  # 更改前缀键为 Ctrl+a
+  unbind C-b
+  set-option -g prefix C-a
+  bind-key C-a send-prefix
+
+  # 启用鼠标支持
+  set -g mouse on
+
+  # 设置窗口和面板索引从 1 开始
+  set -g base-index 1
+  setw -g pane-base-index 1
+
+  # 重新加载配置文件
+  bind r source-file ~/.tmux.conf \; display "Config reloaded!"
+
+  # 分割窗口使用当前路径
+  bind \% split-window -h -c "#{pane_current_path}"
+  bind '"' split-window -v -c "#{pane_current_path}"
+
+  # 状态栏配置
+  set -g status-left-length 40
+  set -g status-left "#[fg=green]Session: #S #[fg=yellow]Window: #I #[fg=cyan]Pane: #P"
+  set -g status-right "#[fg=cyan]%Y-%m-%d %H:%M"
+  set -g status-interval 1
+\end{lstcode}
+
 \subsection{Terminal}
 
+\subsubsection{终端模拟器}
+
+常用终端模拟器：
+
+\begin{itemize}
+  \item \textbf{GNOME Terminal}：GNOME 桌面默认终端
+  \item \textbf{Konsole}：KDE 桌面默认终端
+  \item \textbf{Alacritty}：GPU 加速的终端
+  \item \textbf{Kitty}：功能丰富的终端
+  \item \textbf{Tilix}：支持分片的终端
+\end{itemize}
+
+\subsubsection{终端配置}
+
+\BlockDesc{配置终端}
+
+\begin{lstcode}[numbers=none]
+  # 设置终端颜色
+  export TERM=xterm-256color
+
+  # 设置编辑器
+  export EDITOR=vim
+  export VISUAL=vim
+
+  # 设置语言
+  export LANG=en_US.UTF-8
+  export LC_ALL=en_US.UTF-8
+
+  # 历史记录
+  export HISTSIZE=10000
+  export HISTFILESIZE=20000
+  export HISTCONTROL=ignoreboth
+\end{lstcode}
+
+\subsubsection{终端工具}
+
+\BlockDesc{常用终端工具}
+
+\begin{lstcode}[numbers=none]
+  # 文件管理器
+  ranger
+  nnn
+  lf
+
+  # 文件查找
+  find . -name "*.txt"
+  fd "pattern"
+  locate filename
+
+  # 文本搜索
+  grep -r "pattern" .
+  rg "pattern"
+  ag "pattern"
+
+  # 文件比较
+  diff file1 file2
+  vimdiff file1 file2
+
+  # 压缩解压
+  tar -czf archive.tar.gz directory
+  tar -xzf archive.tar.gz
+  zip -r archive.zip directory
+  unzip archive.zip
+\end{lstcode}
+
 \section{软件开发}
+
+\subsection{版本控制}
+
+\subsubsection{Git 基础}
+
+Git 是分布式版本控制系统。
+
+\BlockDesc{Git 基本操作}
+
+\begin{lstcode}[numbers=none]
+  # 初始化仓库
+  git init
+
+  # 克隆仓库
+  git clone https://github.com/user/repo.git
+
+  # 查看状态
+  git status
+
+  # 添加文件
+  git add file
+  git add .
+
+  # 提交
+  git commit -m "message"
+
+  # 查看历史
+  git log
+  git log --oneline --graph
+
+  # 查看差异
+  git diff
+  git diff HEAD
+
+  # 撤销更改
+  git checkout -- file
+  git reset HEAD file
+\end{lstcode}
+
+\subsubsection{Git 分支}
+
+\BlockDesc{分支操作}
+
+\begin{lstcode}[numbers=none]
+  # 查看分支
+  git branch
+  git branch -a
+
+  # 创建分支
+  git branch branch_name
+
+  # 切换分支
+  git checkout branch_name
+  git switch branch_name
+
+  # 创建并切换分支
+  git checkout -b branch_name
+  git switch -c branch_name
+
+  # 合并分支
+  git merge branch_name
+
+  # 删除分支
+  git branch -d branch_name
+  git branch -D branch_name  # 强制删除
+\end{lstcode}
+
+\subsubsection{Git 远程仓库}
+
+\BlockDesc{远程操作}
+
+\begin{lstcode}[numbers=none]
+  # 查看远程仓库
+  git remote -v
+
+  # 添加远程仓库
+  git remote add origin https://github.com/user/repo.git
+
+  # 推送
+  git push origin branch_name
+  git push -u origin branch_name  # 设置上游
+
+  # 拉取
+  git pull origin branch_name
+  git fetch origin
+
+  # 删除远程分支
+  git push origin --delete branch_name
+\end{lstcode}
+
+\subsection{构建工具}
+
+\subsubsection{Make}
+
+Make 是自动化构建工具。
+
+\BlockDesc{Makefile 示例}
+
+\begin{lstcode}[numbers=none]
+CC=gcc
+CFLAGS=-Wall -Wextra -std=c11
+LDFLAGS=
+TARGET=program
+SOURCES=$(wildcard *.c)
+OBJECTS=$(SOURCES:.c=.o)
+
+$(TARGET): $(OBJECTS)
+	$(CC) $(OBJECTS) -o $(TARGET) $(LDFLAGS)
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+clean:
+	rm -f $(OBJECTS) $(TARGET)
+
+.PHONY: clean
+\end{lstcode}
+
+\BlockDesc{使用 Make}
+
+\begin{lstcode}[numbers=none]
+  # 构建
+  make
+
+  # 清理
+  make clean
+
+  # 指定目标
+  make target
+
+  # 并行构建
+  make -j4
+\end{lstcode}
+
+\subsubsection{CMake}
+
+CMake 是跨平台的构建系统生成器。
+
+\BlockDesc{CMakeLists.txt 示例}
+
+\begin{lstcode}[numbers=none]
+cmake_minimum_required(VERSION 3.10)
+project(MyProject C)
+
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+
+add_executable(program
+    main.c
+    utils.c
+)
+
+target_include_directories(program PRIVATE
+    include
+)
+
+target_link_libraries(program
+    m
+)
+\end{lstcode}
+
+\BlockDesc{使用 CMake}
+
+\begin{lstcode}[numbers=none]
+  # 配置
+  mkdir build
+  cd build
+  cmake ..
+
+  # 构建
+  cmake --build .
+
+  # 安装
+  sudo cmake --install .
+\end{lstcode}
+
 \subsection{Vim/Neovim}
 
+\subsubsection{Vim 基础}
+
+Vim 是强大的文本编辑器。
+
+\BlockDesc{Vim 模式}
+
+\begin{itemize}
+  \item \textbf{普通模式（Normal）}：默认模式，用于导航和命令
+  \item \textbf{插入模式（Insert）}：输入文本
+  \item \textbf{可视模式（Visual）}：选择文本
+  \item \textbf{命令模式（Command）}：执行命令
+\end{itemize}
+
+\BlockDesc{基本操作}
+
+\begin{lstcode}[numbers=none]
+  # 启动 Vim
+  vim file
+
+  # 模式切换
+  i    # 进入插入模式
+  ESC  # 返回普通模式
+  v    # 进入可视模式
+  :    # 进入命令模式
+
+  # 保存和退出
+  :w      # 保存
+  :q      # 退出
+  :wq     # 保存并退出
+  :q!     # 不保存退出
+  ZZ      # 保存并退出
+  ZQ      # 不保存退出
+\end{lstcode}
+
+\subsubsection{Vim 移动}
+
+\BlockDesc{光标移动}
+
+\begin{lstcode}[numbers=none]
+  # 基本移动
+  h j k l    # 左 下 上 右
+  w          # 下一个单词
+  b          # 上一个单词
+  e          # 单词末尾
+  0          # 行首
+  $          # 行尾
+  gg         # 文件开头
+  G          # 文件末尾
+  {          # 上一段
+  }          # 下一段
+  Ctrl+f     # 向下翻页
+  Ctrl+b     # 向上翻页
+\end{lstcode}
+
+\subsubsection{Vim 编辑}
+
+\BlockDesc{编辑操作}
+
+\begin{lstcode}[numbers=none]
+  # 插入
+  i    # 在光标前插入
+  a    # 在光标后插入
+  I    # 在行首插入
+  A    # 在行尾插入
+  o    # 在下一行插入
+  O    # 在上一行插入
+
+  # 删除
+  x        # 删除字符
+  dd       # 删除行
+  dw       # 删除单词
+  d$       # 删除到行尾
+  D        # 删除到行尾
+
+  # 复制和粘贴
+  yy       # 复制行
+  yw       # 复制单词
+  p        # 粘贴
+  P        # 在光标前粘贴
+
+  # 撤销和重做
+  u        # 撤销
+  Ctrl+r   # 重做
+  .        # 重复上次操作
+\end{lstcode}
+
+\subsubsection{Vim 搜索和替换}
+
+\BlockDesc{搜索替换}
+
+\begin{lstcode}[numbers=none]
+  # 搜索
+  /pattern    # 向下搜索
+  ?pattern    # 向上搜索
+  n           # 下一个匹配
+  N           # 上一个匹配
+
+  # 替换
+  :s/old/new/        # 替换当前行第一个
+  :s/old/new/g       # 替换当前行所有
+  :%s/old/new/g      # 替换所有行
+  :%s/old/new/gc     # 替换所有行（确认）
+\end{lstcode}
+
+\subsubsection{Vim 配置}
+
+\BlockDesc{配置文件}
+
+创建 \lstinline{~/.vimrc}：
+
+\begin{lstcode}[numbers=none]
+  " 基本设置
+  set number              " 显示行号
+  set relativenumber      " 相对行号
+  set tabstop=4           " Tab 宽度
+  set shiftwidth=4        " 自动缩进宽度
+  set expandtab           " 使用空格代替 Tab
+  set autoindent          " 自动缩进
+  set smartindent         " 智能缩进
+  set cursorline          " 高亮当前行
+  set showmatch           " 显示匹配括号
+  set incsearch           " 增量搜索
+  set hlsearch            " 高亮搜索
+  set ignorecase          " 忽略大小写
+  set smartcase           " 智能大小写
+
+  " 编码设置
+  set encoding=utf-8
+  set fileencoding=utf-8
+
+  " 快捷键
+  nnoremap <C-h> <C-w>h
+  nnoremap <C-j> <C-w>j
+  nnoremap <C-k> <C-w>k
+  nnoremap <C-l> <C-w>l
+\end{lstcode}
+
+\subsubsection{Neovim}
+
+Neovim 是 Vim 的现代化分支，提供更好的插件系统和 Lua 配置。
+
+\BlockDesc{Neovim 配置}
+
+配置文件位置：\lstinline{~/.config/nvim/init.vim} 或 \lstinline{~/.config/nvim/init.lua}
+
 \section{软件调试}
+
 \subsection{GNU 调试工具集}
+
+\subsubsection{GDB 基础}
+
+GDB 是 GNU 调试器，用于调试 C/C++ 程序。
+
+\BlockDesc{编译调试版本}
+
+\begin{lstcode}[numbers=none]
+  # 使用调试符号编译
+  gcc -g -o program program.c
+
+  # 使用优化和调试符号
+  gcc -g -O0 -o program program.c
+\end{lstcode}
+
+\BlockDesc{启动 GDB}
+
+\begin{lstcode}[numbers=none]
+  # 启动 GDB
+  gdb program
+
+  # 附加到运行中的进程
+  gdb -p PID
+
+  # 调试 core dump
+  gdb program core
+\end{lstcode}
+
+\subsubsection{GDB 基本命令}
+
+\BlockDesc{常用命令}
+
+\begin{lstcode}[numbers=none]
+  # 运行程序
+  run
+  run arg1 arg2
+
+  # 设置断点
+  break main
+  break file.c:10
+  break function_name
+  break *address
+
+  # 查看断点
+  info breakpoints
+
+  # 删除断点
+  delete 1
+  clear file.c:10
+
+  # 继续执行
+  continue
+  c
+
+  # 单步执行
+  step
+  s
+  next
+  n
+
+  # 查看变量
+  print variable
+  print *pointer
+  print array[0]@10
+
+  # 查看调用栈
+  backtrace
+  bt
+  frame 1
+  up
+  down
+
+  # 查看源码
+  list
+  list function_name
+
+  # 查看寄存器
+  info registers
+
+  # 查看内存
+  x/10x address
+  x/10s address
+\end{lstcode}
+
+\subsubsection{GDB 高级功能}
+
+\BlockDesc{高级调试}
+
+\begin{lstcode}[numbers=none]
+  # 条件断点
+  break file.c:10 if variable == 5
+
+  # 观察点
+  watch variable
+  watch *pointer
+
+  # 命令历史
+  set history save on
+  set history filename ~/.gdb_history
+
+  # 自定义命令
+  define mycommand
+  > print variable
+  > continue
+  > end
+
+  # 调试多线程
+  info threads
+  thread 2
+  break file.c:10 thread 1
+\end{lstcode}
+
+\subsubsection{Valgrind}
+
+Valgrind 是内存调试和性能分析工具。
+
+\BlockDesc{使用 Valgrind}
+
+\begin{lstcode}[numbers=none]
+  # 内存检查
+  valgrind --leak-check=full ./program
+
+  # 详细输出
+  valgrind --leak-check=full --show-leak-kinds=all --verbose ./program
+
+  # 生成报告
+  valgrind --leak-check=full --log-file=valgrind.log ./program
+
+  # 内存分析
+  valgrind --tool=massif ./program
+  ms_print massif.out.*
+\end{lstcode}
+
+\subsubsection{strace 和 ltrace}
+
+\BlockDesc{系统调用跟踪}
+
+\begin{lstcode}[numbers=none]
+  # 跟踪系统调用
+  strace ./program
+  strace -p PID
+  strace -e trace=open,read,write ./program
+
+  # 跟踪库调用
+  ltrace ./program
+  ltrace -p PID
+\end{lstcode}
+
+\subsubsection{其他调试工具}
+
+\BlockDesc{调试工具}
+
+\begin{lstcode}[numbers=none]
+  # 查看进程信息
+  ps aux
+  pstree
+  lsof -p PID
+
+  # 查看内存映射
+  cat /proc/PID/maps
+
+  # 查看文件描述符
+  ls -l /proc/PID/fd
+
+  # 性能分析
+  perf record ./program
+  perf report
+  perf top
+\end{lstcode}
 
 \section{文档}
 
@@ -312,11 +1599,397 @@
   sudo pacman -S texlive texlive-langchinese biber
 \end{lstcode}
 
-\subsection{MSWord}
+\subsubsection{LaTeX 基础}
+
+\BlockDesc{基本文档结构}
+
+\begin{lstcode}[numbers=none]
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+
+\title{Title}
+\author{Author}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+Content here.
+
+\end{document}
+\end{lstcode}
+
+\subsubsection{常用包}
+
+\begin{itemize}
+  \item \textbf{amsmath}：数学公式
+  \item \textbf{graphicx}：图片插入
+  \item \textbf{hyperref}：超链接
+  \item \textbf{listings}：代码高亮
+  \item \textbf{biblatex}：参考文献
+  \item \textbf{tikz}：绘图
+\end{itemize}
+
+\subsubsection{编译}
+
+\BlockDesc{编译 LaTeX}
+
+\begin{lstcode}[numbers=none]
+  # 基本编译
+  pdflatex document.tex
+
+  # 使用 BibTeX
+  pdflatex document.tex
+  biber document
+  pdflatex document.tex
+  pdflatex document.tex
+
+  # 使用 latexmk
+  latexmk -pdf document.tex
+\end{lstcode}
+
+\subsection{Markdown}
+
+Markdown 是轻量级标记语言。
+
+\BlockDesc{Markdown 语法}
+
+\begin{lstcode}[numbers=none]
+  # 标题
+  # H1
+  ## H2
+  ### H3
+
+  # 列表
+  - Item 1
+  - Item 2
+
+  # 代码
+  `inline code`
+  ```language
+  code block
+  ```
+
+  # 链接
+  [text](url)
+
+  # 图片
+  ![alt](image.png)
+\end{lstcode}
+
+\BlockDesc{Markdown 工具}
+
+\begin{lstcode}[numbers=none]
+  # 转换为 PDF
+  pandoc document.md -o document.pdf
+
+  # 转换为 HTML
+  pandoc document.md -o document.html
+
+  # 转换为 LaTeX
+  pandoc document.md -o document.tex
+\end{lstcode}
 
 \section{作图}
+
 \subsection{Drawio}
+
+Draw.io 是开源的图表绘制工具。
+
+\BlockDesc{安装 Draw.io}
+
+\begin{lstcode}[numbers=none]
+  # 安装桌面版
+  yay -S drawio-desktop-bin
+
+  # 或使用在线版本
+  # https://app.diagrams.net/
+\end{lstcode}
+
+Draw.io 支持：
+
+\begin{itemize}
+  \item 流程图
+  \item UML 图
+  \item 网络拓扑图
+  \item 电路图
+  \item 组织架构图
+\end{itemize}
+
 \subsection{Graphviz}
+
+Graphviz 是图形可视化工具。
+
+\BlockDesc{安装 Graphviz}
+
+\begin{lstcode}[numbers=none]
+  sudo pacman -S graphviz
+\end{lstcode}
+
+\BlockDesc{DOT 语言示例}
+
+创建 \lstinline{graph.dot}：
+
+\begin{lstcode}[numbers=none]
+digraph G {
+    A -> B
+    B -> C
+    B -> D
+    C -> E
+    D -> E
+}
+\end{lstcode}
+
+生成图片：
+
+\begin{lstcode}[numbers=none]
+  dot -Tpng graph.dot -o graph.png
+  dot -Tsvg graph.dot -o graph.svg
+  dot -Tpdf graph.dot -o graph.pdf
+\end{lstcode}
+
+\BlockDesc{常用布局引擎}
+
+\begin{lstcode}[numbers=none]
+  # dot - 层次布局
+  dot -Tpng graph.dot -o graph.png
+
+  # neato - 弹簧模型
+  neato -Tpng graph.dot -o graph.png
+
+  # fdp - 力导向布局
+  fdp -Tpng graph.dot -o graph.png
+
+  # circo - 圆形布局
+  circo -Tpng graph.dot -o graph.png
+\end{lstcode}
+
 \subsection{PlantUML}
 
-\section{其他}
+PlantUML 是 UML 图生成工具。
+
+\BlockDesc{安装 PlantUML}
+
+\begin{lstcode}[numbers=none]
+  sudo pacman -S plantuml
+\end{lstcode}
+
+\BlockDesc{PlantUML 示例}
+
+创建 \lstinline{diagram.puml}：
+
+\begin{lstcode}[numbers=none]
+@startuml
+class User {
+  -id: int
+  -name: string
+  +login()
+  +logout()
+}
+
+class Admin {
+  -permissions: list
+  +manageUsers()
+}
+
+User <|-- Admin
+@enduml
+\end{lstcode}
+
+生成图片：
+
+\begin{lstcode}[numbers=none]
+  plantuml diagram.puml
+  plantuml -tpng diagram.puml
+  plantuml -tsvg diagram.puml
+\end{lstcode}
+
+PlantUML 支持：
+
+\begin{itemize}
+  \item 类图
+  \item 时序图
+  \item 用例图
+  \item 活动图
+  \item 组件图
+  \item 状态图
+\end{itemize}
+
+\section{其他工具}
+
+\subsection{文本处理}
+
+\subsubsection{sed}
+
+sed 是流编辑器。
+
+\BlockDesc{sed 基本用法}
+
+\begin{lstcode}[numbers=none]
+  # 替换
+  sed 's/old/new/g' file
+
+  # 删除行
+  sed '2d' file
+  sed '/pattern/d' file
+
+  # 插入行
+  sed '2a\new line' file
+
+  # 修改文件
+  sed -i 's/old/new/g' file
+\end{lstcode}
+
+\subsubsection{awk}
+
+awk 是文本处理工具。
+
+\BlockDesc{awk 基本用法}
+
+\begin{lstcode}[numbers=none]
+  # 打印列
+  awk '{print $1, $2}' file
+
+  # 条件处理
+  awk '$1 > 10 {print $0}' file
+
+  # 计算
+  awk '{sum += $1} END {print sum}' file
+
+  # 分隔符
+  awk -F: '{print $1}' /etc/passwd
+\end{lstcode}
+
+\subsection{文件操作}
+
+\subsubsection{find}
+
+find 是文件查找工具。
+
+\BlockDesc{find 用法}
+
+\begin{lstcode}[numbers=none]
+  # 按名称查找
+  find . -name "*.txt"
+
+  # 按类型查找
+  find . -type f
+  find . -type d
+
+  # 按大小查找
+  find . -size +100M
+
+  # 按时间查找
+  find . -mtime -7
+
+  # 执行命令
+  find . -name "*.txt" -exec rm {} \;
+  find . -name "*.txt" -delete
+\end{lstcode}
+
+\subsubsection{grep}
+
+grep 是文本搜索工具。
+
+\BlockDesc{grep 用法}
+
+\begin{lstcode}[numbers=none]
+  # 基本搜索
+  grep "pattern" file
+
+  # 递归搜索
+  grep -r "pattern" .
+
+  # 忽略大小写
+  grep -i "pattern" file
+
+  # 显示行号
+  grep -n "pattern" file
+
+  # 反向匹配
+  grep -v "pattern" file
+
+  # 正则表达式
+  grep -E "pattern1|pattern2" file
+\end{lstcode}
+
+\subsection{系统信息}
+
+\BlockDesc{系统信息命令}
+
+\begin{lstcode}[numbers=none]
+  # 系统信息
+  uname -a
+  hostnamectl
+
+  # 内核版本
+  uname -r
+  cat /proc/version
+
+  # 硬件信息
+  lscpu
+  lshw
+  dmidecode
+
+  # 内存信息
+  free -h
+  cat /proc/meminfo
+
+  # 磁盘信息
+  df -h
+  lsblk
+  fdisk -l
+\end{lstcode}
+
+\subsection{备份和恢复}
+
+\subsubsection{tar}
+
+tar 是归档工具。
+
+\BlockDesc{tar 用法}
+
+\begin{lstcode}[numbers=none]
+  # 创建归档
+  tar -czf archive.tar.gz directory
+  tar -cJf archive.tar.xz directory
+
+  # 解压归档
+  tar -xzf archive.tar.gz
+  tar -xJf archive.tar.xz
+
+  # 列出内容
+  tar -tzf archive.tar.gz
+
+  # 增量备份
+  tar -czf backup.tar.gz --listed-incremental=snapshot.file directory
+\end{lstcode}
+
+\subsubsection{rsync}
+
+rsync 是文件同步工具。
+
+\BlockDesc{rsync 用法}
+
+\begin{lstcode}[numbers=none]
+  # 本地同步
+  rsync -av source/ destination/
+
+  # 远程同步
+  rsync -av source/ user@host:destination/
+
+  # 排除文件
+  rsync -av --exclude='*.log' source/ destination/
+
+  # 删除目标中多余文件
+  rsync -av --delete source/ destination/
+
+  # 显示进度
+  rsync -av --progress source/ destination/
+\end{lstcode}
+
+\section{总结}
+
+Linux 系统提供了丰富的工具和命令，掌握这些工具对于系统管理和软件开发至关重要。本章介绍了 Linux 系统使用的各个方面，包括系统管理、Shell 编程、开发工具、调试工具、文档工具等。通过系统学习和实践，可以大大提高工作效率和问题解决能力。随着 Linux 生态系统的不断发展，新的工具和技术不断涌现，持续学习和探索是保持竞争力的关键。

@@ -1,73 +1,1458 @@
 \chapter{OS 原理与 Linux}
 
+操作系统（Operating System, OS）是计算机系统中最重要的系统软件，它管理计算机硬件资源，为应用程序提供运行环境。
+本章将深入探讨操作系统的基本原理，以及 Linux 内核的实现细节和应用开发技术。
+
 \section{OS 原理}
 
+操作系统是计算机硬件和应用程序之间的中间层，它提供了资源管理、进程管理、内存管理、文件系统、网络通信等核心功能。
+理解操作系统原理对于深入理解 Linux 系统至关重要。
+
 \subsection{内存管理}
+
+内存管理是操作系统的核心功能之一，负责管理物理内存和虚拟内存，为进程提供独立的内存空间。
+
+\subsubsection{内存管理的基本概念}
+
+\BlockDesc{物理地址与虚拟地址}
+
+物理地址（Physical Address）是内存硬件实际使用的地址，直接对应内存条上的物理位置。
+虚拟地址（Virtual Address）是进程使用的地址空间，每个进程都有自己独立的虚拟地址空间。
+
+虚拟内存机制的主要优势：
+\begin{itemize}
+  \item \textbf{地址空间隔离}：每个进程拥有独立的虚拟地址空间，进程之间不会相互干扰
+  \item \textbf{内存保护}：通过页表权限位实现读写保护，防止进程访问未授权的内存区域
+  \item \textbf{内存扩展}：通过交换机制，可以使用磁盘空间扩展可用内存
+  \item \textbf{简化内存管理}：进程可以使用连续的虚拟地址，而物理内存可以是碎片化的
+\end{itemize}
+
+\subsubsection{分页机制}
+
+分页（Paging）是现代操作系统最常用的内存管理机制。虚拟地址空间和物理地址空间都被划分为固定大小的页（Page），通常是 4KB。
+
+页表（Page Table）用于将虚拟地址映射到物理地址。页表项（Page Table Entry, PTE）包含以下信息：
+\begin{itemize}
+  \item 物理页框号（Physical Frame Number, PFN）
+  \item 访问权限位（读、写、执行）
+  \item 存在位（Present bit）：指示页面是否在内存中
+  \item 修改位（Dirty bit）：指示页面是否被修改
+  \item 访问位（Accessed bit）：用于页面置换算法
+\end{itemize}
+
+多级页表用于减少页表占用的内存空间。例如，在 x86-64 架构中，使用四级页表：
+\begin{itemize}
+  \item Page Global Directory (PGD)
+  \item Page Upper Directory (PUD)
+  \item Page Middle Directory (PMD)
+  \item Page Table (PT)
+\end{itemize}
+
+\subsubsection{页面置换算法}
+
+当物理内存不足时，操作系统需要将某些页面换出到磁盘，为新页面腾出空间。页面置换算法的目标是减少缺页中断（Page Fault）的次数。
+
+常用的页面置换算法：
+
+\begin{enumerate}
+  \item \textbf{先进先出（FIFO）}
+    \begin{itemize}
+      \item 选择最早进入内存的页面进行置换
+      \item 实现简单，但可能置换掉经常使用的页面
+      \item 存在 Belady 异常：增加物理页框数可能增加缺页次数
+    \end{itemize}
+
+  \item \textbf{最优置换（Optimal）}
+    \begin{itemize}
+      \item 选择未来最长时间不会被访问的页面
+      \item 理论上最优，但需要预知未来的访问模式，实际无法实现
+      \item 主要用于评估其他算法的性能
+    \end{itemize}
+
+  \item \textbf{最近最少使用（LRU）}
+    \begin{itemize}
+      \item 选择最长时间未被访问的页面
+      \item 基于时间局部性原理，性能接近最优算法
+      \item 实现需要维护访问时间信息，开销较大
+    \end{itemize}
+
+  \item \textbf{时钟算法（Clock）}
+    \begin{itemize}
+      \item LRU 的近似实现，使用访问位（Reference bit）
+      \item 将页面组织成环形队列，指针按顺序扫描
+      \item 如果访问位为 1，清除并继续；如果为 0，选择该页面置换
+    \end{itemize}
+
+  \item \textbf{工作集算法（Working Set）}
+    \begin{itemize}
+      \item 基于工作集理论：进程在时间窗口 $\Delta$ 内访问的页面集合
+      \item 只保留工作集中的页面在内存中
+      \item 适应程序的局部性特征
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{内存分配算法}
+
+操作系统需要管理空闲内存块，为进程分配和回收内存。常用的内存分配算法：
+
+\begin{enumerate}
+  \item \textbf{首次适应（First Fit）}
+    \begin{itemize}
+      \item 从内存起始位置开始查找，选择第一个满足大小的空闲块
+      \item 实现简单，速度快
+      \item 可能在前端产生大量小碎片
+    \end{itemize}
+
+  \item \textbf{最佳适应（Best Fit）}
+    \begin{itemize}
+      \item 选择满足要求且最小的空闲块
+      \item 减少空间浪费，但可能产生大量难以利用的小碎片
+    \end{itemize}
+
+  \item \textbf{最坏适应（Worst Fit）}
+    \begin{itemize}
+      \item 选择最大的空闲块
+      \item 避免产生小碎片，但可能浪费大块内存
+    \end{itemize}
+
+  \item \textbf{伙伴系统（Buddy System）}
+    \begin{itemize}
+      \item 将内存划分为 $2^n$ 大小的块
+      \item 分配时如果块太大，递归分割；回收时合并伙伴块
+      \item Linux 内核使用伙伴系统管理物理页框
+    \end{itemize}
+
+  \item \textbf{Slab 分配器}
+    \begin{itemize}
+      \item 为频繁分配和释放的小对象提供缓存
+      \item 减少内存碎片和分配开销
+      \item Linux 内核使用 Slab/Slub/Slob 分配器
+    \end{itemize}
+\end{enumerate}
 
 \subsection{进程与线程}
 
+进程（Process）是程序的一次执行，是操作系统进行资源分配和调度的基本单位。
+线程（Thread）是进程内的执行单元，是 CPU 调度的基本单位。
+
+\subsubsection{进程的概念与状态}
+
+\BlockDesc{进程}
+
+进程是正在执行的程序的实例，包括：
+\begin{itemize}
+  \item 程序代码（文本段）
+  \item 数据段（全局变量、静态变量）
+  \item 堆（动态分配的内存）
+  \item 栈（局部变量、函数调用信息）
+  \item 进程控制块（Process Control Block, PCB）
+\end{itemize}
+
+进程的状态转换：
+
+\begin{enumerate}
+  \item \textbf{新建（New）}：进程正在被创建
+  \item \textbf{就绪（Ready）}：进程已准备好运行，等待 CPU
+  \item \textbf{运行（Running）}：进程正在 CPU 上执行
+  \item \textbf{阻塞（Blocked/Waiting）}：进程等待某个事件（如 I/O 完成）
+  \item \textbf{终止（Terminated）}：进程执行完毕或被终止
+\end{enumerate}
+
+进程控制块（PCB）包含进程的所有信息：
+\begin{itemize}
+  \item 进程标识符（PID）
+  \item 进程状态
+  \item 程序计数器（PC）
+  \item CPU 寄存器
+  \item 内存管理信息（页表、内存限制）
+  \item 打开的文件列表
+  \item I/O 状态信息
+  \item 调度信息（优先级、调度队列）
+\end{itemize}
+
+\subsubsection{线程模型}
+
+线程是轻量级的进程，同一进程内的线程共享地址空间和资源，但拥有独立的栈和寄存器。
+
+线程的优势：
+\begin{itemize}
+  \item 创建和切换开销小
+  \item 线程间通信简单（共享内存）
+  \item 适合并行计算和 I/O 密集型应用
+\end{itemize}
+
+线程的实现方式：
+
+\begin{enumerate}
+  \item \textbf{用户级线程（User-Level Threads）}
+    \begin{itemize}
+      \item 线程管理在用户空间完成
+      \item 内核不知道线程的存在
+      \item 一个线程阻塞会导致整个进程阻塞
+      \item 切换开销小，但不能利用多核 CPU
+    \end{itemize}
+
+  \item \textbf{内核级线程（Kernel-Level Threads）}
+    \begin{itemize}
+      \item 线程由内核管理
+      \item 一个线程阻塞不影响其他线程
+      \item 可以利用多核 CPU
+      \item 切换需要系统调用，开销较大
+    \end{itemize}
+
+  \item \textbf{混合模型（Hybrid Model）}
+    \begin{itemize}
+      \item 结合用户级和内核级线程的优点
+      \item 多个用户级线程映射到少量内核级线程
+      \item 如 N:1、1:1、M:N 模型
+    \end{itemize}
+\end{enumerate}
+
 \subsubsection{调度}
 
-调度算法：
+进程调度是操作系统的核心功能，决定哪个进程在何时使用 CPU。
+
+\BlockDesc{调度算法}
+
+调度算法的评价指标：
 \begin{itemize}
-  \item Fist-Come, Fist-Served
-  \item Shortest-Job-First
-  \item Round-Robin
-  \item Priority
-  \item Multilevel Queue
-  \item Multilevel Feedback Queue
+  \item CPU 利用率：CPU 忙碌时间的百分比
+  \item 吞吐量：单位时间内完成的进程数
+  \item 周转时间：从提交到完成的时间
+  \item 等待时间：进程在就绪队列中等待的时间
+  \item 响应时间：从提交到首次响应的时间
 \end{itemize}
+
+常见的调度算法：
+
+\begin{enumerate}
+  \item \textbf{先来先服务（FCFS, First-Come First-Served）}
+    \begin{itemize}
+      \item 按照进程到达的顺序执行
+      \item 实现简单，公平
+      \item 短进程可能被长进程阻塞（护航效应）
+      \item 平均等待时间可能较长
+    \end{itemize}
+
+  \item \textbf{最短作业优先（SJF, Shortest Job First）}
+    \begin{itemize}
+      \item 选择执行时间最短的进程
+      \item 可以证明是最优的（最小平均等待时间）
+      \item 需要预知执行时间，实际难以实现
+      \item 可能导致长进程饥饿
+    \end{itemize}
+
+  \item \textbf{最短剩余时间优先（SRTF, Shortest Remaining Time First）}
+    \begin{itemize}
+      \item SJF 的可抢占版本
+      \item 当新进程到达时，如果剩余时间更短，抢占当前进程
+      \item 平均等待时间最小，但可能导致频繁切换
+    \end{itemize}
+
+  \item \textbf{时间片轮转（RR, Round-Robin）}
+    \begin{itemize}
+      \item 每个进程分配一个时间片（Time Quantum）
+      \item 时间片用完后，进程回到就绪队列末尾
+      \item 适合交互式系统，响应时间有保障
+      \item 时间片大小需要权衡：太小导致频繁切换，太大退化为 FCFS
+    \end{itemize}
+
+  \item \textbf{优先级调度（Priority Scheduling）}
+    \begin{itemize}
+      \item 每个进程分配一个优先级
+      \item 优先执行高优先级进程
+      \item 可以是抢占式或非抢占式
+      \item 可能导致低优先级进程饥饿，需要动态调整优先级
+    \end{itemize}
+
+  \item \textbf{多级队列（Multilevel Queue）}
+    \begin{itemize}
+      \item 将进程分为多个队列，每个队列有自己的调度算法
+      \item 队列间可以设置优先级或时间片分配
+      \item 适合不同类型的进程（前台交互、后台批处理）
+    \end{itemize}
+
+  \item \textbf{多级反馈队列（Multilevel Feedback Queue）}
+    \begin{itemize}
+      \item 允许进程在队列间移动
+      \item CPU 密集型进程会移到低优先级队列
+      \item I/O 密集型进程会移到高优先级队列
+      \item 结合了多种算法的优点，适应不同类型的进程
+    \end{itemize}
+\end{enumerate}
+
+Linux 内核使用完全公平调度器（CFS, Completely Fair Scheduler），基于虚拟运行时间（vruntime）实现公平调度。
 
 \subsubsection{IPC}
 
+进程间通信（Inter-Process Communication, IPC）是进程之间交换数据和同步的机制。
+
+\BlockDesc{进程间通信方式}
+
+\begin{enumerate}
+  \item \textbf{管道（Pipe）}
+    \begin{itemize}
+      \item 半双工通信，数据单向流动
+      \item 只能在有亲缘关系的进程间使用
+      \item 使用系统调用 \texttt{pipe()} 创建
+      \item 容量有限（通常 64KB），写满会阻塞
+    \end{itemize}
+
+  \item \textbf{命名管道（FIFO）}
+    \begin{itemize}
+      \item 通过文件系统中的特殊文件实现
+      \item 可以在无亲缘关系的进程间使用
+      \item 使用 \texttt{mkfifo()} 创建
+    \end{itemize}
+
+  \item \textbf{消息队列（Message Queue）}
+    \begin{itemize}
+      \item 消息的有序链表，存储在内核中
+      \item 支持不同类型和优先级的消息
+      \item 进程可以异步发送和接收消息
+      \item System V IPC 或 POSIX 消息队列
+    \end{itemize}
+
+  \item \textbf{共享内存（Shared Memory）}
+    \begin{itemize}
+      \item 多个进程映射到同一块物理内存
+      \item 最快的 IPC 方式，无需内核参与数据传输
+      \item 需要同步机制（信号量、互斥锁）防止竞争
+      \item System V 共享内存或 POSIX 共享内存
+    \end{itemize}
+
+  \item \textbf{信号量（Semaphore）}
+    \begin{itemize}
+      \item 用于进程同步和互斥
+      \item 可以是二进制信号量（互斥锁）或计数信号量
+      \item P 操作（wait）和 V 操作（signal）
+      \item System V 信号量或 POSIX 信号量
+    \end{itemize}
+
+  \item \textbf{信号（Signal）}
+    \begin{itemize}
+      \item 异步通知机制，用于进程间通信和异常处理
+      \item 发送信号给进程，触发信号处理函数
+      \item 标准信号（1-31）和实时信号（34-64）
+      \item 使用 \texttt{kill()}、\texttt{sigqueue()} 发送
+    \end{itemize}
+
+  \item \textbf{套接字（Socket）}
+    \begin{itemize}
+      \item 网络通信接口，也可用于本地进程间通信
+      \item 支持 TCP、UDP、Unix Domain Socket
+      \item 最灵活的 IPC 方式，可用于不同主机间的通信
+    \end{itemize}
+\end{enumerate}
+
 \subsubsection{同步}
 
+多进程/多线程环境下，需要同步机制来协调对共享资源的访问，防止竞争条件（Race Condition）。
+
+\BlockDesc{同步原语}
+
+\begin{enumerate}
+  \item \textbf{互斥锁（Mutex）}
+    \begin{itemize}
+      \item 保证同一时刻只有一个线程访问临界区
+      \item 获取锁的线程可以进入，其他线程阻塞
+      \item 必须由获取锁的线程释放
+      \item 防止死锁：避免嵌套锁、按固定顺序获取锁
+    \end{itemize}
+
+  \item \textbf{信号量（Semaphore）}
+    \begin{itemize}
+      \item 计数信号量：允许多个线程同时访问资源
+      \item 二进制信号量：等价于互斥锁
+      \item P 操作：等待信号量，计数减 1
+      \item V 操作：释放信号量，计数加 1
+    \end{itemize}
+
+  \item \textbf{条件变量（Condition Variable）}
+    \begin{itemize}
+      \item 用于线程等待某个条件成立
+      \item 必须与互斥锁配合使用
+      \item \texttt{wait()}：释放锁并等待条件
+      \item \texttt{signal()} 或 \texttt{broadcast()}：唤醒等待的线程
+    \end{itemize}
+
+  \item \textbf{读写锁（Read-Write Lock）}
+    \begin{itemize}
+      \item 允许多个读者同时访问，但写者独占
+      \item 适合读多写少的场景
+      \item 读者优先或写者优先策略
+    \end{itemize}
+
+  \item \textbf{自旋锁（Spinlock）}
+    \begin{itemize}
+      \item 线程在等待锁时忙等待（busy-waiting）
+      \item 适合锁持有时间很短的场景
+      \item 避免上下文切换的开销，但浪费 CPU
+    \end{itemize}
+
+  \item \textbf{屏障（Barrier）}
+    \begin{itemize}
+      \item 同步多个线程，等待所有线程到达屏障点
+      \item 用于并行计算的同步点
+    \end{itemize}
+\end{enumerate}
+
+经典同步问题：
+
+\begin{enumerate}
+  \item \textbf{生产者-消费者问题}
+    \begin{itemize}
+      \item 生产者向缓冲区写入数据，消费者从缓冲区读取
+      \item 需要互斥访问缓冲区，以及条件变量协调生产/消费
+    \end{itemize}
+
+  \item \textbf{读者-写者问题}
+    \begin{itemize}
+      \item 多个读者可以同时读取，但写者需要独占访问
+      \item 使用读写锁或信号量实现
+    \end{itemize}
+
+  \item \textbf{哲学家就餐问题}
+    \begin{itemize}
+      \item 演示死锁和资源竞争问题
+      \item 解决方案：限制同时就餐的哲学家数量、按顺序获取筷子
+    \end{itemize}
+\end{enumerate}
+
 \subsection{网络}
+
+网络子系统是操作系统的重要组成部分，负责实现网络协议栈，提供网络通信功能。
+
+\subsubsection{网络协议栈}
+
+\BlockDesc{TCP/IP 协议栈}
+
+TCP/IP 协议栈采用分层模型，每层负责不同的功能：
+
+\begin{enumerate}
+  \item \textbf{应用层（Application Layer）}
+    \begin{itemize}
+      \item HTTP、FTP、SSH、DNS 等应用协议
+      \item 使用套接字接口与传输层交互
+    \end{itemize}
+
+  \item \textbf{传输层（Transport Layer）}
+    \begin{itemize}
+      \item TCP：面向连接、可靠传输、流量控制、拥塞控制
+      \item UDP：无连接、不可靠、低延迟
+      \item 端口号用于区分不同的应用
+    \end{itemize}
+
+  \item \textbf{网络层（Network Layer）}
+    \begin{itemize}
+      \item IP 协议：路由和转发
+      \item ICMP：错误报告和诊断
+      \item ARP：地址解析协议，将 IP 地址映射到 MAC 地址
+    \end{itemize}
+
+  \item \textbf{数据链路层（Data Link Layer）}
+    \begin{itemize}
+      \item 以太网（Ethernet）协议
+      \item MAC 地址、帧格式、错误检测
+    \end{itemize}
+
+  \item \textbf{物理层（Physical Layer）}
+    \begin{itemize}
+      \item 物理传输介质和信号编码
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{TCP 协议详解}
+
+TCP（Transmission Control Protocol）提供可靠的、面向连接的字节流服务。
+
+TCP 的特点：
+\begin{itemize}
+  \item \textbf{可靠性}：通过确认、重传、校验和保证数据正确传输
+  \item \textbf{面向连接}：建立连接（三次握手）和释放连接（四次挥手）
+  \item \textbf{流量控制}：通过滑动窗口机制控制发送速率
+  \item \textbf{拥塞控制}：通过拥塞窗口避免网络过载
+  \item \textbf{全双工}：支持双向数据传输
+\end{itemize}
+
+TCP 连接建立（三次握手）：
+\begin{enumerate}
+  \item 客户端发送 SYN，序列号为 $x$
+  \item 服务器响应 SYN-ACK，序列号为 $y$，确认号为 $x+1$
+  \item 客户端发送 ACK，确认号为 $y+1$
+\end{enumerate}
+
+TCP 连接释放（四次挥手）：
+\begin{enumerate}
+  \item 主动关闭方发送 FIN
+  \item 被动关闭方发送 ACK
+  \item 被动关闭方发送 FIN
+  \item 主动关闭方发送 ACK，进入 TIME\_WAIT 状态
+\end{enumerate}
+
+TCP 拥塞控制算法：
+\begin{itemize}
+  \item \textbf{慢启动（Slow Start）}：拥塞窗口指数增长
+  \item \textbf{拥塞避免（Congestion Avoidance）}：拥塞窗口线性增长
+  \item \textbf{快速重传（Fast Retransmit）}：收到 3 个重复 ACK 立即重传
+  \item \textbf{快速恢复（Fast Recovery）}：快速重传后的拥塞窗口调整
+\end{itemize}
+
+\subsubsection{UDP 协议}
+
+UDP（User Datagram Protocol）提供无连接的、不可靠的数据报服务。
+
+UDP 的特点：
+\begin{itemize}
+  \item 无连接：无需建立连接，直接发送数据
+  \item 不可靠：不保证数据到达，不保证顺序
+  \item 低延迟：无连接建立和确认开销
+  \item 简单：协议头部小，处理开销低
+\end{itemize}
+
+UDP 适用于：
+\begin{itemize}
+  \item 实时应用（视频、音频流）
+  \item DNS 查询
+  \item 广播和多播
+  \item 对延迟敏感的应用
+\end{itemize}
+
 \subsubsection{TCP/IP 协议栈总结}
 
+TCP/IP 协议栈是互联网的基础，理解其工作原理对于网络编程和系统优化至关重要。
+
+关键概念：
+\begin{itemize}
+  \item \textbf{封装}：数据从上层向下传递时，每层添加头部信息
+  \item \textbf{解封装}：数据从下层向上传递时，每层移除头部信息
+  \item \textbf{端口号}：16 位整数，用于标识应用进程
+  \item \textbf{套接字}：IP 地址和端口号的组合，唯一标识网络连接
+  \item \textbf{路由}：根据目标 IP 地址选择转发路径
+\end{itemize}
+
 \subsection{文件系统}
+
+文件系统是操作系统用于组织和管理存储设备上数据的方法。
+
+\subsubsection{文件系统的基本概念}
+
+\BlockDesc{文件系统}
+
+文件系统的主要功能：
+\begin{itemize}
+  \item 文件的组织和管理
+  \item 目录结构
+  \item 文件访问控制
+  \item 磁盘空间管理
+  \item 数据一致性保证
+\end{itemize}
+
+文件系统的层次结构：
+\begin{itemize}
+  \item \textbf{逻辑文件系统}：处理用户请求，管理目录结构
+  \item \textbf{文件组织模块}：管理文件逻辑块和物理块的映射
+  \item \textbf{基本文件系统}：访问物理块
+  \item \textbf{I/O 控制}：设备驱动程序和中断处理
+\end{itemize}
+
+\subsubsection{文件分配方法}
+
+\begin{enumerate}
+  \item \textbf{连续分配（Contiguous Allocation）}
+    \begin{itemize}
+      \item 文件占用连续的磁盘块
+      \item 访问速度快，支持顺序和随机访问
+      \item 容易产生外部碎片，文件扩展困难
+    \end{itemize}
+
+  \item \textbf{链接分配（Linked Allocation）}
+    \begin{itemize}
+      \item 文件由链表连接的不连续块组成
+      \item 无外部碎片，文件扩展容易
+      \item 只支持顺序访问，指针占用空间，可靠性差
+    \end{itemize}
+
+  \item \textbf{索引分配（Indexed Allocation）}
+    \begin{itemize}
+      \item 使用索引块存储文件所有块的指针
+      \item 支持随机访问，无外部碎片
+      \item 索引块占用空间，大文件需要多级索引
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{目录结构}
+
+\begin{enumerate}
+  \item \textbf{单级目录}：所有文件在一个目录中，简单但查找效率低
+  \item \textbf{两级目录}：为每个用户创建独立目录
+  \item \textbf{树形目录}：层次化结构，支持子目录
+  \item \textbf{无环图目录}：支持文件共享，通过链接实现
+\end{enumerate}
+
+\subsubsection{磁盘调度算法}
+
+磁盘 I/O 是系统性能的瓶颈，调度算法可以减少寻道时间。
+
+\begin{enumerate}
+  \item \textbf{FCFS}：按请求顺序服务，简单但效率低
+  \item \textbf{SSTF（最短寻道时间优先）}：选择距离当前磁道最近的请求
+  \item \textbf{SCAN（电梯算法）}：磁头在一个方向移动，处理所有请求后反向
+  \item \textbf{C-SCAN}：SCAN 的改进，只在一个方向服务请求
+  \item \textbf{LOOK}：SCAN 的改进，到达最后一个请求后立即反向
+  \item \textbf{C-LOOK}：LOOK 的改进，只在一个方向服务
+\end{enumerate}
 
 \subsection{安全管理}
 
+操作系统安全涉及访问控制、身份认证、加密、审计等多个方面。
+
+\subsubsection{访问控制}
+
+\BlockDesc{访问控制模型}
+
+\begin{enumerate}
+  \item \textbf{自主访问控制（DAC, Discretionary Access Control）}
+    \begin{itemize}
+      \item 文件所有者决定访问权限
+      \item Linux 的文件权限：所有者、组、其他用户
+      \item 权限类型：读（r）、写（w）、执行（x）
+    \end{itemize}
+
+  \item \textbf{强制访问控制（MAC, Mandatory Access Control）}
+    \begin{itemize}
+      \item 系统策略决定访问权限，用户无法修改
+      \item SELinux、AppArmor 等实现
+      \item 基于安全标签和策略规则
+    \end{itemize}
+
+  \item \textbf{基于角色的访问控制（RBAC, Role-Based Access Control）}
+    \begin{itemize}
+      \item 用户被分配角色，角色拥有权限
+      \item 简化权限管理
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{身份认证}
+
+\begin{itemize}
+  \item \textbf{密码认证}：用户名和密码
+  \item \textbf{公钥认证}：SSH 密钥对
+  \item \textbf{多因素认证}：结合密码、令牌、生物特征
+  \item \textbf{单点登录（SSO）}：一次认证访问多个系统
+\end{itemize}
+
+\subsubsection{加密}
+
+\begin{itemize}
+  \item \textbf{对称加密}：AES、DES，加密解密使用相同密钥
+  \item \textbf{非对称加密}：RSA、ECC，公钥加密私钥解密
+  \item \textbf{哈希函数}：SHA-256、MD5，用于数据完整性验证
+  \item \textbf{数字签名}：使用私钥签名，公钥验证
+\end{itemize}
+
 \subsection{系统调用}
+
+系统调用（System Call）是用户程序请求操作系统服务的接口。
+
+\BlockDesc{系统调用}
+
+系统调用的作用：
+\begin{itemize}
+  \item 提供用户空间和内核空间的接口
+  \item 保护系统资源，防止用户程序直接访问硬件
+  \item 提供统一的系统服务接口
+\end{itemize}
+
+系统调用的实现机制：
+\begin{enumerate}
+  \item 用户程序调用库函数（如 \texttt{open()}）
+  \item 库函数设置系统调用号和参数
+  \item 触发软中断或使用 \texttt{syscall} 指令进入内核
+  \item 内核根据系统调用号查找处理函数
+  \item 执行系统调用，返回结果
+  \item 返回到用户空间
+\end{enumerate}
+
+常见的系统调用类别：
+\begin{itemize}
+  \item 进程控制：\texttt{fork}、\texttt{exec}、\texttt{exit}、\texttt{wait}
+  \item 文件操作：\texttt{open}、\texttt{read}、\texttt{write}、\texttt{close}
+  \item 设备管理：\texttt{ioctl}、\texttt{read}、\texttt{write}
+  \item 信息维护：\texttt{getpid}、\texttt{alarm}、\texttt{sleep}
+  \item 通信：\texttt{pipe}、\texttt{shmget}、\texttt{msgget}
+\end{itemize}
 
 \section{Linux 内核}
 
+Linux 内核是 Linux 操作系统的核心，负责管理系统资源、提供系统调用接口、实现各种内核子系统。
+本节深入探讨 Linux 内核的架构和实现细节。
+
 \subsection{启动}
+
+Linux 系统的启动是一个复杂的过程，涉及硬件初始化、引导加载程序、内核启动、用户空间初始化等多个阶段。
+
 \subsubsection{启动流程分析}
+
+\BlockDesc{Linux 启动流程}
+
+Linux 系统的启动流程：
+
+\begin{enumerate}
+  \item \textbf{BIOS/UEFI 阶段}
+    \begin{itemize}
+      \item 硬件上电，CPU 从固定地址开始执行
+      \item BIOS/UEFI 进行硬件自检（POST）
+      \item 查找可启动设备（硬盘、USB、网络等）
+      \item 加载并执行引导加载程序（Boot Loader）
+    \end{itemize}
+
+  \item \textbf{引导加载程序阶段}
+    \begin{itemize}
+      \item GRUB（Grand Unified Bootloader）是最常用的引导加载程序
+      \item 加载内核镜像和初始 RAM 文件系统（initramfs）
+      \item 设置内核启动参数
+      \item 跳转到内核入口点
+    \end{itemize}
+
+  \item \textbf{内核初始化阶段}
+    \begin{itemize}
+      \item 内核入口：\texttt{start\_kernel()}
+      \item 初始化各种内核子系统：
+        \begin{itemize}
+          \item 内存管理子系统
+          \item 进程调度器
+          \item 中断处理系统
+          \item 设备驱动框架
+          \item 文件系统
+        \end{itemize}
+      \item 挂载根文件系统
+      \item 启动第一个用户空间进程（init）
+    \end{itemize}
+
+  \item \textbf{用户空间初始化}
+    \begin{itemize}
+      \item init 进程（PID 1）启动
+      \item 传统系统使用 SysV init 或 systemd
+      \item 执行启动脚本，启动各种系统服务
+      \item 进入多用户模式或图形界面
+    \end{itemize}
+\end{enumerate}
+
+内核启动的关键函数调用链：
+\begin{lstlisting}[language=C]
+start_kernel()
+  -> setup_arch()
+  -> setup_command_line()
+  -> setup_per_cpu_areas()
+  -> smp_prepare_boot_cpu()
+  -> sched_init()
+  -> preempt_disable()
+  -> init_IRQ()
+  -> init_timers()
+  -> hrtimers_init()
+  -> softirq_init()
+  -> timekeeping_init()
+  -> time_init()
+  -> console_init()
+  -> lockdep_init()
+  -> cgroup_init()
+  -> page_alloc_init()
+  -> vfs_caches_init()
+  -> signals_init()
+  -> proc_root_init()
+  -> rest_init()
+    -> kernel_thread(kernel_init)
+    -> kernel_thread(kthreadd)
+\end{lstlisting}
 
 \subsection{内存管理}
 
+Linux 内核的内存管理子系统负责管理物理内存和虚拟内存，为内核和用户进程提供内存分配服务。
+
+\subsubsection{物理内存管理}
+
+Linux 使用伙伴系统（Buddy System）管理物理页框。
+
+伙伴系统的特点：
+\begin{itemize}
+  \item 将物理内存划分为 $2^n$ 大小的块（order 0-10，对应 4KB 到 4MB）
+  \item 分配时如果块太大，递归分割成两个伙伴块
+  \item 释放时如果伙伴块也是空闲的，合并成更大的块
+  \item 减少内存碎片，提高分配效率
+\end{itemize}
+
+每个内存区域（Zone）维护多个空闲链表，对应不同的 order：
+\begin{itemize}
+  \item \texttt{ZONE\_DMA}：DMA 可访问的内存（< 16MB）
+  \item \texttt{ZONE\_DMA32}：32 位 DMA 可访问的内存（< 4GB）
+  \item \texttt{ZONE\_NORMAL}：正常映射的内存
+  \item \texttt{ZONE\_HIGHMEM}：高端内存（32 位系统）
+\end{itemize}
+
+\subsubsection{虚拟内存管理}
+
+Linux 使用多级页表实现虚拟地址到物理地址的转换。
+
+页表结构（x86-64）：
+\begin{itemize}
+  \item 四级页表：PGD、PUD、PMD、PT
+  \item 每级页表有 512 个表项（9 位索引）
+  \item 页表项大小：8 字节
+  \item 支持 4KB、2MB、1GB 页面大小
+\end{itemize}
+
+内存映射：
+\begin{itemize}
+  \item \textbf{匿名映射}：用于堆、栈等，不与文件关联
+  \item \textbf{文件映射}：将文件映射到虚拟地址空间
+  \item \textbf{共享映射}：多个进程共享同一物理页面
+  \item \textbf{私有映射}：写时复制（Copy-on-Write）
+\end{itemize}
+
+\subsubsection{内存分配接口}
+
+内核提供多种内存分配接口：
+
+\begin{enumerate}
+  \item \textbf{页分配器}
+    \begin{itemize}
+      \item \texttt{alloc\_pages()}：分配一个或多个物理页
+      \item \texttt{get\_free\_page()}：分配一个物理页并返回虚拟地址
+      \item 用于大块内存分配
+    \end{itemize}
+
+  \item \textbf{Slab 分配器}
+    \begin{itemize}
+      \item \texttt{kmalloc()}：分配小块内存（< 128KB）
+      \item \texttt{kfree()}：释放内存
+      \item 使用 Slab 缓存减少碎片和分配开销
+    \end{itemize}
+
+  \item \textbf{vmalloc}
+    \begin{itemize}
+      \item \texttt{vmalloc()}：分配虚拟地址连续但物理地址可能不连续的内存
+      \item 用于需要大块连续虚拟地址的场景
+      \item 开销较大，因为需要建立页表映射
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{页面回收}
+
+当系统内存不足时，内核需要回收页面。
+
+页面回收策略：
+\begin{itemize}
+  \item \textbf{直接回收}：分配内存时如果内存不足，立即尝试回收
+  \item \textbf{kswapd}：后台线程定期回收页面
+  \item \textbf{OOM Killer}：内存严重不足时，杀死占用内存最多的进程
+\end{itemize}
+
+页面回收算法：
+\begin{itemize}
+  \item 优先回收不活跃的匿名页面（交换到 swap）
+  \item 优先回收文件缓存页面（可以直接丢弃）
+  \item 使用 LRU 链表管理页面
+\end{itemize}
+
 \subsection{task}
+
+Linux 内核使用 task\_struct 结构体表示进程和线程，统一称为任务（Task）。
+
+\subsubsection{task\_struct 结构}
+
+\BlockDesc{task\_struct}
+
+task\_struct 是 Linux 内核中最重要的数据结构之一，包含任务的所有信息：
+
+\begin{lstlisting}[language=C]
+struct task_struct {
+    volatile long state;        // 进程状态
+    void *stack;                // 内核栈
+    unsigned int flags;         // 进程标志
+    int prio;                   // 动态优先级
+    int static_prio;            // 静态优先级
+    struct mm_struct *mm;       // 内存描述符
+    struct mm_struct *active_mm; // 活动内存描述符
+    pid_t pid;                  // 进程 ID
+    pid_t tgid;                 // 线程组 ID
+    struct task_struct *parent; // 父进程
+    struct list_head children;  // 子进程链表
+    struct files_struct *files; // 打开的文件
+    struct fs_struct *fs;       // 文件系统信息
+    // ... 更多字段
+};
+\end{lstlisting}
+
+进程状态：
+\begin{itemize}
+  \item \texttt{TASK\_RUNNING}：可运行状态
+  \item \texttt{TASK\_INTERRUPTIBLE}：可中断睡眠
+  \item \texttt{TASK\_UNINTERRUPTIBLE}：不可中断睡眠
+  \item \texttt{TASK\_STOPPED}：停止状态
+  \item \texttt{TASK\_TRACED}：被跟踪状态
+  \item \texttt{EXIT\_ZOMBIE}：僵尸状态
+  \item \texttt{EXIT\_DEAD}：死亡状态
+\end{itemize}
+
+\subsubsection{进程创建}
+
+Linux 使用 \texttt{fork()} 系统调用创建新进程。
+
+\texttt{fork()} 的实现：
+\begin{enumerate}
+  \item 分配新的 task\_struct
+  \item 复制父进程的内存空间（写时复制）
+  \item 复制父进程的文件描述符
+  \item 设置新的 PID
+  \item 将新进程加入运行队列
+\end{enumerate}
+
+写时复制（Copy-on-Write, COW）：
+\begin{itemize}
+  \item 子进程共享父进程的物理页面
+  \item 页面标记为只读
+  \item 当任一进程写入时，触发页错误，分配新页面并复制数据
+  \item 减少内存复制开销
+\end{itemize}
+
+\subsubsection{进程调度}
+
+Linux 使用完全公平调度器（CFS）进行进程调度。
+
+CFS 的核心思想：
+\begin{itemize}
+  \item 维护虚拟运行时间（vruntime）
+  \item 选择 vruntime 最小的进程运行
+  \item 保证所有进程公平分享 CPU 时间
+\end{itemize}
+
+调度实体（sched\_entity）：
+\begin{itemize}
+  \item 每个任务有一个调度实体
+  \item 使用红黑树组织，vruntime 作为键
+  \item 最左侧节点是下一个要运行的进程
+\end{itemize}
+
+调度策略：
+\begin{itemize}
+  \item \texttt{SCHED\_NORMAL}：普通进程，使用 CFS
+  \item \texttt{SCHED\_FIFO}：实时进程，先进先出
+  \item \texttt{SCHED\_RR}：实时进程，时间片轮转
+  \item \texttt{SCHED\_BATCH}：批处理进程
+  \item \texttt{SCHED\_IDLE}：低优先级进程
+\end{itemize}
+
+\subsubsection{中断和异常处理}
+
+中断是硬件或软件发出的信号，要求 CPU 立即处理。
+
+中断类型：
+\begin{itemize}
+  \item \textbf{硬件中断}：由硬件设备产生（IRQ）
+  \item \textbf{软件中断}：由软件产生（系统调用、异常）
+  \item \textbf{异常}：CPU 执行指令时产生的错误（页错误、除零等）
+\end{itemize}
+
+中断处理流程：
+\begin{enumerate}
+  \item 保存当前上下文（寄存器）
+  \item 切换到内核栈
+  \item 调用中断处理函数
+  \item 执行中断服务例程（ISR）
+  \item 恢复上下文，返回用户空间
+\end{enumerate}
+
+中断下半部机制：
+\begin{itemize}
+  \item \textbf{软中断（Softirq）}：可重入，同一 CPU 上串行执行
+  \item \textbf{任务队列（Tasklet）}：基于软中断，不可重入
+  \item \textbf{工作队列（Workqueue）}：在进程上下文中执行，可以睡眠
+\end{itemize}
 
 \subsection{网络}
 
+Linux 网络子系统实现了完整的 TCP/IP 协议栈，提供高性能的网络通信能力。
+
+\subsubsection{网络协议栈架构}
+
+Linux 网络协议栈采用分层设计：
+
+\begin{enumerate}
+  \item \textbf{套接字层（Socket Layer）}
+    \begin{itemize}
+      \item 提供 BSD 套接字接口
+      \item 管理套接字数据结构
+      \item 处理系统调用（socket、bind、listen、accept 等）
+    \end{itemize}
+
+  \item \textbf{传输层（Transport Layer）}
+    \begin{itemize}
+      \item TCP：可靠传输、流量控制、拥塞控制
+      \item UDP：无连接数据报传输
+      \item 管理连接状态、端口号
+    \end{itemize}
+
+  \item \textbf{网络层（Network Layer）}
+    \begin{itemize}
+      \item IP 协议：路由和转发
+      \item 路由表管理
+      \item 分片和重组
+    \end{itemize}
+
+  \item \textbf{数据链路层（Data Link Layer）}
+    \begin{itemize}
+      \item 网络设备驱动
+      \item 以太网协议处理
+      \item MAC 地址管理
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{套接字缓冲区（sk\_buff）}
+
+\BlockDesc{sk\_buff}
+
+sk\_buff 是 Linux 网络子系统的核心数据结构，用于在网络层之间传递数据包。
+
+sk\_buff 的特点：
+\begin{itemize}
+  \item 包含数据包的所有信息（头部、数据、元数据）
+  \item 支持头部添加和删除（push/pull）
+  \item 支持数据包分片和合并
+  \item 引用计数，支持零拷贝
+\end{itemize}
+
+sk\_buff 的主要字段：
+\begin{lstlisting}[language=C]
+struct sk_buff {
+    struct sk_buff *next;      // 下一个缓冲区
+    struct sk_buff *prev;      // 上一个缓冲区
+    struct sock *sk;           // 所属套接字
+    unsigned int len;          // 数据长度
+    unsigned int data_len;     // 分片数据长度
+    __u16 transport_header;   // 传输层头部偏移
+    __u16 network_header;      // 网络层头部偏移
+    __u16 mac_header;          // MAC 层头部偏移
+    unsigned char *head;       // 数据区起始地址
+    unsigned char *data;       // 当前数据指针
+    unsigned char *tail;       // 数据区结束地址
+    unsigned char *end;        // 缓冲区结束地址
+};
+\end{lstlisting}
+
+\subsubsection{网络设备}
+
+网络设备（net\_device）表示一个网络接口。
+
+网络设备的操作：
+\begin{itemize}
+  \item \texttt{open()}：打开设备
+  \item \texttt{stop()}：停止设备
+  \item \texttt{hard\_start\_xmit()}：发送数据包
+  \item \texttt{get\_stats()}：获取统计信息
+\end{itemize}
+
+网络设备驱动需要：
+\begin{itemize}
+  \item 初始化硬件
+  \item 注册中断处理函数
+  \item 实现数据包发送和接收
+  \item 处理网络设备状态变化
+\end{itemize}
+
 \subsection{驱动架构及子系统}
+
+Linux 内核采用统一的设备驱动模型，提供标准化的驱动接口和框架。
+
+\subsubsection{设备模型}
+
+Linux 设备模型的核心概念：
+
+\begin{enumerate}
+  \item \textbf{设备（Device）}
+    \begin{itemize}
+      \item 表示系统中的硬件设备
+      \item 包含设备信息、驱动指针、父设备等
+    \end{itemize}
+
+  \item \textbf{驱动（Driver）}
+    \begin{itemize}
+      \item 实现设备的操作接口
+      \item 包含 probe、remove、suspend、resume 等函数
+    \end{itemize}
+
+  \item \textbf{总线（Bus）}
+    \begin{itemize}
+      \item 连接设备和驱动
+      \item 管理设备枚举和驱动匹配
+      \item 如 PCI、USB、I2C、SPI 等
+    \end{itemize}
+
+  \item \textbf{类（Class）}
+    \begin{itemize}
+      \item 将功能相似的设备归类
+      \item 在 /sys/class 下创建统一接口
+    \end{itemize}
+\end{enumerate}
+
 \subsubsection{UART}
+
+UART（Universal Asynchronous Receiver/Transmitter）是异步串行通信接口。
+
+UART 驱动架构：
+\begin{itemize}
+  \item \textbf{TTY 子系统}：提供统一的终端接口
+  \item \textbf{串口核心层}：管理串口设备和驱动
+  \item \textbf{串口驱动层}：实现具体硬件的操作
+\end{itemize}
+
+UART 驱动需要实现：
+\begin{itemize}
+  \item 波特率设置
+  \item 数据位、停止位、校验位配置
+  \item 发送和接收数据
+  \item 中断处理（发送完成、接收数据）
+  \item 流控制（RTS/CTS、XON/XOFF）
+\end{itemize}
 
 \subsubsection{Timer}
 
+定时器是内核的重要功能，用于延迟执行、超时处理、周期性任务等。
+
+Linux 定时器类型：
+\begin{enumerate}
+  \item \textbf{高精度定时器（hrtimer）}
+    \begin{itemize}
+      \item 纳秒级精度
+      \item 基于红黑树组织
+      \item 用于需要高精度的场景
+    \end{itemize}
+
+  \item \textbf{传统定时器（timer\_list）}
+    \begin{itemize}
+      \item 基于 jiffies
+      \item 精度较低（通常 1ms 或 10ms）
+      \item 用于一般延迟和超时
+    \end{itemize}
+
+  \item \textbf{工作队列定时器（delayed\_work）}
+    \begin{itemize}
+      \item 在进程上下文中执行
+      \item 可以睡眠和阻塞
+    \end{itemize}
+\end{enumerate}
+
+定时器实现：
+\begin{lstlisting}[language=C]
+struct timer_list {
+    struct hlist_node entry;
+    unsigned long expires;      // 到期时间
+    void (*function)(unsigned long); // 回调函数
+    unsigned long data;         // 回调参数
+    u32 flags;
+};
+\end{lstlisting}
+
 \subsubsection{WDT}
+
+看门狗定时器（Watchdog Timer, WDT）用于检测系统是否正常运行。
+
+看门狗工作原理：
+\begin{itemize}
+  \item 硬件定时器定期递减计数
+  \item 软件需要定期"喂狗"（重置计数器）
+  \item 如果超时未喂狗，系统复位或触发中断
+\end{itemize}
+
+Linux 看门狗框架：
+\begin{itemize}
+  \item 统一的看门狗接口（/dev/watchdog）
+  \item 支持软件看门狗和硬件看门狗
+  \item 自动喂狗机制（如果启用）
+  \item 看门狗设备驱动实现具体硬件操作
+\end{itemize}
 
 \subsubsection{I2C/I3C}
 
+I2C（Inter-Integrated Circuit）是两线制串行总线，用于连接低速外设。
+
+I2C 总线特点：
+\begin{itemize}
+  \item 两线：SDA（数据线）和 SCL（时钟线）
+  \item 多主多从，支持仲裁
+  \item 7 位或 10 位地址
+  \item 标准模式（100kHz）、快速模式（400kHz）、高速模式（3.4MHz）
+\end{itemize}
+
+Linux I2C 子系统：
+\begin{itemize}
+  \item \textbf{I2C 核心}：总线管理、设备注册
+  \item \textbf{I2C 适配器驱动}：实现具体 I2C 控制器
+  \item \textbf{I2C 设备驱动}：实现具体 I2C 设备
+\end{itemize}
+
+I3C（Improved Inter-Integrated Circuit）是 I2C 的改进版本：
+\begin{itemize}
+  \item 更高的速度（最高 12.5MHz）
+  \item 支持动态地址分配
+  \item 向后兼容 I2C
+  \item 支持带内中断（IBI）
+\end{itemize}
+
 \subsubsection{SPI/QSPI}
+
+SPI（Serial Peripheral Interface）是同步串行接口，用于连接高速外设。
+
+SPI 总线特点：
+\begin{itemize}
+  \item 四线：MOSI、MISO、SCK、CS
+  \item 全双工通信
+  \item 主从模式，支持多从设备
+  \item 时钟速度可达几十 MHz
+\end{itemize}
+
+Linux SPI 子系统：
+\begin{itemize}
+  \item \textbf{SPI 核心}：总线管理和消息传递
+  \item \textbf{SPI 控制器驱动}：实现具体 SPI 控制器
+  \item \textbf{SPI 设备驱动}：实现具体 SPI 设备
+\end{itemize}
+
+QSPI（Quad SPI）是 SPI 的扩展：
+\begin{itemize}
+  \item 使用 4 条数据线（IO0-IO3）提高速度
+  \item 常用于 Flash 存储器
+  \item 支持单线、双线、四线模式
+\end{itemize}
 
 \subsubsection{RS232/RS422/RS485}
 
+这些是串行通信标准，通常通过 UART 实现。
+
+\begin{enumerate}
+  \item \textbf{RS232}
+    \begin{itemize}
+      \item 点对点通信
+      \item 单端信号，传输距离短（< 15 米）
+      \item 常用电压：-15V 到 +15V
+    \end{itemize}
+
+  \item \textbf{RS422}
+    \begin{itemize}
+      \item 差分信号，抗干扰能力强
+      \item 点对多点（一主多从）
+      \item 传输距离可达 1200 米
+    \end{itemize}
+
+  \item \textbf{RS485}
+    \begin{itemize}
+      \item 差分信号，与 RS422 类似
+      \item 支持多主多从
+      \item 需要终端电阻
+      \item 工业现场总线常用
+    \end{itemize}
+\end{enumerate}
+
+在 Linux 中，这些协议通常通过 UART 驱动和相应的电平转换芯片实现。
+
 \subsubsection{CAN}
+
+CAN（Controller Area Network）是用于汽车和工业控制的总线协议。
+
+CAN 总线特点：
+\begin{itemize}
+  \item 多主总线，支持仲裁
+  \item 基于消息的通信，无地址概念
+  \item 错误检测和恢复机制
+  \item 实时性要求高
+\end{itemize}
+
+Linux CAN 子系统：
+\begin{itemize}
+  \item \textbf{SocketCAN}：基于套接字的 CAN 接口
+  \item \textbf{CAN 核心}：协议实现和消息路由
+  \item \textbf{CAN 设备驱动}：实现具体 CAN 控制器
+\end{itemize}
+
+CAN 消息格式：
+\begin{itemize}
+  \item 标准帧（11 位 ID）或扩展帧（29 位 ID）
+  \item 数据长度：0-8 字节
+  \item 包含 CRC 校验
+\end{itemize}
 
 \subsubsection{Ethernet}
 
+以太网是局域网的主要技术，Linux 提供了完整的以太网支持。
+
+以太网驱动架构：
+\begin{itemize}
+  \item \textbf{网络设备接口}：net\_device
+  \item \textbf{网络协议栈}：处理以太网帧
+  \item \textbf{以太网驱动}：实现具体网卡硬件操作
+\end{itemize}
+
+以太网驱动需要实现：
+\begin{itemize}
+  \item 网卡初始化和配置
+  \item 数据包发送（hard\_start\_xmit）
+  \item 数据包接收（中断处理）
+  \item 统计信息收集
+  \item 链路状态管理
+\end{itemize}
+
+网络接口操作：
+\begin{itemize}
+  \item \texttt{ifconfig}：配置网络接口
+  \item \texttt{ethtool}：查看和配置网卡参数
+  \item \texttt{ip}：现代网络配置工具
+\end{itemize}
+
 \subsubsection{USB}
+
+USB（Universal Serial Bus）是通用的串行总线标准。
+
+USB 架构：
+\begin{itemize}
+  \item \textbf{USB 主机控制器}：管理 USB 总线
+  \item \textbf{USB 设备}：连接到总线的设备
+  \item \textbf{USB 驱动}：设备驱动和主机控制器驱动
+\end{itemize}
+
+Linux USB 子系统：
+\begin{itemize}
+  \item \textbf{USB 核心}：总线管理、设备枚举
+  \item \textbf{USB 主机控制器驱动}：UHCI、OHCI、EHCI、XHCI
+  \item \textbf{USB 设备驱动}：实现具体 USB 设备功能
+  \item \textbf{USB Gadget 框架}：USB 设备模式支持
+\end{itemize}
+
+USB 设备类型：
+\begin{itemize}
+  \item HID（人机接口设备）：键盘、鼠标
+  \item Mass Storage：U 盘、移动硬盘
+  \item Serial：USB 转串口
+  \item Network：USB 网卡
+  \item Audio：USB 音频设备
+\end{itemize}
 
 \subsubsection{PCI/PCIe}
 
+PCI（Peripheral Component Interconnect）和 PCIe（PCI Express）是计算机扩展总线标准。
+
+PCI/PCIe 特点：
+\begin{itemize}
+  \item 即插即用（Plug and Play）
+  \item 自动资源分配（I/O 地址、中断）
+  \item 支持热插拔（PCIe）
+  \item 高速数据传输
+\end{itemize}
+
+Linux PCI 子系统：
+\begin{itemize}
+  \item \textbf{PCI 核心}：总线枚举、资源配置
+  \item \textbf{PCI 驱动}：实现具体 PCI 设备功能
+  \item \textbf{PCIe 支持}：高级特性（MSI、MSI-X、热插拔）
+\end{itemize}
+
+PCI 配置空间：
+\begin{itemize}
+  \item 256 字节配置空间
+  \item 包含设备 ID、厂商 ID、资源需求
+  \item 系统自动分配资源
+\end{itemize}
+
 \subsection{文件系统}
+
+Linux 支持多种文件系统，从传统的 ext2 到现代的 btrfs、xfs 等。
+
+\subsubsection{虚拟文件系统（VFS）}
+
+\BlockDesc{VFS}
+
+VFS 是 Linux 文件系统的抽象层，提供统一的文件系统接口。
+
+VFS 的核心数据结构：
+\begin{itemize}
+  \item \textbf{super\_block}：文件系统超级块
+  \item \textbf{inode}：文件索引节点
+  \item \textbf{dentry}：目录项缓存
+  \item \textbf{file}：打开的文件
+\end{itemize}
+
+VFS 的操作接口：
+\begin{itemize}
+  \item \textbf{super\_operations}：文件系统级操作
+  \item \textbf{inode\_operations}：inode 操作
+  \item \textbf{file\_operations}：文件操作（read、write 等）
+  \item \textbf{dentry\_operations}：目录项操作
+\end{itemize}
 
 \subsubsection{ext2 简介}
 
+ext2（Second Extended Filesystem）是 Linux 的传统文件系统。
+
+ext2 的磁盘布局：
+\begin{itemize}
+  \item \textbf{引导块}：第一个块，包含引导程序
+  \item \textbf{超级块}：文件系统元数据
+  \item \textbf{块组描述符表}：描述每个块组
+  \item \textbf{块位图}：记录数据块使用情况
+  \item \textbf{inode 位图}：记录 inode 使用情况
+  \item \textbf{inode 表}：存储 inode
+  \item \textbf{数据块}：存储文件数据
+\end{itemize}
+
+ext2 的特点：
+\begin{itemize}
+  \item 使用索引节点（inode）管理文件
+  \item 支持 12 个直接块、1 个间接块、1 个二级间接块、1 个三级间接块
+  \item 最大文件大小：4TB（块大小 4KB）
+  \item 最大文件系统大小：16TB
+\end{itemize}
+
+ext3 和 ext4 的改进：
+\begin{itemize}
+  \item ext3：添加日志功能，提高可靠性
+  \item ext4：扩展性改进、延迟分配、多块分配等
+\end{itemize}
+
+\subsubsection{其他文件系统}
+
+\begin{enumerate}
+  \item \textbf{btrfs}
+    \begin{itemize}
+      \item 写时复制（COW）文件系统
+      \item 支持快照、压缩、子卷
+      \item 内置 RAID 和校验和
+    \end{itemize}
+
+  \item \textbf{xfs}
+    \begin{itemize}
+      \item 高性能文件系统
+      \item 适合大文件和大文件系统
+      \item 延迟分配、在线碎片整理
+    \end{itemize}
+
+  \item \textbf{tmpfs}
+    \begin{itemize}
+      \item 基于内存的文件系统
+      \item 用于 /tmp、/dev/shm
+      \item 数据存储在 RAM 中
+    \end{itemize}
+
+  \item \textbf{procfs 和 sysfs}
+    \begin{itemize}
+      \item 虚拟文件系统，不占用磁盘空间
+      \item procfs：进程和系统信息
+      \item sysfs：设备和驱动信息
+    \end{itemize}
+\end{enumerate}
+
 \section{Linux 应用开发}
+
+Linux 应用开发涉及系统编程、网络编程、多线程编程等多个方面。
+本节介绍 Linux 应用开发的核心技术和最佳实践。
 
 \subsection{文件及 IO}
 
@@ -85,16 +1470,1113 @@ Linux 系统对文件描述符的限制数量是 1024（soft limit），hard lim
 \BlockDesc{打开文件}
 
 \begin{lstlisting}[language=C]
-  #include <fcntl.h>
-  int open(const char *path, int oflag, ... /* mode_t mode */ );
-  int openat(int fd, const char *path, int oflag, ... /* mode_t mode */ );
-  /* Both return: file descriptor if OK, −1 on error */
+#include <fcntl.h>
+int open(const char *path, int oflag, ... /* mode_t mode */ );
+int openat(int fd, const char *path, int oflag, ... /* mode_t mode */ );
+/* Both return: file descriptor if OK, −1 on error */
 \end{lstlisting}
+
+\subsubsection{文件操作}
+
+\BlockDesc{读取和写入}
+
+\begin{lstlisting}[language=C]
+#include <unistd.h>
+ssize_t read(int fd, void *buf, size_t nbytes);
+ssize_t write(int fd, const void *buf, size_t nbytes);
+/* Both return: number of bytes read/written if OK, −1 on error */
+\end{lstlisting}
+
+\texttt{read()} 和 \texttt{write()} 是基本的文件 I/O 函数：
+\begin{itemize}
+  \item \texttt{read()} 从文件描述符读取数据
+  \item \texttt{write()} 向文件描述符写入数据
+  \item 返回值是实际读取/写入的字节数
+  \item 可能返回的值小于请求的字节数（部分读取/写入）
+\end{itemize}
+
+\BlockDesc{文件定位}
+
+\begin{lstlisting}[language=C]
+#include <unistd.h>
+off_t lseek(int fd, off_t offset, int whence);
+/* Returns: new file offset if OK, −1 on error */
+\end{lstlisting}
+
+\texttt{lseek()} 用于改变文件的当前偏移量：
+\begin{itemize}
+  \item \texttt{SEEK\_SET}：从文件开始偏移
+  \item \texttt{SEEK\_CUR}：从当前位置偏移
+  \item \texttt{SEEK\_END}：从文件末尾偏移
+\end{itemize}
+
+\subsubsection{文件描述符操作}
+
+\BlockDesc{复制文件描述符}
+
+\begin{lstlisting}[language=C]
+#include <unistd.h>
+int dup(int fd);
+int dup2(int fd, int fd2);
+/* Both return: new file descriptor if OK, −1 on error */
+\end{lstlisting}
+
+\texttt{dup()} 和 \texttt{dup2()} 用于复制文件描述符：
+\begin{itemize}
+  \item \texttt{dup()} 返回最小的未使用文件描述符
+  \item \texttt{dup2()} 将 \texttt{fd} 复制到 \texttt{fd2}，如果 \texttt{fd2} 已打开则先关闭
+  \item 复制的文件描述符共享同一个文件表项
+\end{itemize}
+
+\subsubsection{文件状态}
+
+\BlockDesc{获取文件信息}
+
+\begin{lstlisting}[language=C]
+#include <sys/stat.h>
+int stat(const char *restrict pathname, struct stat *restrict buf);
+int fstat(int fd, struct stat *buf);
+int lstat(const char *restrict pathname, struct stat *restrict buf);
+/* All return: 0 if OK, −1 on error */
+\end{lstlisting}
+
+\texttt{stat} 结构体包含文件的详细信息：
+\begin{itemize}
+  \item 文件类型和权限
+  \item 文件大小
+  \item 时间戳（访问、修改、状态改变）
+  \item 设备号和 inode 号
+\end{itemize}
+
+\subsubsection{目录操作}
+
+\BlockDesc{目录操作}
+
+\begin{lstlisting}[language=C]
+#include <dirent.h>
+DIR *opendir(const char *pathname);
+struct dirent *readdir(DIR *dp);
+int closedir(DIR *dp);
+\end{lstlisting}
+
+目录操作函数：
+\begin{itemize}
+  \item \texttt{opendir()} 打开目录，返回 DIR 指针
+  \item \texttt{readdir()} 读取目录项，返回 dirent 结构
+  \item \texttt{closedir()} 关闭目录
+\end{itemize}
+
+\subsubsection{IO 多路复用}
+
+\BlockDesc{select/poll/epoll}
+
+当需要同时监控多个文件描述符时，可以使用 IO 多路复用。
+
+\texttt{select()}：
+\begin{lstlisting}[language=C]
+#include <sys/select.h>
+int select(int maxfdp1, fd_set *restrict readfds,
+           fd_set *restrict writefds, fd_set *restrict exceptfds,
+           struct timeval *restrict tvptr);
+/* Returns: count of ready descriptors, 0 on timeout, −1 on error */
+\end{lstlisting}
+
+\texttt{select()} 的特点：
+\begin{itemize}
+  \item 监控多个文件描述符
+  \item 有文件描述符数量限制（FD\_SETSIZE，通常 1024）
+  \item 每次调用需要重新设置文件描述符集合
+  \item 效率较低，适合少量文件描述符
+\end{itemize}
+
+\texttt{poll()}：
+\begin{lstlisting}[language=C]
+#include <poll.h>
+int poll(struct pollfd fdarray[], nfds_t nfds, int timeout);
+/* Returns: count of ready descriptors, 0 on timeout, −1 on error */
+\end{lstlisting}
+
+\texttt{poll()} 的改进：
+\begin{itemize}
+  \item 没有文件描述符数量限制
+  \item 使用 pollfd 数组，更灵活
+  \item 仍然需要遍历所有文件描述符
+\end{itemize}
+
+\texttt{epoll()}（Linux 特有）：
+\begin{lstlisting}[language=C]
+#include <sys/epoll.h>
+int epoll_create(int size);
+int epoll_ctl(int epfd, int op, int fd, struct epoll_event *event);
+int epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout);
+\end{lstlisting}
+
+\texttt{epoll()} 的优势：
+\begin{itemize}
+  \item 高效：只返回就绪的文件描述符
+  \item 支持边缘触发（ET）和水平触发（LT）模式
+  \item 适合大量文件描述符的场景
+  \item Linux 高性能网络服务器的首选
+\end{itemize}
 
 \subsection{网络}
 
+网络编程是 Linux 应用开发的重要部分，涉及套接字编程、协议处理等。
+
+\subsubsection{套接字基础}
+
+\BlockDesc{套接字}
+
+套接字（Socket）是网络通信的端点，提供进程间网络通信的接口。
+
+套接字类型：
+\begin{itemize}
+  \item \textbf{流套接字（SOCK\_STREAM）}：TCP，面向连接，可靠传输
+  \item \textbf{数据报套接字（SOCK\_DGRAM）}：UDP，无连接，不可靠
+  \item \textbf{原始套接字（SOCK\_RAW）}：直接访问网络层
+\end{itemize}
+
+\BlockDesc{创建套接字}
+
+\begin{lstlisting}[language=C]
+#include <sys/socket.h>
+int socket(int domain, int type, int protocol);
+/* Returns: file descriptor if OK, −1 on error */
+\end{lstlisting}
+
+套接字域（domain）：
+\begin{itemize}
+  \item \texttt{AF\_INET}：IPv4
+  \item \texttt{AF\_INET6}：IPv6
+  \item \texttt{AF\_UNIX}：Unix 域套接字（本地通信）
+\end{itemize}
+
+\subsubsection{TCP 服务器编程}
+
+TCP 服务器编程的基本步骤：
+
+\begin{enumerate}
+  \item 创建套接字
+  \item 绑定地址和端口
+  \item 监听连接
+  \item 接受连接
+  \item 收发数据
+  \item 关闭连接
+\end{enumerate}
+
+示例代码：
+\begin{lstlisting}[language=C]
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
+// 创建套接字
+int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+
+// 设置地址结构
+struct sockaddr_in servaddr;
+memset(&servaddr, 0, sizeof(servaddr));
+servaddr.sin_family = AF_INET;
+servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+servaddr.sin_port = htons(8080);
+
+// 绑定
+bind(sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr));
+
+// 监听
+listen(sockfd, 5);
+
+// 接受连接
+struct sockaddr_in cliaddr;
+socklen_t len = sizeof(cliaddr);
+int connfd = accept(sockfd, (struct sockaddr *)&cliaddr, &len);
+
+// 收发数据
+char buf[1024];
+read(connfd, buf, sizeof(buf));
+write(connfd, buf, strlen(buf));
+
+// 关闭
+close(connfd);
+close(sockfd);
+\end{lstlisting}
+
+\subsubsection{TCP 客户端编程}
+
+TCP 客户端编程的基本步骤：
+
+\begin{enumerate}
+  \item 创建套接字
+  \item 连接到服务器
+  \item 收发数据
+  \item 关闭连接
+\end{enumerate}
+
+示例代码：
+\begin{lstlisting}[language=C]
+// 创建套接字
+int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+
+// 设置服务器地址
+struct sockaddr_in servaddr;
+memset(&servaddr, 0, sizeof(servaddr));
+servaddr.sin_family = AF_INET;
+servaddr.sin_port = htons(8080);
+inet_pton(AF_INET, "127.0.0.1", &servaddr.sin_addr);
+
+// 连接
+connect(sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr));
+
+// 收发数据
+write(sockfd, "Hello", 5);
+read(sockfd, buf, sizeof(buf));
+
+// 关闭
+close(sockfd);
+\end{lstlisting}
+
+\subsubsection{UDP 编程}
+
+UDP 是无连接的，直接发送和接收数据报。
+
+UDP 服务器：
+\begin{lstlisting}[language=C]
+int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+
+struct sockaddr_in servaddr;
+servaddr.sin_family = AF_INET;
+servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+servaddr.sin_port = htons(8080);
+
+bind(sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr));
+
+struct sockaddr_in cliaddr;
+socklen_t len = sizeof(cliaddr);
+char buf[1024];
+
+// 接收数据
+recvfrom(sockfd, buf, sizeof(buf), 0,
+         (struct sockaddr *)&cliaddr, &len);
+
+// 发送数据
+sendto(sockfd, buf, strlen(buf), 0,
+       (struct sockaddr *)&cliaddr, len);
+\end{lstlisting}
+
+\subsubsection{高级网络编程}
+
+\BlockDesc{非阻塞 IO}
+
+设置套接字为非阻塞模式：
+\begin{lstlisting}[language=C]
+int flags = fcntl(sockfd, F_GETFL, 0);
+fcntl(sockfd, F_SETFL, flags | O_NONBLOCK);
+\end{lstlisting}
+
+非阻塞 IO 的特点：
+\begin{itemize}
+  \item 操作立即返回，不会阻塞
+  \item 需要配合 IO 多路复用使用
+  \item 适合高并发场景
+\end{itemize}
+
+\BlockDesc{地址重用}
+
+允许地址重用，避免 TIME\_WAIT 状态的影响：
+\begin{lstlisting}[language=C]
+int opt = 1;
+setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+\end{lstlisting}
+
 \subsection{进程}
+
+进程管理是 Linux 系统编程的核心内容。
+
+\subsubsection{进程创建}
+
+\BlockDesc{fork}
+
+\begin{lstlisting}[language=C]
+#include <unistd.h>
+pid_t fork(void);
+/* Returns: 0 in child, process ID of child in parent, −1 on error */
+\end{lstlisting}
+
+\texttt{fork()} 创建新进程：
+\begin{itemize}
+  \item 子进程是父进程的副本
+  \item 子进程获得父进程数据空间、堆和栈的副本
+  \item 父子进程共享代码段
+  \item 返回值：子进程返回 0，父进程返回子进程 PID
+\end{itemize}
+
+\BlockDesc{exec}
+
+\begin{lstlisting}[language=C]
+#include <unistd.h>
+int execl(const char *pathname, const char *arg0, ... /* (char *)0 */ );
+int execv(const char *pathname, char *const argv[]);
+int execle(const char *pathname, const char *arg0, ... /* (char *)0, char *const envp[] */ );
+int execve(const char *pathname, char *const argv[], char *const envp[]);
+int execlp(const char *filename, const char *arg0, ... /* (char *)0 */ );
+int execvp(const char *filename, char *const argv[]);
+/* All return: −1 on error, no return on success */
+\end{lstlisting}
+
+\texttt{exec} 函数族用于执行新程序：
+\begin{itemize}
+  \item 替换当前进程的映像
+  \item 新程序从 \texttt{main()} 开始执行
+  \item 进程 ID 不变
+  \item 通常与 \texttt{fork()} 配合使用
+\end{itemize}
+
+\subsubsection{进程终止}
+
+\BlockDesc{进程退出}
+
+\begin{lstlisting}[language=C]
+#include <stdlib.h>
+void exit(int status);
+void _Exit(int status);
+
+#include <unistd.h>
+void _exit(int status);
+\end{lstlisting}
+
+进程终止方式：
+\begin{itemize}
+  \item \texttt{exit()}：正常终止，执行清理函数
+  \item \texttt{\_exit()} 和 \texttt{\_Exit()}：立即终止，不执行清理
+  \item \texttt{return}：从 \texttt{main()} 返回
+\end{itemize}
+
+\BlockDesc{等待子进程}
+
+\begin{lstlisting}[language=C]
+#include <sys/wait.h>
+pid_t wait(int *statloc);
+pid_t waitpid(pid_t pid, int *statloc, int options);
+/* Both return: process ID if OK, 0 or −1 on error */
+\end{lstlisting}
+
+\texttt{wait()} 和 \texttt{waitpid()} 用于等待子进程终止：
+\begin{itemize}
+  \item \texttt{wait()} 等待任意子进程
+  \item \texttt{waitpid()} 可以等待特定子进程
+  \item 防止僵尸进程的产生
+\end{itemize}
+
+\subsubsection{进程间通信}
+
+\BlockDesc{管道}
+
+\begin{lstlisting}[language=C]
+#include <unistd.h>
+int pipe(int fd[2]);
+/* Returns: 0 if OK, −1 on error */
+\end{lstlisting}
+
+管道用于有亲缘关系的进程间通信：
+\begin{itemize}
+  \item \texttt{fd[0]} 用于读，\texttt{fd[1]} 用于写
+  \item 半双工通信
+  \item 数据在内核缓冲区中
+\end{itemize}
+
+\BlockDesc{共享内存}
+
+\begin{lstlisting}[language=C]
+#include <sys/shm.h>
+int shmget(key_t key, size_t size, int flag);
+void *shmat(int shmid, const void *addr, int flag);
+int shmdt(const void *addr);
+int shmctl(int shmid, int cmd, struct shmid_ds *buf);
+\end{lstlisting}
+
+共享内存是最快的 IPC 方式：
+\begin{itemize}
+  \item \texttt{shmget()} 创建或获取共享内存段
+  \item \texttt{shmat()} 附加共享内存到进程地址空间
+  \item \texttt{shmdt()} 分离共享内存
+  \item 需要同步机制防止竞争
+\end{itemize}
+
+\subsubsection{信号}
+
+\BlockDesc{信号处理}
+
+\begin{lstlisting}[language=C]
+#include <signal.h>
+void (*signal(int signo, void (*func)(int)))(int);
+/* Returns: previous disposition of signal if OK, SIG_ERR on error */
+\end{lstlisting}
+
+信号是异步通知机制：
+\begin{itemize}
+  \item 标准信号：SIGINT、SIGTERM、SIGKILL 等
+  \item 实时信号：SIGRTMIN 到 SIGRTMAX
+  \item 可以忽略、捕获或使用默认处理
+\end{itemize}
+
+\BlockDesc{发送信号}
+
+\begin{lstlisting}[language=C]
+#include <signal.h>
+int kill(pid_t pid, int signo);
+int raise(int signo);
+/* Both return: 0 if OK, −1 on error */
+\end{lstlisting}
 
 \subsection{线程}
 
+Linux 使用 POSIX 线程（pthread）库进行多线程编程。
+
+\subsubsection{线程创建和终止}
+
+\BlockDesc{创建线程}
+
+\begin{lstlisting}[language=C]
+#include <pthread.h>
+int pthread_create(pthread_t *restrict tidp,
+                   const pthread_attr_t *restrict attr,
+                   void *(*start_rtn)(void *), void *restrict arg);
+/* Returns: 0 if OK, error number on failure */
+\end{lstlisting}
+
+\texttt{pthread\_create()} 创建新线程：
+\begin{itemize}
+  \item \texttt{tidp} 返回线程 ID
+  \item \texttt{attr} 指定线程属性
+  \item \texttt{start\_rtn} 是线程函数
+  \item \texttt{arg} 是传递给线程函数的参数
+\end{itemize}
+
+\BlockDesc{等待线程}
+
+\begin{lstlisting}[language=C]
+#include <pthread.h>
+int pthread_join(pthread_t thread, void **rval_ptr);
+/* Returns: 0 if OK, error number on error */
+\end{lstlisting}
+
+\texttt{pthread\_join()} 等待线程终止：
+\begin{itemize}
+  \item 阻塞调用线程，直到目标线程终止
+  \item \texttt{rval\_ptr} 接收线程返回值
+  \item 防止线程成为僵尸线程
+\end{itemize}
+
+\subsubsection{线程同步}
+
+\BlockDesc{互斥锁}
+
+\begin{lstlisting}[language=C]
+#include <pthread.h>
+int pthread_mutex_init(pthread_mutex_t *restrict mutex,
+                       const pthread_mutexattr_t *restrict attr);
+int pthread_mutex_destroy(pthread_mutex_t *mutex);
+int pthread_mutex_lock(pthread_mutex_t *mutex);
+int pthread_mutex_trylock(pthread_mutex_t *mutex);
+int pthread_mutex_unlock(pthread_mutex_t *mutex);
+/* All return: 0 if OK, error number on error */
+\end{lstlisting}
+
+互斥锁用于保护临界区：
+\begin{itemize}
+  \item \texttt{pthread\_mutex\_lock()} 获取锁，阻塞直到可用
+  \item \texttt{pthread\_mutex\_trylock()} 尝试获取锁，立即返回
+  \item \texttt{pthread\_mutex\_unlock()} 释放锁
+\end{itemize}
+
+\BlockDesc{条件变量}
+
+\begin{lstlisting}[language=C]
+#include <pthread.h>
+int pthread_cond_init(pthread_cond_t *restrict cond,
+                      const pthread_condattr_t *restrict attr);
+int pthread_cond_destroy(pthread_cond_t *cond);
+int pthread_cond_wait(pthread_cond_t *restrict cond,
+                      pthread_mutex_t *restrict mutex);
+int pthread_cond_signal(pthread_cond_t *cond);
+int pthread_cond_broadcast(pthread_cond_t *cond);
+/* All return: 0 if OK, error number on error */
+\end{lstlisting}
+
+条件变量用于线程等待条件：
+\begin{itemize}
+  \item \texttt{pthread\_cond\_wait()} 释放互斥锁并等待条件
+  \item \texttt{pthread\_cond\_signal()} 唤醒一个等待的线程
+  \item \texttt{pthread\_cond\_broadcast()} 唤醒所有等待的线程
+  \item 必须与互斥锁配合使用
+\end{itemize}
+
+\BlockDesc{读写锁}
+
+\begin{lstlisting}[language=C]
+#include <pthread.h>
+int pthread_rwlock_init(pthread_rwlock_t *restrict rwlock,
+                        const pthread_rwlockattr_t *restrict attr);
+int pthread_rwlock_rdlock(pthread_rwlock_t *rwlock);
+int pthread_rwlock_wrlock(pthread_rwlock_t *rwlock);
+int pthread_rwlock_unlock(pthread_rwlock_t *rwlock);
+/* All return: 0 if OK, error number on error */
+\end{lstlisting}
+
+读写锁允许多个读者或一个写者：
+\begin{itemize}
+  \item \texttt{pthread\_rwlock\_rdlock()} 获取读锁
+  \item \texttt{pthread\_rwlock\_wrlock()} 获取写锁
+  \item 适合读多写少的场景
+\end{itemize}
+
 \subsection{异常处理}
+
+异常处理是程序健壮性的重要保障。
+
+\subsubsection{错误处理}
+
+\BlockDesc{errno}
+
+系统调用失败时，错误码存储在 \texttt{errno} 中：
+\begin{lstlisting}[language=C]
+#include <errno.h>
+extern int errno;
+\end{lstlisting}
+
+常见错误码：
+\begin{itemize}
+  \item \texttt{EAGAIN}：资源暂时不可用
+  \item \texttt{EBADF}：无效的文件描述符
+  \item \texttt{EINTR}：系统调用被信号中断
+  \item \texttt{EINVAL}：无效参数
+  \item \texttt{ENOMEM}：内存不足
+  \item \texttt{EPERM}：权限不足
+\end{itemize}
+
+\BlockDesc{错误处理函数}
+
+\begin{lstlisting}[language=C]
+#include <string.h>
+char *strerror(int errnum);
+
+#include <stdio.h>
+void perror(const char *msg);
+\end{lstlisting}
+
+\texttt{strerror()} 和 \texttt{perror()} 用于打印错误信息。
+
+\subsubsection{信号处理}
+
+\BlockDesc{信号处理函数}
+
+\begin{lstlisting}[language=C]
+#include <signal.h>
+int sigaction(int signo, const struct sigaction *restrict act,
+              struct sigaction *restrict oact);
+/* Returns: 0 if OK, −1 on error */
+\end{lstlisting}
+
+\texttt{sigaction()} 是更可靠的信号处理接口：
+\begin{itemize}
+  \item 可以指定信号处理函数
+  \item 可以设置信号掩码
+  \item 可以指定信号处理标志
+\end{itemize}
+
+\subsubsection{资源限制}
+
+\BlockDesc{资源限制}
+
+\begin{lstlisting}[language=C]
+#include <sys/resource.h>
+int getrlimit(int resource, struct rlimit *rlptr);
+int setrlimit(int resource, const struct rlimit *rlptr);
+/* Both return: 0 if OK, −1 on error */
+\end{lstlisting}
+
+资源限制类型：
+\begin{itemize}
+  \item \texttt{RLIMIT\_CPU}：CPU 时间限制
+  \item \texttt{RLIMIT\_DATA}：数据段大小
+  \item \texttt{RLIMIT\_FSIZE}：文件大小
+  \item \texttt{RLIMIT\_NOFILE}：打开文件数
+  \item \texttt{RLIMIT\_STACK}：栈大小
+\end{itemize}
+
+\subsubsection{调试和诊断}
+
+\BlockDesc{调试工具}
+
+常用的调试和诊断工具：
+\begin{itemize}
+  \item \textbf{gdb}：GNU 调试器，用于调试程序
+  \item \textbf{strace}：跟踪系统调用
+  \item \textbf{ltrace}：跟踪库函数调用
+  \item \textbf{valgrind}：内存错误检测
+  \item \textbf{perf}：性能分析工具
+  \item \textbf{tcpdump}：网络包捕获
+\end{itemize}
+
+\subsubsection{日志记录}
+
+\BlockDesc{系统日志}
+
+\begin{lstlisting}[language=C]
+#include <syslog.h>
+void openlog(const char *ident, int option, int facility);
+void syslog(int priority, const char *format, ...);
+void closelog(void);
+\end{lstlisting}
+
+系统日志用于记录程序运行信息：
+\begin{itemize}
+  \item 优先级：LOG\_EMERG、LOG\_ERR、LOG\_WARNING、LOG\_INFO 等
+  \item 设施：LOG\_USER、LOG\_DAEMON、LOG\_LOCAL0-7 等
+  \item 日志通常写入 /var/log/syslog 或 /var/log/messages
+\end{itemize}
+
+\subsection{系统性能优化}
+
+系统性能优化是 Linux 应用开发的重要方面，涉及 CPU、内存、I/O、网络等多个维度。
+
+\subsubsection{CPU 性能优化}
+
+\begin{enumerate}
+  \item \textbf{CPU 亲和性}
+    \begin{itemize}
+      \item 将进程绑定到特定 CPU 核心
+      \item 减少 CPU 缓存失效
+      \item 使用 \texttt{sched\_setaffinity()} 设置
+    \end{itemize}
+
+  \item \textbf{进程优先级}
+    \begin{itemize}
+      \item 使用 \texttt{nice()} 调整进程优先级
+      \item 实时进程使用 \texttt{sched\_setscheduler()}
+      \item 平衡系统负载和响应性
+    \end{itemize}
+
+  \item \textbf{CPU 频率调节}
+    \begin{itemize}
+      \item 使用 cpufreq 子系统
+      \item 性能模式 vs 节能模式
+      \item 动态频率调节（DVFS）
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{内存性能优化}
+
+\begin{enumerate}
+  \item \textbf{内存对齐}
+    \begin{itemize}
+      \item 数据结构对齐到缓存行边界
+      \item 减少 false sharing
+      \item 使用 \texttt{\_\_attribute\_\_((aligned))}
+    \end{itemize}
+
+  \item \textbf{内存预取}
+    \begin{itemize}
+      \item 使用 \texttt{prefetch()} 预取数据
+      \item 减少缓存未命中
+      \item 需要根据访问模式调整
+    \end{itemize}
+
+  \item \textbf{大页内存}
+    \begin{itemize}
+      \item 使用 2MB 或 1GB 大页
+      \item 减少 TLB 未命中
+      \item 适合大内存应用
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{I/O 性能优化}
+
+\begin{enumerate}
+  \item \textbf{异步 I/O}
+    \begin{itemize}
+      \item 使用 \texttt{aio\_read()}、\texttt{aio\_write()}
+      \item 避免阻塞等待 I/O 完成
+      \item 提高并发性能
+    \end{itemize}
+
+  \item \textbf{直接 I/O}
+    \begin{itemize}
+      \item 使用 \texttt{O\_DIRECT} 标志
+      \item 绕过页缓存，直接访问磁盘
+      \item 适合大文件顺序访问
+    \end{itemize}
+
+  \item \textbf{零拷贝}
+    \begin{itemize}
+      \item 使用 \texttt{sendfile()}、\texttt{splice()}
+      \item 减少数据拷贝次数
+      \item 提高网络和文件传输性能
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{网络性能优化}
+
+\begin{enumerate}
+  \item \textbf{套接字选项}
+    \begin{itemize}
+      \item \texttt{SO\_REUSEADDR}：地址重用
+      \item \texttt{SO\_REUSEPORT}：端口重用（负载均衡）
+      \item \texttt{SO\_RCVBUF}、\texttt{SO\_SNDBUF}：缓冲区大小
+    \end{itemize}
+
+  \item \textbf{TCP 优化}
+    \begin{itemize}
+      \item 调整 TCP 窗口大小
+      \item 启用 TCP\_NODELAY（禁用 Nagle 算法）
+      \item 使用 TCP\_CORK 批量发送
+    \end{itemize}
+
+  \item \textbf{epoll 优化}
+    \begin{itemize}
+      \item 使用边缘触发（ET）模式
+      \item 一次性处理所有就绪事件
+      \item 减少系统调用次数
+    \end{itemize}
+\end{enumerate}
+
+\subsection{内核模块开发}
+
+内核模块是 Linux 内核的扩展，可以在运行时动态加载和卸载。
+
+\subsubsection{模块基础}
+
+\BlockDesc{内核模块}
+
+内核模块的特点：
+\begin{itemize}
+  \item 可以动态加载和卸载
+  \item 运行在内核空间
+  \item 可以访问内核符号和资源
+  \item 需要遵循内核编程规范
+\end{itemize}
+
+简单的内核模块示例：
+\begin{lstlisting}[language=C]
+#include <linux/init.h>
+#include <linux/module.h>
+#include <linux/kernel.h>
+
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Your Name");
+MODULE_DESCRIPTION("A simple kernel module");
+
+static int __init hello_init(void)
+{
+    printk(KERN_INFO "Hello, kernel!\n");
+    return 0;
+}
+
+static void __exit hello_exit(void)
+{
+    printk(KERN_INFO "Goodbye, kernel!\n");
+}
+
+module_init(hello_init);
+module_exit(hello_exit);
+\end{lstlisting}
+
+\subsubsection{字符设备驱动}
+
+字符设备是最简单的设备类型，提供字节流接口。
+
+字符设备驱动的基本结构：
+\begin{lstlisting}[language=C]
+#include <linux/fs.h>
+#include <linux/cdev.h>
+
+static int major;
+static struct cdev my_cdev;
+
+static int my_open(struct inode *inode, struct file *file)
+{
+    // 打开设备
+    return 0;
+}
+
+static ssize_t my_read(struct file *file, char __user *buf,
+                       size_t count, loff_t *pos)
+{
+    // 读取数据
+    return 0;
+}
+
+static ssize_t my_write(struct file *file, const char __user *buf,
+                        size_t count, loff_t *pos)
+{
+    // 写入数据
+    return count;
+}
+
+static struct file_operations my_fops = {
+    .owner = THIS_MODULE,
+    .open = my_open,
+    .read = my_read,
+    .write = my_write,
+};
+
+static int __init my_init(void)
+{
+    // 分配设备号
+    alloc_chrdev_region(&major, 0, 1, "mydevice");
+
+    // 初始化字符设备
+    cdev_init(&my_cdev, &my_fops);
+    cdev_add(&my_cdev, major, 1);
+
+    return 0;
+}
+
+static void __exit my_exit(void)
+{
+    cdev_del(&my_cdev);
+    unregister_chrdev_region(major, 1);
+}
+
+module_init(my_init);
+module_exit(my_exit);
+\end{lstlisting}
+
+\subsubsection{内核同步}
+
+内核模块中需要使用同步机制保护共享资源。
+
+\begin{enumerate}
+  \item \textbf{自旋锁}
+    \begin{itemize}
+      \item \texttt{spinlock\_t}：自旋锁类型
+      \item \texttt{spin\_lock()}、\texttt{spin\_unlock()}
+      \item 适合中断上下文和短时间持有
+    \end{itemize}
+
+  \item \textbf{互斥锁}
+    \begin{itemize}
+      \item \texttt{struct mutex}：互斥锁类型
+      \item \texttt{mutex\_lock()}、\texttt{mutex\_unlock()}
+      \item 可以睡眠，适合进程上下文
+    \end{itemize}
+
+  \item \textbf{信号量}
+    \begin{itemize}
+      \item \texttt{struct semaphore}：信号量类型
+      \item \texttt{down()}、\texttt{up()}
+      \item 支持计数信号量
+    \end{itemize}
+
+  \item \textbf{完成量}
+    \begin{itemize}
+      \item \texttt{struct completion}：完成量类型
+      \item \texttt{wait\_for\_completion()}、\texttt{complete()}
+      \item 用于等待某个事件完成
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{内存管理}
+
+内核模块中的内存分配：
+
+\begin{enumerate}
+  \item \textbf{kmalloc/kfree}
+    \begin{itemize}
+      \item 分配连续物理内存
+      \item 类似用户空间的 malloc/free
+      \item 使用 GFP\_KERNEL 或 GFP\_ATOMIC 标志
+    \end{itemize}
+
+  \item \textbf{vmalloc/vfree}
+    \begin{itemize}
+      \item 分配虚拟地址连续的内存
+      \item 物理地址可能不连续
+      \item 开销较大，适合大块内存
+    \end{itemize}
+
+  \item \textbf{页分配器}
+    \begin{itemize}
+      \item \texttt{alloc\_pages()}：分配物理页
+      \item \texttt{get\_free\_page()}：分配并映射到虚拟地址
+      \item 用于大块内存分配
+    \end{itemize}
+\end{enumerate}
+
+\subsection{系统监控和调试}
+
+系统监控和调试是维护 Linux 系统的重要技能。
+
+\subsubsection{系统监控工具}
+
+\begin{enumerate}
+  \item \textbf{top/htop}
+    \begin{itemize}
+      \item 实时显示进程和系统资源使用情况
+      \item CPU、内存、负载等信息
+      \item 交互式操作，可以排序和杀死进程
+    \end{itemize}
+
+  \item \textbf{vmstat}
+    \begin{itemize}
+      \item 显示虚拟内存统计信息
+      \item CPU、内存、I/O、中断等统计
+      \item 可以定期采样
+    \end{itemize}
+
+  \item \textbf{iostat}
+    \begin{itemize}
+      \item 显示 I/O 统计信息
+      \item 磁盘读写速度、利用率、等待时间
+      \item 帮助诊断 I/O 瓶颈
+    \end{itemize}
+
+  \item \textbf{netstat/ss}
+    \begin{itemize}
+      \item 显示网络连接和统计信息
+      \item 监听端口、连接状态、路由表
+      \item ss 是 netstat 的现代替代品
+    \end{itemize}
+
+  \item \textbf{sar}
+    \begin{itemize}
+      \item 系统活动报告工具
+      \item 可以记录和回放历史数据
+      \item 全面的系统性能分析
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{性能分析}
+
+\begin{enumerate}
+  \item \textbf{perf}
+    \begin{itemize}
+      \item Linux 性能分析工具
+      \item 支持硬件性能计数器
+      \item 可以分析 CPU、内存、缓存等性能
+    \end{itemize}
+
+  \item \textbf{strace}
+    \begin{itemize}
+      \item 跟踪系统调用
+      \item 显示程序调用的所有系统调用
+      \item 帮助理解程序行为和调试问题
+    \end{itemize}
+
+  \item \textbf{ltrace}
+    \begin{itemize}
+      \item 跟踪库函数调用
+      \item 显示程序调用的动态库函数
+      \item 帮助分析程序依赖
+    \end{itemize}
+
+  \item \textbf{valgrind}
+    \begin{itemize}
+      \item 内存错误检测工具
+      \item 检测内存泄漏、越界访问等
+      \item 性能分析（callgrind）
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{内核调试}
+
+\begin{enumerate}
+  \item \textbf{printk}
+    \begin{itemize}
+      \item 内核日志输出函数
+      \item 不同日志级别（KERN\_DEBUG、KERN\_INFO 等）
+      \item 通过 dmesg 查看
+    \end{itemize}
+
+  \item \textbf{kgdb}
+    \begin{itemize}
+      \item 内核调试器
+      \item 可以远程调试内核
+      \item 需要特殊配置和硬件支持
+    \end{itemize}
+
+  \item \textbf{ftrace}
+    \begin{itemize}
+      \item 内核函数跟踪框架
+      \item 可以跟踪函数调用、中断、调度等
+      \item 通过 /sys/kernel/debug/tracing 访问
+    \end{itemize}
+
+  \item \textbf{SystemTap}
+    \begin{itemize}
+      \item 动态跟踪工具
+      \item 可以跟踪内核和用户空间
+      \item 使用脚本语言编写跟踪程序
+    \end{itemize}
+\end{enumerate}
+
+\subsection{容器技术}
+
+容器技术是现代 Linux 系统的重要特性，提供了轻量级的虚拟化方案。
+
+\subsubsection{容器基础}
+
+\BlockDesc{容器}
+
+容器的特点：
+\begin{itemize}
+  \item 轻量级：共享主机内核，无需完整操作系统
+  \item 隔离：进程、网络、文件系统隔离
+  \item 可移植：一次构建，到处运行
+  \item 快速启动：秒级启动时间
+\end{itemize}
+
+容器的核心技术：
+\begin{itemize}
+  \item \textbf{命名空间（Namespace）}：提供资源隔离
+  \item \textbf{控制组（Cgroup）}：资源限制和统计
+  \item \textbf{联合文件系统（UnionFS）}：分层文件系统
+  \item \textbf{容器运行时}：管理容器的生命周期
+\end{itemize}
+
+\subsubsection{命名空间}
+
+Linux 命名空间类型：
+\begin{enumerate}
+  \item \textbf{PID 命名空间}：进程 ID 隔离
+  \item \textbf{网络命名空间}：网络接口、路由表隔离
+  \item \textbf{挂载命名空间}：文件系统挂载点隔离
+  \item \textbf{UTS 命名空间}：主机名和域名隔离
+  \item \textbf{IPC 命名空间}：System V IPC 隔离
+  \item \textbf{用户命名空间}：用户和组 ID 隔离
+\end{enumerate}
+
+\subsubsection{控制组（Cgroup）}
+
+Cgroup 用于限制和统计进程组使用的资源。
+
+Cgroup v2 的主要控制器：
+\begin{itemize}
+  \item \textbf{CPU}：CPU 使用限制和权重
+  \item \textbf{Memory}：内存使用限制
+  \item \textbf{IO}：I/O 带宽限制
+  \item \textbf{PIDs}：进程数量限制
+\end{itemize}
+
+Cgroup 文件系统通常挂载在 /sys/fs/cgroup。
+
+\subsubsection{Docker}
+
+Docker 是最流行的容器平台。
+
+Docker 的核心概念：
+\begin{itemize}
+  \item \textbf{镜像（Image）}：只读的模板，用于创建容器
+  \item \textbf{容器（Container）}：镜像的运行实例
+  \item \textbf{仓库（Repository）}：存储镜像的地方
+  \item \textbf{Dockerfile}：用于构建镜像的脚本
+\end{itemize}
+
+Docker 的基本命令：
+\begin{itemize}
+  \item \texttt{docker build}：构建镜像
+  \item \texttt{docker run}：运行容器
+  \item \texttt{docker ps}：列出容器
+  \item \texttt{docker images}：列出镜像
+  \item \texttt{docker stop/start}：停止/启动容器
+\end{itemize}

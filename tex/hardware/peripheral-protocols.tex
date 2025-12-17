@@ -1,23 +1,1302 @@
 \chapter{外设及通信协议}
 
+现代嵌入式系统需要与各种外设和外部设备进行通信，通信协议的选择和实现直接影响系统的性能、可靠性和成本。本章将系统介绍常用的外设接口和通信协议，包括串行通信协议（UART、I2C、SPI）、工业总线（CAN、RS485）、高速接口（USB、PCIe、Ethernet）等，帮助读者理解和应用这些重要的通信技术。
+
 \section{UART}
 
-\section{Timer}
+通用异步收发传输器（Universal Asynchronous Receiver/Transmitter，UART）是最常用的串行通信接口之一，具有简单、可靠、成本低等优点。
 
-\section{WDT}
+\subsection{UART 基础}
+
+\subsubsection{基本概念}
+
+UART 是一种异步串行通信协议，特点：
+\begin{itemize}
+  \item 异步通信：不需要时钟信号
+  \item 全双工：可以同时发送和接收
+  \item 点对点通信：通常连接两个设备
+  \item 简单可靠：硬件实现简单，应用广泛
+\end{itemize}
+
+\subsubsection{信号线}
+
+UART 通常需要至少两条信号线：
+\begin{itemize}
+  \item \textbf{TX（Transmit）}：发送数据线
+  \item \textbf{RX（Receive）}：接收数据线
+  \item \textbf{GND}：地线（必需）
+  \item 可选：RTS/CTS（硬件流控）、DTR/DSR（数据终端就绪）
+\end{itemize}
+
+\subsection{UART 工作原理}
+
+\subsubsection{数据帧格式}
+
+UART 数据帧包括：
+\begin{enumerate}
+  \item \textbf{起始位（Start Bit）}：1 位，低电平（0）
+  \item \textbf{数据位（Data Bits）}：5--9 位，通常 7 或 8 位
+  \item \textbf{校验位（Parity Bit）}：可选，奇校验或偶校验
+  \item \textbf{停止位（Stop Bit）}：1 或 2 位，高电平（1）
+\end{enumerate}
+
+典型帧格式：1 起始位 + 8 数据位 + 无校验 + 1 停止位 = 10 位
+
+\subsubsection{波特率}
+
+波特率（Baud Rate）是每秒传输的符号数，对于 UART，通常等于比特率（bps）。
+
+常用波特率：9600、19200、38400、57600、115200、230400、460800、921600 bps
+
+\subsubsection{数据发送}
+
+发送过程：
+\begin{enumerate}
+  \item 空闲时，TX 线保持高电平
+  \item 发送起始位（低电平）
+  \item 按顺序发送数据位（LSB 或 MSB 优先）
+  \item 发送校验位（如果启用）
+  \item 发送停止位（高电平）
+  \item 返回空闲状态
+\end{enumerate}
+
+\subsubsection{数据接收}
+
+接收过程：
+\begin{enumerate}
+  \item 检测起始位（下降沿）
+  \item 在数据位中点采样
+  \item 读取数据位
+  \item 检查校验位（如果启用）
+  \item 检测停止位
+\end{enumerate}
+
+\subsection{UART 配置参数}
+
+\subsubsection{基本参数}
+
+\begin{enumerate}
+  \item \textbf{波特率}
+    \begin{itemize}
+      \item 发送和接收必须相同
+      \item 允许一定误差（通常 < 3\%）
+    \end{itemize}
+
+  \item \textbf{数据位}
+    \begin{itemize}
+      \item 5--9 位
+      \item 通常使用 7 位（ASCII）或 8 位（二进制）
+    \end{itemize}
+
+  \item \textbf{校验位}
+    \begin{itemize}
+      \item 无校验（None）
+      \item 奇校验（Odd）
+      \item 偶校验（Even）
+      \item 标记（Mark，总是 1）
+      \item 空格（Space，总是 0）
+    \end{itemize}
+
+  \item \textbf{停止位}
+    \begin{itemize}
+      \item 1 位或 2 位
+      \item 通常使用 1 位
+    \end{itemize}
+
+  \item \textbf{数据顺序}
+    \begin{itemize}
+      \item LSB 优先（最常见）
+      \item MSB 优先
+    \end{itemize}
+\end{enumerate}
+
+\subsection{流控制}
+
+\subsubsection{软件流控制}
+
+使用特殊字符：
+\begin{itemize}
+  \item XON（0x11）：继续发送
+  \item XOFF（0x13）：暂停发送
+\end{itemize}
+
+\subsubsection{硬件流控制}
+
+使用硬件信号线：
+\begin{itemize}
+  \item \textbf{RTS（Request To Send）}：请求发送
+  \item \textbf{CTS（Clear To Send）}：清除发送
+  \item \textbf{DTR（Data Terminal Ready）}：数据终端就绪
+  \item \textbf{DSR（Data Set Ready）}：数据设备就绪
+\end{itemize}
+
+\subsection{UART 应用}
+
+\begin{enumerate}
+  \item 调试接口（Console）
+  \item 与传感器通信
+  \item 与模块通信（GPS、WiFi、蓝牙等）
+  \item 系统间通信
+\end{enumerate}
+
+\section{定时器（Timer）}
+
+定时器是嵌入式系统中最基本的外设之一，用于产生精确的时间间隔、PWM 信号、测量时间等。
+
+\subsection{定时器的基本概念}
+
+\subsubsection{定时器的功能}
+
+\begin{enumerate}
+  \item \textbf{定时}
+    \begin{itemize}
+      \item 产生精确的时间延迟
+      \item 周期性中断
+    \end{itemize}
+
+  \item \textbf{计数}
+    \begin{itemize}
+      \item 对外部事件计数
+      \item 测量频率
+    \end{itemize}
+
+  \item \textbf{PWM 生成}
+    \begin{itemize}
+      \item 脉宽调制信号
+      \item 用于电机控制、LED 调光等
+    \end{itemize}
+
+  \item \textbf{输入捕获}
+    \begin{itemize}
+      \item 捕获外部信号的时间
+      \item 测量脉冲宽度
+    \end{itemize}
+
+  \item \textbf{输出比较}
+    \begin{itemize}
+      \item 在特定时间产生输出
+      \item 产生精确的时序
+    \end{itemize}
+\end{enumerate}
+
+\subsection{定时器的工作原理}
+
+\subsubsection{基本结构}
+
+定时器通常包括：
+\begin{itemize}
+  \item 计数器（Counter）：向上或向下计数
+  \item 预分频器（Prescaler）：对时钟分频
+  \item 自动重装载寄存器（ARR/Auto-Reload Register）：设置计数上限
+  \item 比较寄存器（CCR/Compare Register）：用于比较和捕获
+  \item 控制寄存器：配置工作模式
+\end{itemize}
+
+\subsubsection{计数模式}
+
+\begin{enumerate}
+  \item \textbf{向上计数（Up Counting）}
+    \begin{itemize}
+      \item 从 0 计数到 ARR
+      \item 溢出后重新开始
+    \end{itemize}
+
+  \item \textbf{向下计数（Down Counting）}
+    \begin{itemize}
+      \item 从 ARR 计数到 0
+      \item 到 0 后重新开始
+    \end{itemize}
+
+  \item \textbf{中央对齐（Center-Aligned）}
+    \begin{itemize}
+      \item 先向上计数，再向下计数
+      \item 用于对称 PWM
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{时钟源}
+
+定时器可以使用不同的时钟源：
+\begin{itemize}
+  \item 内部时钟（系统时钟）
+  \item 外部时钟（外部引脚）
+  \item 其他定时器的输出
+\end{itemize}
+
+\subsection{PWM 生成}
+
+\subsubsection{PWM 原理}
+
+脉宽调制（Pulse Width Modulation，PWM）通过改变脉冲宽度来模拟模拟信号。
+
+PWM 参数：
+\begin{itemize}
+  \item \textbf{周期（Period）}：$T = \frac{ARR + 1}{f_{clk}}$
+  \item \textbf{频率}：$f = \frac{1}{T}$
+  \item \textbf{占空比（Duty Cycle）}：$D = \frac{CCR}{ARR + 1} \times 100\%$
+\end{itemize}
+
+\subsubsection{PWM 模式}
+
+\begin{enumerate}
+  \item \textbf{PWM 模式 1}
+    \begin{itemize}
+      \item CCR < 计数器值：输出有效电平
+      \item CCR > 计数器值：输出无效电平
+    \end{itemize}
+
+  \item \textbf{PWM 模式 2}
+    \begin{itemize}
+      \item 与模式 1 相反
+    \end{itemize}
+\end{enumerate}
+
+\subsection{输入捕获}
+
+输入捕获用于测量外部信号的参数：
+\begin{itemize}
+  \item 频率测量
+  \item 脉冲宽度测量
+  \item 周期测量
+\end{itemize}
+
+工作原理：
+\begin{enumerate}
+  \item 检测外部信号边沿（上升沿、下降沿或双边沿）
+  \item 捕获当前计数器值
+  \item 计算时间差
+\end{enumerate}
+
+\subsection{输出比较}
+
+输出比较用于在特定时间产生输出：
+\begin{itemize}
+  \item 产生精确的时序
+  \item 单脉冲输出
+  \item 定时输出
+\end{itemize}
+
+\section{看门狗定时器（WDT）}
+
+看门狗定时器（Watchdog Timer，WDT）用于检测系统故障并自动复位系统，提高系统可靠性。
+
+\subsection{看门狗的基本原理}
+
+\subsubsection{工作原理}
+
+\begin{enumerate}
+  \item 看门狗定时器启动后开始倒计时
+  \item 程序需要在定时器溢出前"喂狗"（刷新定时器）
+  \item 如果程序正常运行，定时器会被定期刷新，不会溢出
+  \item 如果程序死机或跑飞，无法刷新定时器，定时器溢出
+  \item 定时器溢出后产生复位信号，重启系统
+\end{enumerate}
+
+\subsubsection{看门狗的作用}
+
+\begin{itemize}
+  \item 检测程序死机
+  \item 检测程序跑飞
+  \item 提高系统可靠性
+  \item 自动恢复
+\end{itemize}
+
+\subsection{看门狗的类型}
+
+\subsubsection{硬件看门狗}
+
+\begin{itemize}
+  \item 独立的硬件电路
+  \item 即使 CPU 死机也能工作
+  \item 可靠性高
+  \item 需要外部复位电路
+\end{itemize}
+
+\subsubsection{软件看门狗}
+
+\begin{itemize}
+  \item 集成在 MCU 内部
+  \item 使用系统时钟
+  \item 成本低
+  \item 如果时钟失效，看门狗也失效
+\end{itemize}
+
+\subsection{看门狗的配置}
+
+\subsubsection{超时时间}
+
+超时时间的选择：
+\begin{itemize}
+  \item 太短：正常程序可能来不及喂狗
+  \item 太长：故障检测不及时
+  \item 通常选择为最长任务执行时间的 2--3 倍
+\end{itemize}
+
+\subsubsection{窗口看门狗}
+
+窗口看门狗（Window Watchdog）要求在特定时间窗口内喂狗：
+\begin{itemize}
+  \item 防止过早喂狗
+  \item 防止过晚喂狗
+  \item 提高检测能力
+\end{itemize}
+
+\subsection{看门狗的使用注意事项}
+
+\begin{enumerate}
+  \item 在关键任务中定期喂狗
+  \item 避免在中断中喂狗（除非中断是唯一执行路径）
+  \item 不要在死循环中忘记喂狗
+  \item 考虑看门狗复位后的恢复策略
+  \item 记录看门狗复位原因，便于调试
+\end{enumerate}
 
 \section{I2C/I3C}
 
+I2C（Inter-Integrated Circuit）是一种串行通信总线，广泛用于连接低速外设。I3C（Improved Inter-Integrated Circuit）是 I2C 的改进版本。
+
+\subsection{I2C 基础}
+
+\subsubsection{基本特性}
+
+\begin{itemize}
+  \item 两线制：SDA（数据线）和 SCL（时钟线）
+  \item 多主多从：支持多个主设备和从设备
+  \item 地址寻址：每个从设备有唯一地址
+  \item 低速通信：标准模式 100 kHz，快速模式 400 kHz，高速模式 3.4 MHz
+  \item 开漏输出：需要上拉电阻
+\end{itemize}
+
+\subsubsection{电气特性}
+
+\begin{itemize}
+  \item 电压电平：通常 3.3 V 或 5 V
+  \item 上拉电阻：通常 2.2--10 k$\Omega$
+  \item 总线电容：限制总线长度和设备数量
+  \item 开漏输出：线与逻辑
+\end{itemize}
+
+\subsection{I2C 协议}
+
+\subsubsection{总线状态}
+
+\begin{enumerate}
+  \item \textbf{空闲}：SDA 和 SCL 都为高电平
+  \item \textbf{起始条件（START）}：SCL 为高时，SDA 从高变低
+  \item \textbf{停止条件（STOP）}：SCL 为高时，SDA 从低变高
+  \item \textbf{重复起始（Repeated START）}：在停止条件前发送新的起始条件
+\end{enumerate}
+
+\subsubsection{数据传输}
+
+\begin{enumerate}
+  \item 数据在 SCL 为高时有效
+  \item 数据在 SCL 为低时改变
+  \item 每个字节后跟随一个应答位（ACK/NACK）
+  \item MSB 优先传输
+\end{enumerate}
+
+\subsubsection{帧格式}
+
+\begin{enumerate}
+  \item \textbf{起始位}
+  \item \textbf{从设备地址（7 位或 10 位）}
+  \item \textbf{读写位（R/W）}
+  \item \textbf{应答位（ACK）}
+  \item \textbf{数据字节}
+  \item \textbf{应答位}
+  \item \textbf{停止位}
+\end{enumerate}
+
+\subsubsection{地址格式}
+
+\begin{enumerate}
+  \item \textbf{7 位地址}
+    \begin{itemize}
+      \item 地址范围：0x08--0x77
+      \item 0x00--0x07 和 0x78--0x7F 为保留地址
+    \end{itemize}
+
+  \item \textbf{10 位地址}
+    \begin{itemize}
+      \item 地址范围：0x000--0x3FF
+      \item 需要两个字节传输
+    \end{itemize}
+\end{enumerate}
+
+\subsection{I2C 工作模式}
+
+\subsubsection{主设备发送}
+
+\begin{enumerate}
+  \item 发送起始条件
+  \item 发送从设备地址 + 写位
+  \item 等待应答
+  \item 发送数据字节
+  \item 等待应答
+  \item 重复步骤 4--5 或发送停止条件
+\end{enumerate}
+
+\subsubsection{主设备接收}
+
+\begin{enumerate}
+  \item 发送起始条件
+  \item 发送从设备地址 + 读位
+  \item 等待应答
+  \item 接收数据字节
+  \item 发送应答（ACK）或非应答（NACK）
+  \item 重复步骤 4--5 或发送停止条件
+\end{enumerate}
+
+\subsection{I2C 应用}
+
+\begin{enumerate}
+  \item 传感器接口（温度、压力、加速度等）
+  \item EEPROM 接口
+  \item 实时时钟（RTC）
+  \item ADC/DAC 接口
+  \item LCD 控制器
+\end{enumerate}
+
+\subsection{I3C 改进}
+
+I3C 相对于 I2C 的改进：
+
+\begin{enumerate}
+  \item \textbf{更高的速度}
+    \begin{itemize}
+      \item 标准数据速率：12.5 MHz
+      \item 高速数据速率：25 MHz
+    \end{itemize}
+
+  \item \textbf{动态地址分配}
+    \begin{itemize}
+      \item 支持热插拔
+      \item 自动地址分配
+    \end{itemize}
+
+  \item \textbf{带内中断}
+    \begin{itemize}
+      \item 不需要额外的中断线
+      \item 通过总线发送中断请求
+    \end{itemize}
+
+  \item \textbf{向后兼容}
+    \begin{itemize}
+      \item 兼容 I2C 设备
+      \item 可以在同一总线上混合使用
+    \end{itemize}
+
+  \item \textbf{改进的错误检测}
+    \begin{itemize}
+      \item CRC 校验
+      \item 更好的错误处理
+    \end{itemize}
+\end{enumerate}
+
 \section{SPI/QSPI}
+
+串行外设接口（Serial Peripheral Interface，SPI）是一种高速、全双工的同步串行通信协议。
+
+\subsection{SPI 基础}
+
+\subsubsection{基本特性}
+
+\begin{itemize}
+  \item 四线制：MOSI、MISO、SCLK、CS
+  \item 全双工通信
+  \item 主从模式
+  \item 高速通信：可达几十 MHz
+  \item 简单协议：没有复杂的帧格式
+\end{itemize}
+
+\subsubsection{信号线}
+
+\begin{enumerate}
+  \item \textbf{MOSI（Master Out Slave In）}
+    \begin{itemize}
+      \item 主设备输出，从设备输入
+      \item 主设备发送数据到从设备
+    \end{itemize}
+
+  \item \textbf{MISO（Master In Slave Out）}
+    \begin{itemize}
+      \item 主设备输入，从设备输出
+      \item 从设备发送数据到主设备
+    \end{itemize}
+
+  \item \textbf{SCLK（Serial Clock）}
+    \begin{itemize}
+      \item 时钟信号
+      \item 由主设备产生
+    \end{itemize}
+
+  \item \textbf{CS/SS（Chip Select/Slave Select）}
+    \begin{itemize}
+      \item 片选信号
+      \item 低电平有效
+      \item 每个从设备需要独立的 CS 线
+    \end{itemize}
+\end{enumerate}
+
+\subsection{SPI 协议}
+
+\subsubsection{时钟极性和相位}
+
+SPI 有四种工作模式，由时钟极性（CPOL）和时钟相位（CPHA）决定：
+
+\begin{enumerate}
+  \item \textbf{模式 0（CPOL=0, CPHA=0）}
+    \begin{itemize}
+      \item 空闲时时钟为低
+      \item 数据在时钟上升沿采样，下降沿改变
+    \end{itemize}
+
+  \item \textbf{模式 1（CPOL=0, CPHA=1）}
+    \begin{itemize}
+      \item 空闲时时钟为低
+      \item 数据在时钟下降沿采样，上升沿改变
+    \end{itemize}
+
+  \item \textbf{模式 2（CPOL=1, CPHA=0）}
+    \begin{itemize}
+      \item 空闲时时钟为高
+      \item 数据在时钟下降沿采样，上升沿改变
+    \end{itemize}
+
+  \item \textbf{模式 3（CPOL=1, CPHA=1）}
+    \begin{itemize}
+      \item 空闲时时钟为高
+      \item 数据在时钟上升沿采样，下降沿改变
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{数据传输}
+
+\begin{enumerate}
+  \item 主设备拉低 CS 信号，选中从设备
+  \item 主设备产生时钟信号
+  \item 主设备通过 MOSI 发送数据，从设备通过 MISO 发送数据
+  \item 数据在时钟边沿采样
+  \item 传输完成后，主设备拉高 CS 信号
+\end{enumerate}
+
+\subsubsection{多从设备连接}
+
+\begin{enumerate}
+  \item \textbf{独立 CS 方式}
+    \begin{itemize}
+      \item 每个从设备有独立的 CS 线
+      \item 主设备通过不同的 CS 选择从设备
+      \item 最常用的方式
+    \end{itemize}
+
+  \item \textbf{菊花链方式}
+    \begin{itemize}
+      \item 多个从设备串联
+      \item 数据从一个从设备传递到下一个
+      \item 节省 CS 线，但速度较慢
+    \end{itemize}
+\end{enumerate}
+
+\subsection{SPI 应用}
+
+\begin{enumerate}
+  \item Flash 存储器接口
+  \item ADC/DAC 接口
+  \item 显示控制器接口
+  \item 传感器接口
+  \item 无线模块接口
+\end{enumerate}
+
+\subsection{QSPI}
+
+四线 SPI（Quad SPI，QSPI）是 SPI 的扩展，使用 4 条数据线提高传输速度。
+
+\subsubsection{QSPI 特性}
+
+\begin{itemize}
+  \item 4 条数据线：IO0、IO1、IO2、IO3
+  \item 可以是输入或输出
+  \item 传输速度是标准 SPI 的 4 倍
+  \item 常用于 Flash 存储器接口
+\end{itemize}
+
+\subsubsection{QSPI 模式}
+
+\begin{enumerate}
+  \item \textbf{标准 SPI 模式}
+    \begin{itemize}
+      \item 兼容标准 SPI
+      \item IO0 作为 MOSI，IO1 作为 MISO
+    \end{itemize}
+
+  \item \textbf{双线模式}
+    \begin{itemize}
+      \item IO0 和 IO1 同时用于输入输出
+      \item 速度是标准 SPI 的 2 倍
+    \end{itemize}
+
+  \item \textbf{四线模式}
+    \begin{itemize}
+      \item 所有 4 条线同时用于数据传输
+      \item 速度是标准 SPI 的 4 倍
+    \end{itemize}
+\end{enumerate}
 
 \section{RS232/RS422/RS485}
 
+RS232、RS422 和 RS485 是常用的串行通信标准，用于工业控制和长距离通信。
+
+\subsection{RS232}
+
+\subsubsection{基本特性}
+
+\begin{itemize}
+  \item 点对点通信
+  \item 单端信号
+  \item 传输距离：通常 < 15 米
+  \item 传输速率：通常 < 115.2 kbps
+  \item 使用负逻辑：+3--+15 V 表示 0，-3--15 V 表示 1
+\end{itemize}
+
+\subsubsection{信号定义}
+
+常用信号：
+\begin{itemize}
+  \item TXD：发送数据
+  \item RXD：接收数据
+  \item RTS：请求发送
+  \item CTS：清除发送
+  \item DTR：数据终端就绪
+  \item DSR：数据设备就绪
+  \item DCD：载波检测
+  \item RI：振铃指示
+  \item GND：地
+\end{itemize}
+
+\subsubsection{连接方式}
+
+\begin{enumerate}
+  \item \textbf{直连}
+    \begin{itemize}
+      \item 交叉连接 TXD 和 RXD
+      \item 用于 DTE 和 DCE 之间
+    \end{itemize}
+
+  \item \textbf{空 Modem}
+    \begin{itemize}
+      \item 用于两个 DTE 之间
+      \item 需要交叉连接
+    \end{itemize}
+\end{enumerate}
+
+\subsection{RS422}
+
+\subsubsection{基本特性}
+
+\begin{itemize}
+  \item 差分信号
+  \item 点对点或多点通信（一主多从）
+  \item 传输距离：可达 1200 米
+  \item 传输速率：可达 10 Mbps（短距离）
+  \item 抗干扰能力强
+\end{itemize}
+
+\subsubsection{信号定义}
+
+\begin{itemize}
+  \item A+、A-：差分信号对 A
+  \item B+、B-：差分信号对 B
+  \item GND：地（可选）
+\end{itemize}
+
+\subsubsection{电气特性}
+
+\begin{itemize}
+  \item 差分电压：±2--±6 V
+  \item 共模电压范围：-7--+12 V
+  \item 输入阻抗：≥ 4 k$\Omega$
+  \item 输出电流：±150 mA
+\end{itemize}
+
+\subsection{RS485}
+
+\subsubsection{基本特性}
+
+\begin{itemize}
+  \item 差分信号
+  \item 多点通信（多主多从）
+  \item 传输距离：可达 1200 米
+  \item 传输速率：可达 10 Mbps（短距离）
+  \item 半双工或全双工
+  \item 最常用的工业总线
+\end{itemize}
+
+\subsubsection{信号定义}
+
+\begin{itemize}
+  \item A+、A-：差分信号对（半双工）
+  \item D+、D-：发送差分对（全双工）
+  \item R+、R-：接收差分对（全双工）
+  \item GND：地
+\end{itemize}
+
+\subsubsection{网络拓扑}
+
+\begin{enumerate}
+  \item \textbf{总线型}
+    \begin{itemize}
+      \item 所有设备连接到同一总线
+      \item 需要终端电阻（120 $\Omega$）
+      \item 最常用的拓扑
+    \end{itemize}
+
+  \item \textbf{星型}
+    \begin{itemize}
+      \item 通过集线器连接
+      \item 较少使用
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{终端电阻}
+
+\begin{itemize}
+  \item 总线两端需要终端电阻
+  \item 阻值：120 $\Omega$（匹配特性阻抗）
+  \item 减少信号反射
+\end{itemize}
+
+\subsubsection{偏置电阻}
+
+\begin{itemize}
+  \item 确保总线空闲时的确定状态
+  \item 通常使用上拉和下拉电阻
+  \item 防止总线浮空
+\end{itemize}
+
+\subsubsection{RS485 应用}
+
+\begin{enumerate}
+  \item 工业自动化
+  \item 楼宇自动化
+  \item 数据采集系统
+  \item Modbus 协议（基于 RS485）
+\end{enumerate}
+
 \section{CAN}
+
+控制器局域网（Controller Area Network，CAN）是一种用于实时应用的串行通信协议，广泛应用于汽车和工业控制。
+
+\subsection{CAN 基础}
+
+\subsubsection{基本特性}
+
+\begin{itemize}
+  \item 多主总线
+  \item 基于消息的协议
+  \item 非破坏性仲裁
+  \item 错误检测和错误处理
+  \item 高可靠性
+  \item 实时性好
+\end{itemize}
+
+\subsubsection{信号定义}
+
+\begin{itemize}
+  \item CANH：CAN 高线
+  \item CANL：CAN 低线
+  \item 差分信号
+\end{itemize}
+
+\subsection{CAN 协议}
+
+\subsubsection{帧类型}
+
+\begin{enumerate}
+  \item \textbf{数据帧（Data Frame）}
+    \begin{itemize}
+      \item 携带数据
+      \item 标准帧（11 位 ID）或扩展帧（29 位 ID）
+    \end{itemize}
+
+  \item \textbf{远程帧（Remote Frame）}
+    \begin{itemize}
+      \item 请求发送特定 ID 的数据
+      \item 不携带数据
+    \end{itemize}
+
+  \item \textbf{错误帧（Error Frame）}
+    \begin{itemize}
+      \item 检测到错误时发送
+      \item 用于错误处理
+    \end{itemize}
+
+  \item \textbf{过载帧（Overload Frame）}
+    \begin{itemize}
+      \item 节点需要延迟时发送
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{数据帧格式}
+
+标准数据帧包括：
+\begin{enumerate}
+  \item \textbf{起始位（SOF）}：1 位
+  \item \textbf{仲裁场}：11 位 ID + RTR + IDE + r0
+  \item \textbf{控制场}：DLC（4 位）+ r0 + r1
+  \item \textbf{数据场}：0--8 字节
+  \item \textbf{CRC 场}：15 位 CRC + 1 位分隔符
+  \item \textbf{应答场}：ACK + 分隔符
+  \item \textbf{结束场}：7 位隐性位
+\end{enumerate}
+
+\subsubsection{非破坏性仲裁}
+
+CAN 使用非破坏性仲裁机制：
+\begin{itemize}
+  \item 基于 ID 的优先级
+  \item ID 越小，优先级越高
+  \item 显性位（0）覆盖隐性位（1）
+  \item 高优先级消息自动获得总线
+  \item 低优先级消息自动退出发送
+\end{itemize}
+
+\subsection{CAN 错误处理}
+
+\subsubsection{错误类型}
+
+\begin{enumerate}
+  \item \textbf{位错误}
+  \item \textbf{填充错误}
+  \item \textbf{CRC 错误}
+  \item \textbf{格式错误}
+  \item \textbf{应答错误}
+\end{enumerate}
+
+\subsubsection{错误状态}
+
+每个节点有三种错误状态：
+\begin{enumerate}
+  \item \textbf{主动错误（Error Active）}
+    \begin{itemize}
+      \item 正常状态
+      \item 可以正常发送和接收
+    \end{itemize}
+
+  \item \textbf{被动错误（Error Passive）}
+    \begin{itemize}
+      \item 错误计数较高
+      \item 发送时增加延迟
+    \end{itemize}
+
+  \item \textbf{总线关闭（Bus Off）}
+    \begin{itemize}
+      \item 错误计数过高
+      \item 不能发送和接收
+      \item 需要复位才能恢复
+    \end{itemize}
+\end{enumerate}
+
+\subsection{CAN 应用}
+
+\begin{enumerate}
+  \item 汽车电子（ECU 通信）
+  \item 工业自动化
+  \item 医疗设备
+  \item 航空航天
+\end{enumerate}
 
 \section{Ethernet}
 
+以太网（Ethernet）是最常用的局域网技术，也广泛应用于嵌入式系统。
+
+\subsection{Ethernet 基础}
+
+\subsubsection{基本特性}
+
+\begin{itemize}
+  \item 基于 CSMA/CD（载波监听多路访问/冲突检测）
+  \item 星型拓扑（使用交换机）
+  \item 高速通信：10 Mbps、100 Mbps、1 Gbps、10 Gbps
+  \item 标准化：IEEE 802.3
+\end{itemize}
+
+\subsubsection{物理层}
+
+\begin{enumerate}
+  \item \textbf{10BASE-T}
+    \begin{itemize}
+      \item 10 Mbps
+      \item 双绞线
+      \item 100 米传输距离
+    \end{itemize}
+
+  \item \textbf{100BASE-TX}
+    \begin{itemize}
+      \item 100 Mbps（Fast Ethernet）
+      \item 双绞线
+      \item 100 米传输距离
+    \end{itemize}
+
+  \item \textbf{1000BASE-T}
+    \begin{itemize}
+      \item 1 Gbps（Gigabit Ethernet）
+      \item 双绞线
+      \item 100 米传输距离
+    \end{itemize}
+\end{enumerate}
+
+\subsection{Ethernet 帧格式}
+
+以太网帧包括：
+\begin{enumerate}
+  \item \textbf{前导码（Preamble）}：7 字节
+  \item \textbf{帧起始定界符（SFD）}：1 字节
+  \item \textbf{目标 MAC 地址}：6 字节
+  \item \textbf{源 MAC 地址}：6 字节
+  \item \textbf{类型/长度}：2 字节
+  \item \textbf{数据}：46--1500 字节
+  \item \textbf{帧校验序列（FCS）}：4 字节 CRC
+\end{enumerate}
+
+\subsection{嵌入式 Ethernet}
+
+\subsubsection{以太网控制器}
+
+嵌入式系统通常使用以太网控制器芯片：
+\begin{itemize}
+  \item 集成 MAC 和 PHY
+  \item 或分离的 MAC 和 PHY
+  \item 通过 SPI 或并行接口连接
+\end{itemize}
+
+\subsubsection{TCP/IP 协议栈}
+
+嵌入式系统需要实现 TCP/IP 协议栈：
+\begin{itemize}
+  \item 可以使用轻量级协议栈（如 lwIP）
+  \item 或使用硬件加速的协议栈
+\end{itemize}
+
 \section{USB}
+
+通用串行总线（Universal Serial Bus，USB）是最常用的计算机外设接口。
+
+\subsection{USB 基础}
+
+\subsubsection{基本特性}
+
+\begin{itemize}
+  \item 即插即用
+  \item 热插拔
+  \item 电源供电（某些设备）
+  \item 高速通信
+  \item 标准化接口
+\end{itemize}
+
+\subsubsection{USB 版本}
+
+\begin{enumerate}
+  \item \textbf{USB 1.0/1.1}
+    \begin{itemize}
+      \item 低速：1.5 Mbps
+      \item 全速：12 Mbps
+    \end{itemize}
+
+  \item \textbf{USB 2.0}
+    \begin{itemize}
+      \item 高速：480 Mbps
+      \item 向后兼容 USB 1.x
+    \end{itemize}
+
+  \item \textbf{USB 3.0/3.1/3.2}
+    \begin{itemize}
+      \item SuperSpeed：5 Gbps（USB 3.0）
+      \item SuperSpeed+：10 Gbps（USB 3.1 Gen 2）
+      \item SuperSpeed+：20 Gbps（USB 3.2 Gen 2x2）
+    \end{itemize}
+
+  \item \textbf{USB 4}
+    \begin{itemize}
+      \item 最高 40 Gbps
+      \item 基于 Thunderbolt 3
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{USB 连接器}
+
+\begin{enumerate}
+  \item \textbf{Type-A}：标准 USB 接口
+  \item \textbf{Type-B}：设备端接口
+  \item \textbf{Type-C}：可逆接口，支持 USB 3.1+ 和 Power Delivery
+  \item \textbf{Mini-USB}：小型设备
+  \item \textbf{Micro-USB}：更小型设备
+\end{enumerate}
+
+\subsection{USB 架构}
+
+\subsubsection{拓扑结构}
+
+USB 采用树形拓扑：
+\begin{itemize}
+  \item 主机（Host）：根节点
+  \item 集线器（Hub）：扩展节点
+  \item 设备（Device）：叶子节点
+  \item 最多 127 个设备
+  \item 最多 5 层（不包括根）
+\end{itemize}
+
+\subsubsection{通信模型}
+
+USB 采用分层通信模型：
+\begin{enumerate}
+  \item \textbf{物理层}：电气和机械规范
+  \item \textbf{数据链路层}：数据包传输
+  \item \textbf{协议层}：USB 协议
+  \item \textbf{应用层}：设备功能
+\end{enumerate}
+
+\subsection{USB 传输类型}
+
+\begin{enumerate}
+  \item \textbf{控制传输（Control）}
+    \begin{itemize}
+      \item 设备配置和状态查询
+      \item 双向传输
+    \end{itemize}
+
+  \item \textbf{中断传输（Interrupt）}
+    \begin{itemize}
+      \item 周期性数据传输
+      \item 用于键盘、鼠标等
+    \end{itemize}
+
+  \item \textbf{批量传输（Bulk）}
+    \begin{itemize}
+      \item 大量数据传输
+      \item 用于存储设备等
+    \end{itemize}
+
+  \item \textbf{等时传输（Isochronous）}
+    \begin{itemize}
+      \item 实时数据传输
+      \item 用于音频、视频等
+    \end{itemize}
+\end{enumerate}
+
+\subsection{USB 在嵌入式系统中的应用}
+
+\begin{enumerate}
+  \item USB 设备（Device）
+    \begin{itemize}
+      \item 实现 USB 设备功能
+      \item 需要 USB 设备控制器
+    \end{itemize}
+
+  \item USB 主机（Host）
+    \begin{itemize}
+      \item 连接 USB 设备
+      \item 需要 USB 主机控制器
+    \end{itemize}
+
+  \item USB OTG（On-The-Go）
+    \begin{itemize}
+      \item 既可以作为主机，也可以作为设备
+      \item 用于移动设备
+    \end{itemize}
+\end{enumerate}
 
 \section{PCI/PCIe}
 
+PCI（Peripheral Component Interconnect）和 PCIe（PCI Express）是计算机扩展总线标准。
+
+\subsection{PCI}
+
+\subsubsection{基本特性}
+
+\begin{itemize}
+  \item 并行总线
+  \item 32 位或 64 位数据宽度
+  \item 33 MHz 或 66 MHz 时钟
+  \item 共享总线架构
+  \item 已逐渐被 PCIe 取代
+\end{itemize}
+
+\subsubsection{配置空间}
+
+PCI 设备有 256 字节的配置空间，用于设备识别和配置。
+
 \Figure[caption={PCI 配置空间}, label={fig:pci-config}, width=0.95]{PCI-config-space}
+
+配置空间包括：
+\begin{itemize}
+  \item 设备 ID 和厂商 ID
+  \item 状态和命令寄存器
+  \item 基址寄存器（BAR）
+  \item 中断线
+\end{itemize}
+
+\subsection{PCIe}
+
+\subsubsection{基本特性}
+
+\begin{itemize}
+  \item 串行点对点连接
+  \item 高速通信：每通道 2.5 Gbps（Gen 1）到 32 Gbps（Gen 5）
+  \item 可扩展：x1、x2、x4、x8、x16 通道
+  \item 全双工通信
+  \item 向后兼容 PCI 软件
+\end{itemize}
+
+\subsubsection{PCIe 架构}
+
+\begin{enumerate}
+  \item \textbf{物理层}
+    \begin{itemize}
+      \item 差分信号对
+      \item 8b/10b 或 128b/130b 编码
+      \item 时钟恢复
+    \end{itemize}
+
+  \item \textbf{数据链路层}
+    \begin{itemize}
+      \item 数据包序列化
+      \item 错误检测和重传
+      \item 流控制
+    \end{itemize}
+
+  \item \textbf{事务层}
+    \begin{itemize}
+      \item 事务处理
+      \item 虚拟通道
+      \item 服务质量（QoS）
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{PCIe 链路}
+
+\begin{itemize}
+  \item 每个链路由多个通道组成
+  \item 每个通道是双向的
+  \item 通道数：x1、x2、x4、x8、x16
+  \item 总带宽 = 单通道带宽 × 通道数
+\end{itemize}
+
+\subsubsection{PCIe 版本}
+
+\begin{enumerate}
+  \item \textbf{PCIe 1.0}
+    \begin{itemize}
+      \item 每通道 2.5 Gbps
+      \item 编码效率 80\%
+      \item 有效带宽 2 Gbps/通道
+    \end{itemize}
+
+  \item \textbf{PCIe 2.0}
+    \begin{itemize}
+      \item 每通道 5 Gbps
+      \item 有效带宽 4 Gbps/通道
+    \end{itemize}
+
+  \item \textbf{PCIe 3.0}
+    \begin{itemize}
+      \item 每通道 8 Gbps
+      \item 128b/130b 编码
+      \item 有效带宽 7.877 Gbps/通道
+    \end{itemize}
+
+  \item \textbf{PCIe 4.0}
+    \begin{itemize}
+      \item 每通道 16 Gbps
+      \item 有效带宽 15.754 Gbps/通道
+    \end{itemize}
+
+  \item \textbf{PCIe 5.0}
+    \begin{itemize}
+      \item 每通道 32 Gbps
+      \item 有效带宽 31.508 Gbps/通道
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{PCIe 应用}
+
+\begin{enumerate}
+  \item 显卡接口
+  \item 高速网卡
+  \item 存储控制器
+  \item 高速数据采集卡
+  \item 嵌入式系统扩展
+\end{enumerate}
+
+\section{协议选择指南}
+
+\subsection{选择考虑因素}
+
+\begin{enumerate}
+  \item \textbf{速度要求}
+    \begin{itemize}
+      \item 低速：UART、I2C
+      \item 中速：SPI、CAN
+      \item 高速：USB、PCIe、Ethernet
+    \end{itemize}
+
+  \item \textbf{距离要求}
+    \begin{itemize}
+      \item 板内：SPI、I2C
+      \item 短距离：UART、USB
+      \item 长距离：RS485、CAN、Ethernet
+    \end{itemize}
+
+  \item \textbf{设备数量}
+    \begin{itemize}
+      \item 点对点：UART、SPI
+      \item 多点：I2C、CAN、RS485
+      \item 网络：Ethernet
+    \end{itemize}
+
+  \item \textbf{成本}
+    \begin{itemize}
+      \item 低成本：UART、I2C、SPI
+      \item 中等成本：CAN、RS485
+      \item 高成本：USB、PCIe、Ethernet
+    \end{itemize}
+
+  \item \textbf{可靠性}
+    \begin{itemize}
+      \item 高可靠性：CAN、RS485
+      \item 一般可靠性：UART、I2C、SPI
+    \end{itemize}
+
+  \item \textbf{实时性}
+    \begin{itemize}
+      \item 实时：CAN
+      \item 准实时：Ethernet（带 QoS）
+      \item 非实时：UART、I2C、SPI
+    \end{itemize}
+\end{enumerate}
+
+\subsection{协议比较}
+
+\begin{table}[H]
+  \centering
+  \caption{通信协议比较}
+  \begin{tabular}{|l|l|l|l|l|}
+    \hline
+    协议 & 速度 & 距离 & 设备数 & 主要应用 \\
+    \hline
+    UART & 低 & 短 & 2 & 调试、简单通信 \\
+    I2C & 低 & 短 & 多 & 传感器、低速外设 \\
+    SPI & 中 & 短 & 多 & Flash、高速外设 \\
+    RS485 & 中 & 长 & 多 & 工业控制 \\
+    CAN & 中 & 中 & 多 & 汽车、工业 \\
+    USB & 高 & 短 & 127 & 计算机外设 \\
+    Ethernet & 高 & 长 & 多 & 网络通信 \\
+    PCIe & 很高 & 短 & 点对点 & 高速扩展 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+\section{总结}
+
+外设和通信协议是嵌入式系统的重要组成部分，选择合适的协议对于系统性能、可靠性和成本至关重要。本章介绍了常用的串行通信协议、工业总线和高速接口，每种协议都有其特定的应用场景和优势。在实际应用中，需要根据具体需求选择合适的协议，并注意协议实现的细节和最佳实践。

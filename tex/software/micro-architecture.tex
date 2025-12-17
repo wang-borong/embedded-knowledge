@@ -175,7 +175,7 @@ ARMv8 架构定义了两种执行状态，AArch64 和 AArch32。
 \begin{probsolu}[title={Problem and Solution \theprob}]{
     如何切换 AArch64 状态到 AArch32 状态？写个切换的实际例子？（课后作业）
   }\label{pb:state_changing}
-  
+
   例如：在 EL3 下进行运行切换，EL3 为 AArch64，将 EL2 切换成 aarch32。
   在 EL3 异常级下，设置 EL2 的架构为 aarch32，设置好返回地址，通过 ERET 指令，即可将 EL2 状态切换成 EL2。
   设置中，主要涉及配置 elr\_el3 寄存器（保存下一异常级的指令地址）和 spsr\_el3 寄存器（保存下一异常级的 pstate 值）。
@@ -183,7 +183,7 @@ ARMv8 架构定义了两种执行状态，AArch64 和 AArch32。
 
   如果需要将 A32 状态切换到 T32 状态，则使用 bx 指令，并且跳转地址的最低位要为 1；
   从 T32 状态切回 A32 状态同样使用 bx 指令，且跳转地址最低位为 0。
-  
+
   总结：EL2 的 A64 和 A32 状态，由 EL3 决定，也就是 SCR\_EL3.RW 寄存器决定。
 
   EL1 的 A64 和 A32 状态，由 EL2 决定，也就是 HCR\_EL3.RW 寄存器决定。
@@ -297,7 +297,7 @@ AArch64 没有直接与 ARMv7 当前程序状态寄存器 (CPSR) 等价的寄存
       SS & Software Step bit. \\
       IL & Illegal execution state bit. \\
       EL (2) & Exception level. \\
-      nRW & Execution state 
+      nRW & Execution state
             0 = 64-bit
             1 = 32-bit \\
       SP & Stack Pointer selector.
@@ -338,12 +338,12 @@ EL0 异常级具有最低的权限，并且只有极少数的系统系统器可�
   \item[UCI] 设置该域将使能 AArch64 下的 EL0 异常级对 DC CVAU、DC CIVAC、DC CVAC 和 IC IVAU 指令的访问权限。
   \item[EE] 控制异常 Endianness。
     \begin{description}
-      \item[0] 小端 
+      \item[0] 小端
       \item[1] 大端
     \end{description}
   \item[EOE] EL0 下 Explicit data 访问字节序
     \begin{description}
-      \item[0] 小端 
+      \item[0] 小端
       \item[1] 大端
     \end{description}
   \item[WXN] 写权限下应用不可执行权限 XN（eXecute Never）
@@ -926,7 +926,7 @@ A64 的 LDTR 和 STTR 指令用于非特权级的数据加载和存储操作。
   \item 在 EL0、EL2 或 EL3 中，它们表现为一般的加载或存储指令。
   \item 在 EL1 下执行这些指令，则表现为就像在 EL0 中执行一样。
 \end{itemize}
- 
+
 这些指令等效于 A32 的 LDRT 和 STRT 指令。
 
 \paragraph{预取内存访问}
@@ -1672,10 +1672,10 @@ AArch64 架构有若干 ABI 组成元素：
   \item[Registers with a special purpose] 包括 X8, X16-X18, X29, X30。
 
     \begin{itemize}
-      \item 
+      \item
         X8 是间接结果寄存器，用于传输间接结果地址。
         例如，当一个函数返回一个大型结构体时。
-      \item 
+      \item
         % X16 and X17 are IP0 and IP1, intra-procedure-call temporary registers.
         % These can be used by call veneers and similar code, or as temporary
         % registers for intermediate values between subroutine calls. They are
@@ -1686,12 +1686,12 @@ AArch64 架构有若干 ABI 组成元素：
         用于调用 veneers 和类似代码，或者做为子例程调用之间的临时变量保存寄存器使用。
         这些寄存器容易被函数破坏。
         Veneers 是一些被链接器自动插入的微小代码块，比如，当跳转目的地址超出跳转指令的适用范围时。
-      \item 
+      \item
         X18 是平台寄存器并且保留给平台的 ABI 使用。
         这是一个没有赋予特殊意义的平台附加临时寄存器。
-      \item 
+      \item
         X29 用作 FP（frame pointer register）。
-      \item 
+      \item
         X30 用作 LR（link register）。
     \end{itemize}
 
@@ -1725,12 +1725,12 @@ struct struct_A
 struct struct_A foo(int i0, int i1, double d0, double d1)
 {
   struct struct_A A1;
-  
+
   A1.i0 = i0;
   A1.i1 = i1;
   A1.d0 = d0;
   A1.d1 = d1;
-  
+
   return A1;
 }
 
@@ -2028,7 +2028,7 @@ SS（Software Stepping）字段在调试相关章节讲解。
 另外，在同步或 SError 异常的情况下，也会把 \lstinline!ESR_ELn! 更新为表面异常产生原因的值。
 
 软件通过执行 ERET 指令来通知处理器何时从异常返回。
-执行 ERET 将从 \lstinline!SPSR_ELn! 恢复异常前的 PSTATE 值并且从 \lstinline!ELR_ELn! 恢复之前的程序运行地址。 
+执行 ERET 将从 \lstinline!SPSR_ELn! 恢复异常前的 PSTATE 值并且从 \lstinline!ELR_ELn! 恢复之前的程序运行地址。
 
 上面已经讲述了 SPSR 如何为异常返回记录必要的状态信息。
 下面将继续讲述 link 寄存器如何存储程序地址信息。
@@ -2162,7 +2162,7 @@ IRQ、FIQ 和 SError 由一些单独的 bit 来独立控制。
 
 \lstinline!ESR_ELn! 寄存器保存异常的信息，可由异常处理函数从中获取异常产生的原因。
 它只会在发生同步异常和 SError 异常时更新。
-它不会在产生 IRQ 或 FIQ 时更新，IRQ 和 FIQ 的状态信息保存在 GIC 的寄存器中（详情查阅 \textit{The Generic Interrupt Controller}）。 
+它不会在产生 IRQ 或 FIQ 时更新，IRQ 和 FIQ 的状态信息保存在 GIC 的寄存器中（详情查阅 \textit{The Generic Interrupt Controller}）。
 ESR 寄存器的编码如下：
 
 \begin{description}
@@ -2288,26 +2288,1632 @@ Reset 的地址是由\textbf{设计决定的}完全独立的地址，通常是�
 
 \subsection{Caches}
 
+缓存（Cache）是位于 CPU 和主内存之间的高速存储器，用于减少内存访问延迟，提高系统性能。ARMv8 架构提供了完整的缓存管理机制，理解缓存的工作原理对于编写高性能代码至关重要。
+
+\subsubsection{缓存的基本原理}
+
+缓存基于程序访问的局部性原理：
+\begin{enumerate}
+  \item \textbf{时间局部性（Temporal Locality）}
+    \begin{itemize}
+      \item 最近访问的数据很可能再次被访问
+      \item 缓存保留最近访问的数据
+    \end{itemize}
+
+  \item \textbf{空间局部性（Spatial Locality）}
+    \begin{itemize}
+      \item 访问某个地址时，相邻地址很可能也被访问
+      \item 缓存以块（Cache Line）为单位加载数据
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{ARMv8 缓存层次}
+
+ARMv8 处理器通常采用多级缓存架构：
+
+\begin{enumerate}
+  \item \textbf{L1 缓存}
+    \begin{itemize}
+      \item 分为指令缓存（I-Cache）和数据缓存（D-Cache）
+      \item 容量：通常 32--64 KB
+      \item 访问延迟：1--3 个时钟周期
+      \item 每个核心独立
+    \end{itemize}
+
+  \item \textbf{L2 缓存}
+    \begin{itemize}
+      \item 统一缓存（Unified Cache）
+      \item 容量：通常 256 KB--1 MB
+      \item 访问延迟：10--20 个时钟周期
+      \item 每个核心独立或集群共享
+    \end{itemize}
+
+  \item \textbf{L3 缓存}
+    \begin{itemize}
+      \item 统一缓存
+      \item 容量：几 MB 到几十 MB
+      \item 访问延迟：20--40 个时钟周期
+      \item 多核共享（SMP 集群）
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{缓存行（Cache Line）}
+
+ARMv8 架构中，缓存以缓存行为单位进行数据传输：
+\begin{itemize}
+  \item 典型大小：64 字节（最常见）
+  \item 某些实现可能使用 32 字节或 128 字节
+  \item 缓存行对齐可以提高性能
+  \item 缓存行大小由实现定义，可通过 \texttt{CTR\_EL0} 寄存器查询
+\end{itemize}
+
+\subsubsection{缓存操作}
+
+\paragraph{缓存命中（Cache Hit）}
+
+当请求的数据在缓存中时：
+\begin{itemize}
+  \item 直接从缓存读取，延迟低（L1 通常 1--3 周期）
+  \item 性能最佳
+  \item 命中率是衡量缓存性能的关键指标
+\end{itemize}
+
+\paragraph{缓存未命中（Cache Miss）}
+
+当请求的数据不在缓存中时，需要从下一级缓存或内存加载：
+\begin{enumerate}
+  \item \textbf{冷未命中（Cold Miss）}
+    \begin{itemize}
+      \item 首次访问数据
+      \item 不可避免
+    \end{itemize}
+
+  \item \textbf{冲突未命中（Conflict Miss）}
+    \begin{itemize}
+      \item 由于缓存映射冲突导致
+      \item 可以通过更好的数据布局减少
+    \end{itemize}
+
+  \item \textbf{容量未命中（Capacity Miss）}
+    \begin{itemize}
+      \item 缓存容量不足
+      \item 需要更大的缓存或更好的数据访问模式
+    \end{itemize}
+
+  \item \textbf{一致性未命中（Coherence Miss）}
+    \begin{itemize}
+      \item 多核系统中由于缓存一致性协议导致
+      \item 其他核心的修改使缓存行无效
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{ARMv8 缓存管理指令}
+
+ARMv8 提供了用户空间缓存操作指令，提高了动态代码生成的效率：
+
+\paragraph{数据缓存操作}
+
+\begin{itemize}
+  \item \textbf{DC ZVA（Data Cache Zero by VA）}
+    \begin{itemize}
+      \item 将指定地址范围的数据缓存清零
+      \item 用于快速清除数据缓存
+      \item 比逐行清除更高效
+    \end{itemize}
+
+  \item \textbf{DC CIVAC（Data Cache Clean and Invalidate by VA to PoC）}
+    \begin{itemize}
+      \item 清理并无效化指定地址的缓存
+      \item 确保数据写回内存
+    \end{itemize}
+
+  \item \textbf{DC CVAC（Data Cache Clean by VA to PoC）}
+    \begin{itemize}
+      \item 清理指定地址的缓存
+      \item 将脏数据写回内存，但保留缓存行
+    \end{itemize}
+
+  \item \textbf{DC IVAC（Data Cache Invalidate by VA to PoC）}
+    \begin{itemize}
+      \item 无效化指定地址的缓存
+      \item 丢弃缓存数据，不写回
+    \end{itemize}
+\end{itemize}
+
+\paragraph{指令缓存操作}
+
+\begin{itemize}
+  \item \textbf{IC IVAU（Instruction Cache Invalidate by VA to PoU）}
+    \begin{itemize}
+      \item 无效化指定地址的指令缓存
+      \item 用于代码更新后的缓存同步
+    \end{itemize}
+\end{itemize}
+
+\paragraph{缓存维护操作的作用域}
+
+ARMv8 定义了不同的缓存一致性点（Point of Coherence，PoC）：
+\begin{itemize}
+  \item \textbf{PoC}：所有可能访问该地址的观察者都能看到一致的数据
+  \item \textbf{PoU（Point of Unification）}：指令和数据缓存统一的一致性点
+\end{itemize}
+
+\subsubsection{缓存一致性（Cache Coherence）}
+
+在多核 ARMv8 系统中，需要保证缓存一致性：
+
+\paragraph{一致性协议}
+
+ARMv8 系统通常使用以下协议之一：
+\begin{enumerate}
+  \item \textbf{MESI 协议}
+    \begin{itemize}
+      \item Modified（已修改）
+      \item Exclusive（独占）
+      \item Shared（共享）
+      \item Invalid（无效）
+    \end{itemize}
+
+  \item \textbf{MOESI 协议}
+    \begin{itemize}
+      \item 在 MESI 基础上增加 Owned 状态
+      \item 某些实现使用
+    \end{itemize}
+\end{enumerate}
+
+\paragraph{一致性实现}
+
+\begin{itemize}
+  \item \textbf{监听协议（Snooping Protocol）}
+    \begin{itemize}
+      \item 通过总线监听其他核心的缓存操作
+      \item 适用于小规模系统
+    \end{itemize}
+
+  \item \textbf{目录协议（Directory Protocol）}
+    \begin{itemize}
+      \item 使用目录跟踪缓存行的状态
+      \item 适用于大规模系统
+    \end{itemize}
+\end{itemize}
+
+\paragraph{AMBA 一致性接口}
+
+ARMv8 系统通过 AMBA 接口实现缓存一致性：
+\begin{itemize}
+  \item \textbf{AMBA ACE（AXI Coherency Extensions）}
+    \begin{itemize}
+      \item 扩展的 AXI 协议
+      \item 支持缓存一致性
+    \end{itemize}
+
+  \item \textbf{AMBA CHI（Coherent Hub Interface）}
+    \begin{itemize}
+      \item 更新的互连协议
+      \item 更好的可扩展性
+    \end{itemize}
+\end{itemize}
+
+\subsubsection{缓存性能优化}
+
+\paragraph{数据对齐}
+
+\begin{itemize}
+  \item 按缓存行边界对齐数据（64 字节对齐）
+  \item 减少缓存行跨越
+  \item 提高缓存利用率
+\end{itemize}
+
+\paragraph{数据布局}
+
+\begin{itemize}
+  \item 将经常一起访问的数据放在一起
+  \item 避免伪共享（False Sharing）
+  \item 考虑缓存行大小
+\end{itemize}
+
+\paragraph{预取（Prefetching）}
+
+\begin{itemize}
+  \item \textbf{硬件预取}：处理器自动预取
+  \item \textbf{软件预取}：使用 PRFM（Prefetch Memory）指令
+  \item 预取可以隐藏内存延迟
+\end{itemize}
+
+\paragraph{缓存友好的算法}
+
+\begin{itemize}
+  \item 顺序访问优于随机访问
+  \item 块操作优于逐元素操作
+  \item 考虑缓存大小设计数据结构
+\end{itemize}
+
 \subsection{MMU}
+
+内存管理单元（Memory Management Unit，MMU）负责虚拟地址到物理地址的转换，提供内存保护和虚拟内存功能。ARMv8 的 MMU 设计支持多种页表粒度和地址空间大小。
+
+\subsubsection{MMU 的基本功能}
+
+\begin{enumerate}
+  \item \textbf{地址转换}
+    \begin{itemize}
+      \item 将虚拟地址转换为物理地址
+      \item 支持多级页表
+      \item 支持多种页大小
+    \end{itemize}
+
+  \item \textbf{内存保护}
+    \begin{itemize}
+      \item 访问权限控制（读、写、执行）
+      \item 特权级别检查
+      \item 异常级别检查
+    \end{itemize}
+
+  \item \textbf{虚拟内存}
+    \begin{itemize}
+      \item 支持比物理内存更大的地址空间
+      \item 页面换入换出（由操作系统管理）
+      \item 内存映射文件
+    \end{itemize}
+
+  \item \textbf{内存属性控制}
+    \begin{itemize}
+      \item 缓存策略（Cacheable、Non-cacheable）
+      \item 共享属性（Shareable、Non-shareable）
+      \item 访问权限
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{地址转换}
+
+\paragraph{页表粒度}
+
+ARMv8-A 支持三种页表粒度：
+\begin{enumerate}
+  \item \textbf{4 KB 页}
+    \begin{itemize}
+      \item 最常用
+      \item 适用于大多数应用
+      \item 4 级页表（48 位虚拟地址）
+    \end{itemize}
+
+  \item \textbf{16 KB 页}
+    \begin{itemize}
+      \item 某些移动设备使用
+      \item 减少页表大小
+      \item 4 级页表（48 位虚拟地址）
+    \end{itemize}
+
+  \item \textbf{64 KB 页}
+    \begin{itemize}
+      \item 某些嵌入式系统使用
+      \item 进一步减少页表大小
+      \item 3 级页表（48 位虚拟地址）
+    \end{itemize}
+\end{enumerate}
+
+\paragraph{虚拟地址空间}
+
+\begin{itemize}
+  \item \textbf{48 位虚拟地址}：标准配置，256 TB 虚拟地址空间
+  \item \textbf{52 位虚拟地址}：可选配置，4 PB 虚拟地址空间
+  \item 通过 \texttt{TCR\_EL1} 寄存器配置
+\end{itemize}
+
+\paragraph{页表结构}
+
+ARMv8 使用多级页表进行地址转换。以 4 KB 页、48 位虚拟地址为例：
+
+\begin{enumerate}
+  \item \textbf{Level 0（PGD）}
+    \begin{itemize}
+      \item 页全局目录
+      \item 512 个条目
+      \item 每个条目指向 Level 1 页表
+    \end{itemize}
+
+  \item \textbf{Level 1（PUD）}
+    \begin{itemize}
+      \item 页上层目录
+      \item 512 个条目
+      \item 每个条目指向 Level 2 页表或 1 GB 块
+    \end{itemize}
+
+  \item \textbf{Level 2（PMD）}
+    \begin{itemize}
+      \item 页中间目录
+      \item 512 个条目
+      \item 每个条目指向 Level 3 页表或 2 MB 块
+    \end{itemize}
+
+  \item \textbf{Level 3（PTE）}
+    \begin{itemize}
+      \item 页表项
+      \item 512 个条目
+      \item 每个条目指向 4 KB 页
+    \end{itemize}
+\end{enumerate}
+
+\paragraph{页表项（PTE）格式}
+
+ARMv8 页表项为 64 位，包含：
+\begin{itemize}
+  \item \textbf{物理地址}：物理页帧号（PFN）
+  \item \textbf{有效位（Valid）}：页表项是否有效
+  \item \textbf{访问权限}：AP（Access Permission）位
+  \item \textbf{内存属性}：内存类型和属性
+  \item \textbf{其他控制位}：Dirty、Accessed 等
+\end{itemize}
+
+\subsubsection{TLB}
+
+转换后备缓冲区（Translation Lookaside Buffer，TLB）缓存页表项，减少页表查找次数。
+
+\paragraph{TLB 类型}
+
+\begin{enumerate}
+  \item \textbf{指令 TLB（I-TLB）}
+    \begin{itemize}
+      \item 缓存指令地址转换
+      \item 通常较小（几十到几百条目）
+    \end{itemize}
+
+  \item \textbf{数据 TLB（D-TLB）}
+    \begin{itemize}
+      \item 缓存数据地址转换
+      \item 通常较小（几十到几百条目）
+    \end{itemize}
+
+  \item \textbf{统一 TLB}
+    \begin{itemize}
+      \item 某些实现使用统一 TLB
+      \item 同时缓存指令和数据转换
+    \end{itemize}
+
+  \item \textbf{二级 TLB}
+    \begin{itemize}
+      \item 某些实现提供二级 TLB
+      \item 容量更大，延迟稍高
+    \end{itemize}
+\end{enumerate}
+
+\paragraph{TLB 刷新}
+
+当页表更新时，需要刷新 TLB：
+
+\begin{itemize}
+  \item \textbf{TLBI（TLB Invalidate）指令}
+    \begin{itemize}
+      \item 无效化指定地址范围的 TLB 条目
+      \item 可以按 ASID（Address Space Identifier）刷新
+      \item 可以按 VMID（Virtual Machine Identifier）刷新
+    \end{itemize}
+
+  \item \textbf{全 TLB 刷新}
+    \begin{itemize}
+      \item 无效化所有 TLB 条目
+      \item 性能开销大，应避免频繁使用
+    \end{itemize}
+
+  \item \textbf{局部 TLB 刷新}
+    \begin{itemize}
+      \item 只刷新特定地址范围的 TLB
+      \item 性能开销小，推荐使用
+    \end{itemize}
+\end{itemize}
+
+\subsubsection{内存属性}
+
+\paragraph{内存类型}
+
+ARMv8 定义了三种内存类型：
+
+\begin{enumerate}
+  \item \textbf{普通内存（Normal Memory）}
+    \begin{itemize}
+      \item 可以缓存
+      \item 支持重排序
+      \item 用于代码和数据
+    \end{itemize}
+
+  \item \textbf{设备内存（Device Memory）}
+    \begin{itemize}
+      \item 不缓存
+      \item 访问顺序严格
+      \item 用于内存映射 I/O
+    \end{itemize}
+
+  \item \textbf{强顺序内存（Strongly-Ordered Memory）}
+    \begin{itemize}
+      \item 不缓存
+      \item 最严格的访问顺序
+      \item 用于关键外设
+    \end{itemize}
+\end{enumerate}
+
+\paragraph{缓存属性}
+
+对于普通内存，可以配置缓存属性：
+
+\begin{itemize}
+  \item \textbf{Non-cacheable}：不缓存
+  \item \textbf{Write-Through}：写直通
+  \item \textbf{Write-Back}：写回
+  \item \textbf{Read-Allocate}：读分配
+  \item \textbf{Write-Allocate}：写分配
+\end{itemize}
+
+\paragraph{共享属性}
+
+\begin{itemize}
+  \item \textbf{Non-shareable}：不共享，只被当前核心访问
+  \item \textbf{Inner Shareable}：内部共享域，同一集群内的核心共享
+  \item \textbf{Outer Shareable}：外部共享域，所有核心共享
+\end{itemize}
+
+\subsubsection{内存保护}
+
+\paragraph{访问权限}
+
+页表项中的 AP 位控制访问权限：
+
+\begin{itemize}
+  \item \textbf{读权限（Read）}：允许读取
+  \item \textbf{写权限（Write）}：允许写入
+  \item \textbf{执行权限（Execute）}：允许执行（通过 PXN/UXN 位控制）
+\end{itemize}
+
+\paragraph{特权级别检查}
+
+\begin{itemize}
+  \item \textbf{EL0}：只能访问用户空间（AP 位允许）
+  \item \textbf{EL1}：可以访问内核空间
+  \item \textbf{EL2/EL3}：可以访问所有空间
+\end{itemize}
+
+\paragraph{执行权限控制}
+
+\begin{itemize}
+  \item \textbf{PXN（Privileged Execute Never）}：特权模式不可执行
+  \item \textbf{UXN（User Execute Never）}：用户模式不可执行
+  \item 用于防止代码注入攻击
+\end{itemize}
+
+\subsubsection{ASID 和 VMID}
+
+\paragraph{ASID（Address Space Identifier）}
+
+\begin{itemize}
+  \item 用于区分不同进程的地址空间
+  \item 允许不同进程使用相同的虚拟地址
+  \item 减少 TLB 刷新
+  \item 通过 \texttt{TCR\_EL1.AS} 位使能
+\end{itemize}
+
+\paragraph{VMID（Virtual Machine Identifier）}
+
+\begin{itemize}
+  \item 用于区分不同虚拟机
+  \item 在虚拟化环境中使用
+  \item 通过 \texttt{VTTBR\_EL2} 寄存器管理
+\end{itemize}
 
 \subsection{Memory ordering} \label{sec:memory-ordering}
 
+内存排序（Memory Ordering）定义了多核系统中内存操作的可见性顺序，是理解并发编程的关键。ARMv8 采用弱内存模型（Weak Memory Model），允许更多的指令重排序以提高性能。
+
+\subsubsection{内存排序的必要性}
+
+在现代处理器中，为了提高性能，处理器和编译器会对指令进行重排序：
+
+\begin{enumerate}
+  \item \textbf{指令级并行（ILP）}
+    \begin{itemize}
+      \item 乱序执行（Out-of-Order Execution）
+      \item 指令重排序
+    \end{itemize}
+
+  \item \textbf{编译器优化}
+    \begin{itemize}
+      \item 指令调度
+      \item 寄存器分配优化
+    \end{itemize}
+
+  \item \textbf{缓存系统}
+    \begin{itemize}
+      \item 写缓冲（Write Buffer）
+      \item 缓存一致性协议
+    \end{itemize}
+\end{enumerate}
+
+这可能导致内存操作的顺序与程序顺序不一致，在多核系统中可能导致数据竞争和未定义行为。
+
+\subsubsection{ARMv8 内存模型}
+
+ARMv8 采用弱内存模型（Weak Memory Model），也称为放松内存模型（Relaxed Memory Model）：
+
+\begin{itemize}
+  \item 允许更多的重排序
+  \item 需要显式的内存屏障来控制顺序
+  \item 提供更好的性能
+  \item 与 x86 的强内存模型不同
+\end{itemize}
+
+\paragraph{内存操作的重排序规则}
+
+在 ARMv8 中，以下重排序是允许的：
+\begin{itemize}
+  \item 两个读操作可以重排序
+  \item 两个写操作可以重排序（如果它们访问不同的地址）
+  \item 读操作可以移到写操作之前（如果它们访问不同的地址）
+  \item 写操作可以移到读操作之前（如果它们访问不同的地址）
+\end{itemize}
+
+\subsubsection{内存屏障}
+
+内存屏障用于控制内存操作的顺序，确保某些操作在特定顺序下执行。
+
+\paragraph{数据内存屏障（DMB）}
+
+数据内存屏障确保屏障前后的内存操作顺序：
+
+\begin{itemize}
+  \item 不保证操作完成，只保证顺序
+  \item 可以指定共享域：
+    \begin{itemize}
+      \item \texttt{osh}：Outer Shareable
+      \item \texttt{ish}：Inner Shareable
+      \item \texttt{nsh}：Non-shareable
+      \item \texttt{sy}：Full System
+    \end{itemize}
+  \item 可以指定访问类型：
+    \begin{itemize}
+      \item \texttt{ld}：Load（读）
+      \item \texttt{st}：Store（写）
+      \item \texttt{sy}：All（读写）
+    \end{itemize}
+\end{itemize}
+
+\paragraph{数据同步屏障（DSB）}
+
+数据同步屏障比 DMB 更强：
+
+\begin{itemize}
+  \item 确保屏障前的所有内存操作完成
+  \item 后续指令等待屏障完成
+  \item 常用于需要确保操作完成的场景
+  \item 同样可以指定共享域和访问类型
+\end{itemize}
+
+\paragraph{指令同步屏障（ISB）}
+
+指令同步屏障用于刷新指令流水线：
+
+\begin{itemize}
+  \item 确保后续指令使用新的系统状态
+  \item 常用于系统寄存器更新后
+  \item 确保指令获取使用新的地址转换
+\end{itemize}
+
+\subsubsection{Load-Acquire 和 Store-Release}
+
+ARMv8 提供了专门的指令来简化内存排序，这些指令专为 C++11、C11 和 Java 内存模型设计。
+
+\paragraph{Load-Acquire（LDAR）}
+
+Load-Acquire 指令结合了加载操作和获取语义：
+
+\begin{itemize}
+  \item 执行加载操作
+  \item 确保后续操作在加载完成后可见
+  \item 相当于加载 + 获取屏障
+  \item 比显式使用 DMB 更高效
+\end{itemize}
+
+\paragraph{Store-Release（STLR）}
+
+Store-Release 指令结合了存储操作和释放语义：
+
+\begin{itemize}
+  \item 确保之前的操作在存储前完成
+  \item 执行存储操作
+  \item 相当于释放屏障 + 存储
+  \item 比显式使用 DMB 更高效
+\end{itemize}
+
+\paragraph{应用场景}
+
+Load-Acquire 和 Store-Release 对可以用于实现锁和同步原语：
+
+\begin{verbatim}
+// 获取锁
+lock_acquire:
+    ldar w0, [x1]        // Load-Acquire
+    cbnz w0, lock_acquire // 如果锁被占用，重试
+    mov w0, #1
+    stlr w0, [x1]        // Store-Release（需要原子操作）
+    // 临界区代码
+
+// 释放锁
+lock_release:
+    mov w0, #0
+    stlr w0, [x1]        // Store-Release
+\end{verbatim}
+
+\subsubsection{内存排序与 C++11/Java 内存模型}
+
+ARMv8 的内存排序指令直接支持 C++11 和 Java 内存模型：
+
+\begin{itemize}
+  \item \texttt{memory\_order\_acquire}：对应 Load-Acquire
+  \item \texttt{memory\_order\_release}：对应 Store-Release
+  \item \texttt{memory\_order\_acq\_rel}：同时包含获取和释放语义
+  \item \texttt{memory\_order\_seq\_cst}：顺序一致性（需要额外的屏障）
+\end{itemize}
+
+\paragraph{示例}
+
+考虑以下 C++ 代码：
+
+\begin{verbatim}
+// 线程 1
+data = 42;
+flag.store(1, std::memory_order_release);
+
+// 线程 2
+if (flag.load(std::memory_order_acquire) == 1) {
+    // 此时可以安全地读取 data
+    value = data;
+}
+\end{verbatim}
+
+使用 Store-Release 和 Load-Acquire 确保：
+\begin{itemize}
+  \item 线程 1 的 \texttt{data = 42} 在 \texttt{flag.store} 之前完成
+  \item 线程 2 的 \texttt{flag.load} 在 \texttt{value = data} 之前完成
+  \item 如果线程 2 看到 \texttt{flag == 1}，则一定能看到 \texttt{data == 42}
+\end{itemize}
+
+\subsubsection{内存排序与原子操作}
+
+ARMv8 提供了原子操作指令，支持不同的内存排序语义：
+
+\begin{itemize}
+  \item \textbf{LDXR/STXR}：Load-Exclusive/Store-Exclusive
+    \begin{itemize}
+      \item 用于实现原子操作
+      \item 支持 Compare-and-Swap（CAS）
+    \end{itemize}
+
+  \item \textbf{LDAR/STLR}：Load-Acquire/Store-Release
+    \begin{itemize}
+      \item 提供内存排序保证
+      \item 可以与原子操作结合使用
+    \end{itemize}
+\end{itemize}
+
 \subsection{SMP}
+
+对称多处理（Symmetric Multiprocessing，SMP）是指多个相同的处理器核心共享同一内存和 I/O 系统的多处理器架构。ARMv8 架构完整支持 SMP，通过缓存一致性协议保证多核系统的正确性。
+
+\subsubsection{SMP 架构}
+
+\paragraph{基本特征}
+
+\begin{enumerate}
+  \item \textbf{对称性}
+    \begin{itemize}
+      \item 所有核心功能相同
+      \item 任何核心可以执行任何任务
+      \item 操作系统可以在核心间调度任务
+    \end{itemize}
+
+  \item \textbf{共享内存}
+    \begin{itemize}
+      \item 所有核心访问同一物理内存
+      \item 统一的地址空间
+      \item 需要缓存一致性协议
+    \end{itemize}
+
+  \item \textbf{统一内存访问（UMA）}
+    \begin{itemize}
+      \item 所有核心访问内存的延迟相同
+      \item 简化了编程模型
+      \item 与 NUMA（Non-Uniform Memory Access）相对
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{ARMv8 多核配置}
+
+\paragraph{集群（Cluster）}
+
+ARMv8 系统可以组织为多个集群：
+
+\begin{itemize}
+  \item 每个集群包含 1--4 个核心（某些实现支持更多）
+  \item 集群内的核心共享 L2 缓存
+  \item 通过 AMBA 互连连接多个集群
+\end{itemize}
+
+\paragraph{big.LITTLE 架构}
+
+ARM 的 big.LITTLE 架构结合了高性能核心和低功耗核心：
+
+\begin{itemize}
+  \item \textbf{big 核心}：高性能核心（如 Cortex-A57、A72、A76）
+  \item \textbf{LITTLE 核心}：低功耗核心（如 Cortex-A53、A55）
+  \item 操作系统根据负载在核心间迁移任务
+  \item 平衡性能和功耗
+\end{itemize}
+
+\subsubsection{缓存一致性}
+
+\paragraph{MESI 协议}
+
+ARMv8 系统通常使用 MESI 缓存一致性协议，每个缓存行有四种状态：
+
+\begin{enumerate}
+  \item \textbf{Modified（M）}
+    \begin{itemize}
+      \item 缓存行已被修改，与内存不一致
+      \item 只有当前核心有此缓存行
+      \item 需要写回内存
+      \item 其他核心的读请求会触发写回和状态转换
+    \end{itemize}
+
+  \item \textbf{Exclusive（E）}
+    \begin{itemize}
+      \item 缓存行与内存一致
+      \item 只有当前核心有此缓存行
+      \item 可以快速修改为 Modified（无需通知其他核心）
+    \end{itemize}
+
+  \item \textbf{Shared（S）}
+    \begin{itemize}
+      \item 缓存行与内存一致
+      \item 多个核心可能有此缓存行
+      \item 只读，修改需要通知其他核心使其无效
+    \end{itemize}
+
+  \item \textbf{Invalid（I）}
+    \begin{itemize}
+      \item 缓存行无效
+      \item 需要从内存或其他核心获取
+    \end{itemize}
+\end{enumerate}
+
+\paragraph{协议状态转换}
+
+MESI 协议的状态转换：
+
+\begin{itemize}
+  \item \textbf{读未命中}：从内存或其他核心获取，状态变为 Shared 或 Exclusive
+  \item \textbf{写命中}：
+    \begin{itemize}
+      \item 如果状态是 Exclusive 或 Modified，直接写入
+      \item 如果是 Shared，需要使其他核心的缓存行无效，然后写入
+    \end{itemize}
+  \item \textbf{写未命中}：获取缓存行并标记为 Modified
+  \item \textbf{其他核心的读请求}：如果状态是 Modified，需要写回内存并转换为 Shared
+  \item \textbf{其他核心的写请求}：使当前缓存行无效
+\end{itemize}
+
+\paragraph{MOESI 协议}
+
+某些 ARMv8 实现使用 MOESI 协议，增加了 Owned 状态：
+
+\begin{itemize}
+  \item \textbf{Owned（O）}
+    \begin{itemize}
+      \item 缓存行已被修改，但可能被其他核心共享
+      \item 当前核心负责在需要时提供数据
+      \item 减少写回内存的次数
+    \end{itemize}
+\end{itemize}
+
+\subsubsection{内存屏障与 SMP}
+
+在 SMP 系统中，内存屏障更加重要：
+
+\begin{enumerate}
+  \item \textbf{确保多核之间的操作顺序}
+    \begin{itemize}
+      \item 防止一个核心看到另一个核心操作的乱序结果
+    \end{itemize}
+
+  \item \textbf{防止数据竞争}
+    \begin{itemize}
+      \item 确保同步原语的正确性
+    \end{itemize}
+
+  \item \textbf{保证缓存一致性协议的语义}
+    \begin{itemize}
+      \item 确保一致性操作的正确顺序
+    \end{itemize}
+\end{enumerate}
+
+\paragraph{SMP 中的内存屏障}
+
+在 SMP 系统中，通常需要使用系统级内存屏障：
+
+\begin{itemize}
+  \item \texttt{DMB sy}：全系统数据内存屏障
+  \item \texttt{DSB sy}：全系统数据同步屏障
+  \item 确保所有核心看到一致的内存状态
+\end{itemize}
+
+\subsubsection{SMP 编程考虑}
+
+\paragraph{伪共享（False Sharing）}
+
+伪共享是多核编程中的常见性能问题：
+
+\begin{itemize}
+  \item \textbf{问题}：不同核心访问同一缓存行的不同数据
+  \item \textbf{影响}：导致不必要的缓存一致性开销
+  \item \textbf{解决方法}：
+    \begin{itemize}
+      \item 数据对齐到缓存行边界（64 字节对齐）
+      \item 使用填充（Padding）分离数据
+      \item 将共享数据改为私有数据
+      \item 使用 \texttt{\_\_attribute\_\_((aligned(64)))} 对齐结构体
+    \end{itemize}
+\end{itemize}
+
+\paragraph{锁竞争}
+
+\begin{itemize}
+  \item \textbf{问题}：多个核心竞争同一锁
+  \item \textbf{影响}：导致串行化，降低并行性能
+  \item \textbf{解决方法}：
+    \begin{itemize}
+      \item 使用细粒度锁
+      \item 使用无锁数据结构
+      \item 使用读写锁
+      \item 减少锁的持有时间
+    \end{itemize}
+\end{itemize}
+
+\paragraph{负载均衡}
+
+\begin{itemize}
+  \item 操作系统需要平衡各核心的负载
+  \item 考虑缓存亲和性（Cache Affinity）
+  \item 避免频繁的任务迁移
+  \item 考虑 NUMA 效应（如果系统是 NUMA）
+\end{itemize}
+
+\subsubsection{ARMv8 多核支持}
+
+\paragraph{多核一致性}
+
+ARMv8 系统通过以下方式实现多核一致性：
+
+\begin{itemize}
+  \item \textbf{AMBA ACE（AXI Coherency Extensions）}
+    \begin{itemize}
+      \item 扩展的 AXI 协议
+      \item 支持缓存一致性
+      \item 适用于中等规模系统
+    \end{itemize}
+
+  \item \textbf{AMBA CHI（Coherent Hub Interface）}
+    \begin{itemize}
+      \item 更新的互连协议
+      \item 更好的可扩展性
+      \item 支持更大规模的系统
+    \end{itemize}
+\end{itemize}
+
+\paragraph{集群配置}
+
+\begin{itemize}
+  \item 支持多个 SMP 集群
+  \item 每个集群可以独立配置
+  \item 集群间通过一致性互连连接
+\end{itemize}
+
+\paragraph{中断分发}
+
+\begin{itemize}
+  \item GIC（Generic Interrupt Controller）支持多核中断路由
+  \item 可以将中断路由到特定核心
+  \item 支持中断负载均衡
+\end{itemize}
+
+\subsubsection{SMP 性能优化}
+
+\paragraph{数据局部性}
+
+\begin{itemize}
+  \item 尽量让数据和处理它的核心靠近
+  \item 利用缓存亲和性
+  \item 减少跨核心的数据共享
+\end{itemize}
+
+\paragraph{锁优化}
+
+\begin{itemize}
+  \item 使用自旋锁时考虑退避策略
+  \item 使用队列锁减少竞争
+  \item 考虑无锁编程
+\end{itemize}
+
+\paragraph{NUMA 考虑}
+
+如果系统是 NUMA（Non-Uniform Memory Access）：
+\begin{itemize}
+  \item 考虑内存节点的局部性
+  \item 使用 NUMA 感知的内存分配
+  \item 避免跨节点的频繁访问
+\end{itemize}
 
 \subsection{Others}
 
+本节介绍 ARMv8 架构的其他重要特性。
+
+\subsubsection{性能监控}
+
+\paragraph{性能监控单元（PMU）}
+
+ARMv8 提供性能监控单元用于性能分析：
+\begin{itemize}
+  \item 事件计数器：统计各种性能事件
+  \item 周期计数器：统计 CPU 周期
+  \item 指令计数器：统计指令执行数
+\end{itemize}
+
+\paragraph{性能事件}
+
+常见性能事件包括：
+\begin{itemize}
+  \item 缓存未命中
+  \item TLB 未命中
+  \item 分支预测失败
+  \item 指令重排序
+\end{itemize}
+
+\subsubsection{调试支持}
+
+\paragraph{调试架构}
+
+ARMv8 提供完整的调试支持：
+\begin{itemize}
+  \item 断点：指令断点和数据断点
+  \item 观察点：数据访问监控
+  \item 跟踪：指令跟踪和数据跟踪
+\end{itemize}
+
+\paragraph{CoreSight}
+
+CoreSight 是 ARM 的调试和跟踪架构：
+\begin{itemize}
+  \item 实时跟踪
+  \item 性能分析
+  \item 系统级调试
+\end{itemize}
+
+\subsubsection{虚拟化支持}
+
+\paragraph{Hypervisor 支持}
+
+ARMv8 在 EL2 提供完整的虚拟化支持：
+\begin{itemize}
+  \item 虚拟 CPU：支持多个虚拟机
+  \item 虚拟中断：虚拟化中断控制器
+  \item 虚拟内存：两阶段地址转换
+\end{itemize}
+
+\subsubsection{安全扩展}
+
+\paragraph{TrustZone}
+
+ARM TrustZone 提供硬件级安全：
+\begin{itemize}
+  \item 安全世界和普通世界隔离
+  \item 安全内存保护
+  \item 安全外设访问控制
+\end{itemize}
+
+\subsubsection{电源管理}
+
+\paragraph{功耗状态}
+
+ARMv8 支持多种功耗状态：
+\begin{itemize}
+  \item 运行状态（Running）
+  \item 待机状态（Standby）
+  \item 休眠状态（Sleep）
+  \item 关闭状态（Off）
+\end{itemize}
+
+\paragraph{动态电压频率调节（DVFS）}
+
+\begin{itemize}
+  \item 根据负载调整电压和频率
+  \item 平衡性能和功耗
+  \item 操作系统和硬件协同工作
+\end{itemize}
+
 \section{RISC-V}
+
+RISC-V 是一个开源的指令集架构（ISA），由加州大学伯克利分校开发。RISC-V 具有模块化、可扩展、无专利限制等特点，在学术界和工业界都得到了广泛关注。
 
 \subsection{Privileged Architecture}
 
+RISC-V 特权架构定义了系统级的功能，包括异常处理、内存管理、中断处理等。
+
+\subsubsection{特权级别}
+
+RISC-V 定义了多个特权级别（模式）：
+
+\begin{enumerate}
+  \item \textbf{用户模式（User Mode，U-Mode）}
+    \begin{itemize}
+      \item 最低特权级别
+      \item 运行用户应用程序
+      \item 受限的指令和资源访问
+    \end{itemize}
+
+  \item \textbf{监管者模式（Supervisor Mode，S-Mode）}
+    \begin{itemize}
+      \item 运行操作系统内核
+      \item 管理虚拟内存
+      \item 处理系统调用和异常
+    \end{itemize}
+
+  \item \textbf{机器模式（Machine Mode，M-Mode）}
+    \begin{itemize}
+      \item 最高特权级别
+      \item 运行固件和引导代码
+      \item 最低级别的硬件访问
+    \end{itemize}
+
+  \item \textbf{Hypervisor 模式（H-Mode）}
+    \begin{itemize}
+      \item 可选的特权级别
+      \item 用于虚拟化
+      \item 在 S-Mode 和 M-Mode 之间
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{控制状态寄存器（CSR）}
+
+RISC-V 使用控制状态寄存器来管理系统状态：
+
+\paragraph{机器模式 CSR}
+
+\begin{itemize}
+  \item \textbf{mstatus}：机器状态寄存器
+  \item \textbf{misa}：机器 ISA 寄存器
+  \item \textbf{medeleg}：机器异常委托寄存器
+  \item \textbf{mideleg}：机器中断委托寄存器
+  \item \textbf{mie}：机器中断使能寄存器
+  \item \textbf{mtvec}：机器陷阱向量基址寄存器
+  \item \textbf{mepc}：机器异常程序计数器
+  \item \textbf{mcause}：机器异常原因寄存器
+  \item \textbf{mtval}：机器陷阱值寄存器
+  \item \textbf{mip}：机器中断挂起寄存器
+\end{itemize}
+
+\paragraph{监管者模式 CSR}
+
+\begin{itemize}
+  \item \textbf{sstatus}：监管者状态寄存器
+  \item \textbf{sedeleg}：监管者异常委托寄存器
+  \item \textbf{sideleg}：监管者中断委托寄存器
+  \item \textbf{sie}：监管者中断使能寄存器
+  \item \textbf{stvec}：监管者陷阱向量基址寄存器
+  \item \textbf{sepc}：监管者异常程序计数器
+  \item \textbf{scause}：监管者异常原因寄存器
+  \item \textbf{stval}：监管者陷阱值寄存器
+  \item \textbf{sip}：监管者中断挂起寄存器
+  \item \textbf{satp}：监管者地址转换和保护寄存器
+\end{itemize}
+
+\subsubsection{异常和中断}
+
+\paragraph{异常类型}
+
+RISC-V 定义了多种异常类型：
+\begin{itemize}
+  \item 指令地址未对齐
+  \item 指令访问错误
+  \item 非法指令
+  \item 断点
+  \item 加载地址未对齐
+  \item 加载访问错误
+  \item 存储地址未对齐
+  \item 存储访问错误
+  \item 用户模式环境调用
+  \item 监管者模式环境调用
+  \item 机器模式环境调用
+  \item 指令页错误
+  \item 加载页错误
+  \item 存储页错误
+\end{itemize}
+
+\paragraph{中断类型}
+
+RISC-V 支持多种中断：
+\begin{itemize}
+  \item 软件中断（Software Interrupt）
+  \item 定时器中断（Timer Interrupt）
+  \item 外部中断（External Interrupt）
+\end{itemize}
+
+\subsubsection{内存管理}
+
+\paragraph{Sv32（32 位虚拟内存）}
+
+\begin{itemize}
+  \item 32 位虚拟地址空间
+  \item 4 KB 页大小
+  \item 两级页表
+\end{itemize}
+
+\paragraph{Sv39（39 位虚拟内存）}
+
+\begin{itemize}
+  \item 39 位虚拟地址空间（512 GB）
+  \item 4 KB 页大小
+  \item 三级页表
+  \item 64 位系统常用
+\end{itemize}
+
+\paragraph{Sv48（48 位虚拟内存）}
+
+\begin{itemize}
+  \item 48 位虚拟地址空间（256 TB）
+  \item 4 KB 页大小
+  \item 四级页表
+  \item 大型系统使用
+\end{itemize}
+
+\paragraph{页表项（PTE）}
+
+RISC-V 页表项格式：
+\begin{itemize}
+  \item V（Valid）：有效位
+  \item R（Read）：读权限
+  \item W（Write）：写权限
+  \item X（Execute）：执行权限
+  \item U（User）：用户模式可访问
+  \item G（Global）：全局映射
+  \item A（Accessed）：已访问
+  \item D（Dirty）：已修改
+  \item RSW：保留给软件使用
+  \item PPN：物理页号
+\end{itemize}
+
 \subsection{Unprivileged ISA}
+
+RISC-V 非特权 ISA 定义了用户程序可以使用的指令。
+
+\subsubsection{基本指令集}
+
+\paragraph{RV32I（32 位基础指令集）}
+
+\begin{itemize}
+  \item 32 个通用寄存器（x0--x31）
+  \item x0 硬连线为 0
+  \item 基本整数运算指令
+  \item 加载/存储指令
+  \item 分支和跳转指令
+  \item 系统调用指令（ECALL）
+\end{itemize}
+
+\paragraph{RV64I（64 位基础指令集）}
+
+\begin{itemize}
+  \item 扩展 RV32I 到 64 位
+  \item 64 位寄存器
+  \item 64 位地址空间
+  \item 额外的 64 位运算指令
+\end{itemize}
+
+\subsubsection{标准扩展}
+
+\paragraph{M 扩展（乘法/除法）}
+
+\begin{itemize}
+  \item MUL：乘法
+  \item MULH：高位乘法
+  \item DIV：有符号除法
+  \item DIVU：无符号除法
+  \item REM：有符号取余
+  \item REMU：无符号取余
+\end{itemize}
+
+\paragraph{A 扩展（原子操作）}
+
+\begin{itemize}
+  \item LR（Load Reserved）：保留加载
+  \item SC（Store Conditional）：条件存储
+  \item AMO（Atomic Memory Operation）：原子内存操作
+  \item 用于实现锁和同步原语
+\end{itemize}
+
+\paragraph{F 扩展（单精度浮点）}
+
+\begin{itemize}
+  \item 32 位浮点运算
+  \item 32 个浮点寄存器（f0--f31）
+  \item IEEE 754 标准
+\end{itemize}
+
+\paragraph{D 扩展（双精度浮点）}
+
+\begin{itemize}
+  \item 64 位浮点运算
+  \item 扩展 F 扩展
+\end{itemize}
+
+\paragraph{C 扩展（压缩指令）}
+
+\begin{itemize}
+  \item 16 位指令编码
+  \item 减少代码大小
+  \item 提高代码密度
+\end{itemize}
+
+\subsubsection{寄存器约定}
+
+\paragraph{通用寄存器用途}
+
+\begin{itemize}
+  \item x0：零寄存器（硬连线为 0）
+  \item x1（ra）：返回地址
+  \item x2（sp）：栈指针
+  \item x3（gp）：全局指针
+  \item x4（tp）：线程指针
+  \item x5--x7（t0--t2）：临时寄存器
+  \item x8（s0/fp）：保存寄存器/帧指针
+  \item x9（s1）：保存寄存器
+  \item x10--x11（a0--a1）：函数参数/返回值
+  \item x12--x17（a2--a7）：函数参数
+  \item x18--x27（s2--s11）：保存寄存器
+  \item x28--x31（t3--t6）：临时寄存器
+\end{itemize}
+
+\subsubsection{调用约定}
+
+\paragraph{参数传递}
+
+\begin{itemize}
+  \item 前 8 个整数参数通过 a0--a7 传递
+  \item 前 8 个浮点参数通过 f0--f7 传递
+  \item 更多参数通过栈传递
+\end{itemize}
+
+\paragraph{返回值}
+
+\begin{itemize}
+  \item 整数返回值通过 a0 传递
+  \item 浮点返回值通过 f0 传递
+  \item 大结构体通过内存传递
+\end{itemize}
+
+\paragraph{调用者保存 vs 被调用者保存}
+
+\begin{itemize}
+  \item 临时寄存器（t0--t6）：调用者保存
+  \item 保存寄存器（s0--s11）：被调用者保存
+  \item 参数寄存器（a0--a7）：调用者保存
+\end{itemize}
 
 \section{内存层级}
 
+现代计算机系统采用多级内存层次结构，以平衡性能、容量和成本。
+
+\subsection{内存层次结构}
+
+\subsubsection{层次结构}
+
+典型的内存层次结构（从快到慢，从小到大）：
+
+\begin{enumerate}
+  \item \textbf{寄存器}
+    \begin{itemize}
+      \item 最快，容量最小（几十到几百字节）
+      \item CPU 内部，访问延迟：0 周期
+    \end{itemize}
+
+  \item \textbf{L1 缓存}
+    \begin{itemize}
+      \item 很快，容量小（32--64 KB）
+      \item CPU 内部，访问延迟：1--3 周期
+    \end{itemize}
+
+  \item \textbf{L2 缓存}
+    \begin{itemize}
+      \item 较快，容量中等（256 KB--1 MB）
+      \item CPU 内部或外部，访问延迟：10--20 周期
+    \end{itemize}
+
+  \item \textbf{L3 缓存}
+    \begin{itemize}
+      \item 中等速度，容量较大（几 MB 到几十 MB）
+      \item 多核共享，访问延迟：20--40 周期
+    \end{itemize}
+
+  \item \textbf{主内存（DRAM）}
+    \begin{itemize}
+      \item 较慢，容量大（几 GB 到几 TB）
+      \item 访问延迟：100--300 周期
+    \end{itemize}
+
+  \item \textbf{辅助存储（SSD/HDD）}
+    \begin{itemize}
+      \item 最慢，容量最大（几百 GB 到几十 TB）
+      \item 访问延迟：数万到数百万周期
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{访问时间对比}
+
+\begin{table}[H]
+  \centering
+  \caption{不同存储层次的典型访问时间}
+  \begin{tabular}{|l|l|l|}
+    \hline
+    存储类型 & 容量 & 访问时间 \\
+    \hline
+    寄存器 & 几十字节 & 0 周期 \\
+    L1 缓存 & 32--64 KB & 1--3 周期 \\
+    L2 缓存 & 256 KB--1 MB & 10--20 周期 \\
+    L3 缓存 & 几 MB--几十 MB & 20--40 周期 \\
+    主内存 & 几 GB--几 TB & 100--300 周期 \\
+    SSD & 几百 GB--几 TB & 数万周期 \\
+    HDD & 几 TB--几十 TB & 数百万周期 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+\subsection{缓存性能}
+
+\subsubsection{缓存命中率}
+
+缓存命中率是衡量缓存性能的重要指标：
+
+\begin{equation}
+\text{命中率} = \frac{\text{缓存命中次数}}{\text{总访问次数}} \label{eq:cache-hit-rate}
+\end{equation}
+
+\subsubsection{平均访问时间}
+
+平均内存访问时间：
+
+\begin{equation}
+T_{avg} = T_{hit} \times H + T_{miss} \times (1 - H) \label{eq:avg-access-time}
+\end{equation}
+
+其中：
+\begin{itemize}
+  \item $T_{hit}$：缓存命中时间
+  \item $T_{miss}$：缓存未命中时间（包括访问内存的时间）
+  \item $H$：缓存命中率
+\end{itemize}
+
+\subsubsection{缓存效率}
+
+缓存效率取决于：
+\begin{itemize}
+  \item 命中率
+  \item 缓存大小
+  \item 替换策略
+  \item 预取策略
+\end{itemize}
+
+\subsection{内存带宽}
+
+\subsubsection{理论带宽}
+
+内存的理论带宽：
+
+\begin{equation}
+\text{带宽} = \text{数据宽度} \times \text{频率} \times \text{通道数} \label{eq:memory-bandwidth}
+\end{equation}
+
+\subsubsection{实际带宽}
+
+实际带宽受多种因素影响：
+\begin{itemize}
+  \item 访问模式（顺序 vs 随机）
+  \item 缓存效率
+  \item 内存控制器效率
+  \item 系统负载
+\end{itemize}
+
 \section{每个程序员都应该知道的内存知识}
+
+内存是计算机系统中最关键的资源之一，理解内存的工作原理对于编写高效、正确的程序至关重要。本节总结程序员需要了解的关键内存知识。
+
+\subsection{内存的基本概念}
+
+\subsubsection{物理内存 vs 虚拟内存}
+
+\begin{enumerate}
+  \item \textbf{物理内存}
+    \begin{itemize}
+      \item 实际的硬件内存（DRAM）
+      \item 有限的容量
+      \item 直接由硬件访问
+    \end{itemize}
+
+  \item \textbf{虚拟内存}
+    \begin{itemize}
+      \item 程序看到的地址空间
+      \item 可以比物理内存大
+      \item 通过 MMU 映射到物理内存
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{内存对齐}
+
+\paragraph{对齐的重要性}
+
+\begin{itemize}
+  \item 未对齐的访问可能导致性能下降
+  \item 某些架构不支持未对齐访问
+  \item 对齐到自然边界可以提高性能
+\end{itemize}
+
+\paragraph{对齐规则}
+
+\begin{itemize}
+  \item 基本类型通常对齐到其大小
+  \item 结构体对齐到最大成员的对齐要求
+  \item 可以使用 \texttt{\_\_attribute\_\_((packed))} 取消对齐（不推荐）
+\end{itemize}
+
+\subsection{缓存友好的编程}
+
+\subsubsection{数据访问模式}
+
+\paragraph{顺序访问}
+
+\begin{itemize}
+  \item 顺序访问内存效率高
+  \item 充分利用空间局部性
+  \item 预取效果好
+\end{itemize}
+
+\paragraph{随机访问}
+
+\begin{itemize}
+  \item 随机访问效率低
+  \item 缓存命中率低
+  \item 应尽量避免
+\end{itemize}
+
+\subsubsection{数据结构设计}
+
+\paragraph{紧凑的数据结构}
+
+\begin{itemize}
+  \item 减少内存占用
+  \item 提高缓存利用率
+  \item 减少缓存未命中
+\end{itemize}
+
+\paragraph{数据布局}
+
+\begin{itemize}
+  \item 将经常一起访问的数据放在一起
+  \item 避免伪共享
+  \item 考虑缓存行大小（通常 64 字节）
+\end{itemize}
+
+\subsubsection{循环优化}
+
+\paragraph{循环顺序}
+
+\begin{itemize}
+  \item 按行访问优于按列访问（对于二维数组）
+  \item 考虑内存布局（行主序 vs 列主序）
+\end{itemize}
+
+\paragraph{循环展开}
+
+\begin{itemize}
+  \item 减少循环开销
+  \item 提高指令级并行
+  \item 但可能增加代码大小
+\end{itemize}
+
+\subsection{多核编程的内存考虑}
+
+\subsubsection{伪共享}
+
+\paragraph{问题}
+
+\begin{itemize}
+  \item 不同线程访问同一缓存行的不同数据
+  \item 导致不必要的缓存一致性开销
+  \item 严重影响性能
+\end{itemize}
+
+\paragraph{解决方法}
+
+\begin{itemize}
+  \item 数据对齐到缓存行边界
+  \item 使用填充（Padding）分离数据
+  \item 将共享数据改为私有数据
+\end{itemize}
+
+\subsubsection{内存屏障}
+
+\begin{itemize}
+  \item 确保内存操作的顺序
+  \item 防止编译器优化导致的问题
+  \item 保证多线程程序的正确性
+\end{itemize}
+
+\subsection{内存分配}
+
+\subsubsection{栈 vs 堆}
+
+\begin{enumerate}
+  \item \textbf{栈}
+    \begin{itemize}
+      \item 自动管理
+      \item 速度快
+      \item 容量有限
+      \item 局部变量
+    \end{itemize}
+
+  \item \textbf{堆}
+    \begin{itemize}
+      \item 手动管理（或垃圾回收）
+      \item 速度较慢
+      \item 容量大
+      \item 动态分配
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{内存分配器}
+
+\begin{itemize}
+  \item 理解分配器的行为
+  \item 避免频繁分配/释放
+  \item 使用对象池减少分配
+  \item 考虑内存碎片
+\end{itemize}
+
+\subsection{性能分析工具}
+
+\subsubsection{缓存分析}
+
+\begin{itemize}
+  \item perf：Linux 性能分析工具
+  \item Cachegrind：Valgrind 的缓存分析工具
+  \item Intel VTune：Intel 性能分析工具
+\end{itemize}
+
+\subsubsection{内存分析}
+
+\begin{itemize}
+  \item Valgrind：内存错误检测
+  \item AddressSanitizer：快速内存错误检测
+  \item 内存分析器：分析内存使用模式
+\end{itemize}
+
+\subsection{推荐阅读}
 
 关于内存相关的知识，强烈建议阅读
 \href{https://people.freebsd.org/~lstewart/articles/cpumemory.pdf}{What Every Programmer Should Know About Memory}。
+
+这篇经典文章详细介绍了：
+\begin{itemize}
+  \item 内存硬件的工作原理
+  \item CPU 缓存的组织和性能
+  \item 虚拟内存系统
+  \item NUMA 系统
+  \item 编程实践和优化技巧
+\end{itemize}
+
+理解这些内容对于编写高性能程序至关重要。
 
 
 % nvim: set ts=2 sts=2 sw=2 et:

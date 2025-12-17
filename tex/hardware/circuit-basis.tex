@@ -2,7 +2,247 @@
 
 \section{欧姆定律}
 
+欧姆定律（Ohm's Law）是电路分析中最基本、最重要的定律之一，由德国物理学家乔治·西蒙·欧姆（Georg Simon Ohm）于 1827 年提出。该定律描述了线性电阻元件中电压、电流和电阻三者之间的基本关系。
+
+\subsection{基本形式}
+
+对于线性电阻元件，欧姆定律的数学表达式为：
+
+\begin{equation}
+V = IR \label{eq:ohm-law}
+\end{equation}
+
+其中：
+\begin{itemize}
+  \item $V$ 表示电阻两端的电压（单位：伏特，V）
+  \item $I$ 表示通过电阻的电流（单位：安培，A）
+  \item $R$ 表示电阻值（单位：欧姆，$\Omega$）
+\end{itemize}
+
+欧姆定律也可以写成其他等价形式：
+
+\begin{align}
+I &= \frac{V}{R} \label{eq:ohm-law-current} \\
+R &= \frac{V}{I} \label{eq:ohm-law-resistance}
+\end{align}
+
+\subsection{电导}
+
+电导（Conductance）是电阻的倒数，用符号 $G$ 表示，单位为西门子（S，Siemens）：
+
+\begin{equation}
+G = \frac{1}{R} = \frac{I}{V} \label{eq:conductance}
+\end{equation}
+
+使用电导表示时，欧姆定律可以写成：
+
+\begin{equation}
+I = GV \label{eq:ohm-law-conductance}
+\end{equation}
+
+在某些电路分析中，使用电导可以简化计算，特别是在节点法中。
+
+\subsection{功率关系}
+
+根据功率的定义 $P = VI$，结合欧姆定律，可以得到电阻消耗功率的几种表达形式：
+
+\begin{align}
+P &= VI = I^2R = \frac{V^2}{R} \label{eq:power-ohm} \\
+P &= V^2G = \frac{I^2}{G} \label{eq:power-conductance}
+\end{align}
+
+这些公式在电路分析和设计中非常重要，特别是在计算功耗和热设计时。
+
+\subsection{适用范围}
+
+需要特别注意的是，欧姆定律仅适用于线性电阻元件。对于以下情况，欧姆定律不适用：
+
+\begin{itemize}
+  \item 非线性元件（如二极管、晶体管等）
+  \item 动态元件（如电容器、电感器在瞬态过程中）
+  \item 时变元件
+  \item 在极高频率下，需要考虑寄生参数的情况
+\end{itemize}
+
+在实际应用中，许多元件在特定工作条件下可以近似为线性电阻，此时欧姆定律仍然适用。
+
 \section{KCL/KVL}
+
+基尔霍夫定律（Kirchhoff's Laws）是电路分析的基础，由德国物理学家古斯塔夫·基尔霍夫（Gustav Kirchhoff）于 1845 年提出。该定律包括两个基本定律：基尔霍夫电流定律（KCL，Kirchhoff's Current Law）和基尔霍夫电压定律（KVL，Kirchhoff's Voltage Law）。这两个定律是电路分析中最重要的工具，适用于任何集总参数电路。
+
+\subsection{基尔霍夫电流定律（KCL）}
+
+\subsubsection{定律表述}
+
+基尔霍夫电流定律指出：在集总参数电路中，对于任意节点，流入该节点的电流之和等于流出该节点的电流之和。换句话说，在任意时刻，流入（或流出）任意节点的所有支路电流的代数和为零。
+
+数学表达式为：
+
+\begin{equation}
+\sum_{k=1}^{n} I_k = 0 \label{eq:kcl}
+\end{equation}
+
+其中 $I_k$ 表示连接到该节点的第 $k$ 条支路的电流。通常约定：流入节点的电流取正号，流出节点的电流取负号（或相反约定，但必须一致）。
+
+\subsubsection{物理本质}
+
+KCL 的本质是电荷守恒定律在电路中的体现。在集总参数电路中，节点处不能积累电荷，因此流入节点的电荷必须等于流出节点的电荷。由于电流是单位时间内通过某截面的电荷量，所以电流的代数和必须为零。
+
+\subsubsection{广义节点}
+
+KCL 不仅适用于单个节点，也适用于由多个节点组成的闭合面（称为广义节点或超节点）。对于任意闭合面，流入该闭合面的电流之和等于流出该闭合面的电流之和。
+
+\begin{figure}[H]
+  \centering
+  \begin{circuitikz}[american,scale=0.8]
+    \draw
+    (0,0) node[above] {节点 A}
+    to[R=$R_1$, i=$I_1$] (2,2)
+    to[R=$R_2$, i=$I_2$] (4,0)
+    to[R=$R_3$, i=$I_3$] (2,-2)
+    to[R=$R_4$, i=$I_4$] (0,0);
+
+    \draw (2,2) node[above] {节点 B};
+    \draw (4,0) node[right] {节点 C};
+    \draw (2,-2) node[below] {节点 D};
+
+    \draw[red, thick, dashed] (1,1) -- (3,1) -- (3,-1) -- (1,-1) -- cycle;
+    \node[red] at (2,0) {闭合面};
+  \end{circuitikz}
+  \caption{KCL 应用于闭合面}\label{fig:kcl-closed-surface}
+\end{figure}
+
+对于图~\ref{fig:kcl-closed-surface} 中的闭合面，根据 KCL 有：
+
+\begin{equation}
+I_1 + I_2 + I_3 + I_4 = 0
+\end{equation}
+
+\subsubsection{应用示例}
+
+考虑一个简单的节点，如图~\ref{fig:kcl-example} 所示：
+
+\begin{figure}[H]
+  \centering
+  \begin{circuitikz}[american,scale=0.8]
+    \draw
+    (0,0) node[above] {节点}
+    to[short, i=$I_1$] (-1.5,-1)
+    to[short, i=$I_2$] (-1.5,-2)
+    to[short, i=$I_3$] (0,-3)
+    to[short, i=$I_4$] (1.5,-2)
+    to[short, i=$I_5$] (1.5,-1)
+    to[short] (0,0);
+  \end{circuitikz}
+  \caption{KCL 应用示例}\label{fig:kcl-example}
+\end{figure}
+
+根据 KCL，如果 $I_1 = 2$ A（流入），$I_2 = 3$ A（流入），$I_3 = 1$ A（流出），$I_4 = 4$ A（流出），则：
+
+\begin{equation}
+I_1 + I_2 - I_3 - I_4 - I_5 = 0
+\end{equation}
+
+解得：$I_5 = 2 + 3 - 1 - 4 = 0$ A
+
+\subsection{基尔霍夫电压定律（KVL）}
+
+\subsubsection{定律表述}
+
+基尔霍夫电压定律指出：在集总参数电路中，对于任意回路，沿该回路所有支路电压的代数和为零。
+
+数学表达式为：
+
+\begin{equation}
+\sum_{k=1}^{n} V_k = 0 \label{eq:kvl}
+\end{equation}
+
+其中 $V_k$ 表示回路中第 $k$ 条支路的电压。在应用 KVL 时，需要指定回路的绕行方向，沿绕行方向电压降取正号，电压升取负号（或相反约定，但必须一致）。
+
+\subsubsection{物理本质}
+
+KVL 的本质是能量守恒定律在电路中的体现。在集总参数电路中，单位正电荷沿闭合回路移动一周，其获得的能量等于失去的能量，因此电压的代数和为零。这也可以从电场的保守性（无旋性）来理解。
+
+\subsubsection{电压参考方向}
+
+在应用 KVL 时，需要明确每条支路的电压参考方向。通常有两种方法：
+
+\begin{enumerate}
+  \item \textbf{关联参考方向}：电压参考方向与电流参考方向一致，即电流从电压的正极流向负极。此时，对于电阻元件，$V = IR$。
+  \item \textbf{非关联参考方向}：电压参考方向与电流参考方向相反。此时，对于电阻元件，$V = -IR$。
+\end{enumerate}
+
+\subsubsection{应用示例}
+
+考虑一个简单的回路，如图~\ref{fig:kvl-example} 所示：
+
+\begin{figure}[H]
+  \centering
+  \begin{circuitikz}[american,scale=0.8]
+    \draw
+    (0,0) to[V=$V_s$, v=$V_s$] (0,3)
+    to[R=$R_1$, v=$V_1$] (3,3)
+    to[R=$R_2$, v=$V_2$] (3,0)
+    to[short] (0,0);
+
+    \draw[->, blue, thick] (0.5,0.5) -- (2.5,0.5) -- (2.5,2.5) -- (0.5,2.5) -- cycle;
+    \node[blue] at (1.5,1.5) {绕行方向};
+  \end{circuitikz}
+  \caption{KVL 应用示例}\label{fig:kvl-example}
+\end{figure}
+
+沿顺时针方向应用 KVL：
+
+\begin{equation}
+-V_s + V_1 + V_2 = 0
+\end{equation}
+
+即：
+
+\begin{equation}
+V_s = V_1 + V_2
+\end{equation}
+
+如果 $V_s = 12$ V，$R_1 = 4$ $\Omega$，$R_2 = 8$ $\Omega$，则根据欧姆定律和 KVL：
+
+\begin{align}
+V_1 &= I \cdot R_1 = 4I \\
+V_2 &= I \cdot R_2 = 8I \\
+V_s &= V_1 + V_2 = 12I = 12
+\end{align}
+
+解得：$I = 1$ A，$V_1 = 4$ V，$V_2 = 8$ V
+
+\subsection{KCL 和 KVL 的独立性}
+
+在电路分析中，KCL 和 KVL 方程并不是全部独立的。对于具有 $n$ 个节点、$b$ 条支路的电路：
+
+\begin{itemize}
+  \item 独立的 KCL 方程数为 $n-1$（任意 $n-1$ 个节点的 KCL 方程是独立的）
+  \item 独立的 KVL 方程数为 $b-n+1$（对于平面电路，这等于网孔数）
+  \item 总独立方程数为 $(n-1) + (b-n+1) = b$，正好等于未知支路电流或支路电压的个数
+\end{itemize}
+
+这个关系确保了电路方程组的可解性。
+
+\subsection{基尔霍夫定律的适用范围}
+
+基尔霍夫定律适用于：
+
+\begin{itemize}
+  \item 集总参数电路（电路尺寸远小于工作波长）
+  \item 任意拓扑结构的电路
+  \item 线性或非线性电路
+  \item 时变或时不变电路
+  \item 含独立源和受控源的电路
+\end{itemize}
+
+基尔霍夫定律不适用于：
+
+\begin{itemize}
+  \item 分布参数电路（如传输线）
+  \item 极高频率下的电路（需要考虑电磁场效应）
+\end{itemize}
 
 \section{电路网络分析方法}
 
@@ -170,16 +410,1043 @@
 
 \subsubsection{受控电源}
 
+叠加定理同样适用于含有受控电源的线性电路，但需要注意以下几点：
+
+\begin{enumerate}
+  \item 受控电源不能像独立电源那样被置零。受控电源必须保留在电路中，因为它们的值依赖于控制变量。
+  \item 在分析每个子电路时，需要保持受控电源的控制关系。
+  \item 每个独立电源单独作用时，都要考虑受控电源的影响。
+\end{enumerate}
+
+考虑一个含有受控电流源的电路示例。设电路中有一个电压控制电流源（VCCS），其电流为 $g_m V_x$，其中 $g_m$ 是跨导，$V_x$ 是控制电压。
+
+在应用叠加定理时：
+\begin{itemize}
+  \item 当某个独立电源单独作用时，受控电源仍然存在，其值由该时刻的控制变量决定。
+  \item 需要分别计算每个独立电源作用时，受控电源对电路响应的影响。
+  \item 最终响应是各个独立电源单独作用时响应的叠加。
+\end{itemize}
+
+需要注意的是，如果电路中只有受控电源而没有独立电源，则所有响应都为零（因为受控电源需要独立电源来激励）。
+
 \subsection{戴维南/诺顿等效}
+
+戴维南定理（Thévenin's Theorem）和诺顿定理（Norton's Theorem）是电路分析中非常重要的等效变换方法，由法国工程师 Léon Charles Thévenin 和美国工程师 Edward Lawry Norton 分别提出。这两个定理允许我们将复杂的线性单端口网络等效为简单的电压源串联电阻或电流源并联电阻的形式。
+
+\subsubsection{戴维南定理}
+
+\paragraph{定理表述}
+
+任何由线性元件和独立电源组成的单端口网络，都可以等效为一个电压源 $V_{th}$（戴维南电压）与一个电阻 $R_{th}$（戴维南电阻）的串联组合，如图~\ref{fig:thevenin-equivalent} 所示。
+
+\begin{figure}[H]
+  \centering
+  \begin{circuitikz}[american,scale=0.8]
+    \draw
+    (0,0) -- (0,2)
+    to[short] (2,2)
+    to[short] (2,0)
+    to[short] (0,0);
+
+    \draw[fill=gray!20] (0,0) rectangle (2,2);
+    \node at (1,1) {复杂网络};
+
+    \draw[->] (2.5,1) -- (3.5,1);
+
+    \draw
+    (4,0) to[V=$V_{th}$] (4,2)
+    to[R=$R_{th}$] (6,2)
+    to[short] (6,0)
+    to[short] (4,0);
+
+    \draw (5,1) node {等效};
+  \end{circuitikz}
+  \caption{戴维南等效电路}\label{fig:thevenin-equivalent}
+\end{figure}
+
+\paragraph{戴维南电压的求法}
+
+戴维南电压 $V_{th}$ 等于原网络在端口开路时的开路电压 $V_{oc}$：
+
+\begin{equation}
+V_{th} = V_{oc} \label{eq:thevenin-voltage}
+\end{equation}
+
+\paragraph{戴维南电阻的求法}
+
+戴维南电阻 $R_{th}$ 的求法有以下几种：
+
+\begin{enumerate}
+  \item \textbf{方法一：独立源置零法}
+    \begin{itemize}
+      \item 将网络内所有独立电压源短路（$V = 0$）
+      \item 将网络内所有独立电流源开路（$I = 0$）
+      \item 受控电源保留
+      \item 计算从端口看进去的等效电阻
+    \end{itemize}
+
+  \item \textbf{方法二：开路-短路法}
+    \begin{itemize}
+      \item 求开路电压 $V_{oc}$（即 $V_{th}$）
+      \item 求短路电流 $I_{sc}$
+      \item 计算：$R_{th} = \frac{V_{oc}}{I_{sc}} = \frac{V_{th}}{I_{sc}}$
+    \end{itemize}
+
+  \item \textbf{方法三：外加电源法}
+    \begin{itemize}
+      \item 将网络内所有独立源置零
+      \item 在端口外加电压源 $V_{test}$（或电流源 $I_{test}$）
+      \item 测量端口电流 $I_{test}$（或电压 $V_{test}$）
+      \item 计算：$R_{th} = \frac{V_{test}}{I_{test}}$
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{诺顿定理}
+
+\paragraph{定理表述}
+
+任何由线性元件和独立电源组成的单端口网络，都可以等效为一个电流源 $I_{n}$（诺顿电流）与一个电阻 $R_{n}$（诺顿电阻）的并联组合，如图~\ref{fig:norton-equivalent} 所示。
+
+\begin{figure}[H]
+  \centering
+  \begin{circuitikz}[american,scale=0.8]
+    \draw
+    (0,0) -- (0,2)
+    to[short] (2,2)
+    to[short] (2,0)
+    to[short] (0,0);
+
+    \draw[fill=gray!20] (0,0) rectangle (2,2);
+    \node at (1,1) {复杂网络};
+
+    \draw[->] (2.5,1) -- (3.5,1);
+
+    \draw
+    (4,0) to[I=$I_{n}$] (4,2)
+    to[short] (6,2)
+    to[R=$R_{n}$] (6,0)
+    to[short] (4,0);
+
+    \draw (5,1) node {等效};
+  \end{circuitikz}
+  \caption{诺顿等效电路}\label{fig:norton-equivalent}
+\end{figure}
+
+\paragraph{诺顿电流的求法}
+
+诺顿电流 $I_{n}$ 等于原网络在端口短路时的短路电流 $I_{sc}$：
+
+\begin{equation}
+I_{n} = I_{sc} \label{eq:norton-current}
+\end{equation}
+
+\paragraph{诺顿电阻的求法}
+
+诺顿电阻 $R_{n}$ 的求法与戴维南电阻 $R_{th}$ 完全相同：
+
+\begin{equation}
+R_{n} = R_{th} \label{eq:norton-resistance}
+\end{equation}
+
+\subsubsection{戴维南与诺顿等效的转换}
+
+戴维南等效和诺顿等效可以相互转换，它们描述的是同一个网络的两种不同表示方式：
+
+\begin{align}
+V_{th} &= I_{n} R_{th} = I_{n} R_{n} \label{eq:thevenin-norton-v} \\
+I_{n} &= \frac{V_{th}}{R_{th}} = \frac{V_{th}}{R_{n}} \label{eq:thevenin-norton-i} \\
+R_{th} &= R_{n} \label{eq:thevenin-norton-r}
+\end{align}
+
+\subsubsection{最大功率传输定理}
+
+当负载电阻 $R_L$ 等于戴维南电阻 $R_{th}$ 时，负载获得最大功率。这称为最大功率传输定理（Maximum Power Transfer Theorem）。
+
+\begin{equation}
+P_{max} = \frac{V_{th}^2}{4R_{th}} \label{eq:max-power}
+\end{equation}
+
+此时，负载电阻 $R_L = R_{th}$，称为阻抗匹配（Impedance Matching）。
+
+\subsubsection{应用示例}
+
+考虑一个简单的电路，如图~\ref{fig:thevenin-example} 所示，求其戴维南等效电路。
+
+\begin{figure}[H]
+  \centering
+  \begin{circuitikz}[american,scale=0.8]
+    \draw
+    (0,0) to[V=$V_s$] (0,3)
+    to[R=$R_1$] (3,3)
+    to[R=$R_2$] (3,0)
+    to[short] (0,0);
+
+    \draw (3,3) to[short, -o] (4,3);
+    \draw (3,0) to[short, -o] (4,0);
+    \node[above] at (4,3) {a};
+    \node[below] at (4,0) {b};
+  \end{circuitikz}
+  \caption{戴维南等效示例电路}\label{fig:thevenin-example}
+\end{figure}
+
+\textbf{步骤 1：求戴维南电压 $V_{th}$}
+
+端口 ab 开路时，$R_2$ 上的电压即为开路电压：
+
+\begin{equation}
+V_{th} = V_{oc} = V_s \cdot \frac{R_2}{R_1 + R_2}
+\end{equation}
+
+\textbf{步骤 2：求戴维南电阻 $R_{th}$}
+
+将电压源 $V_s$ 短路，从端口 ab 看进去的等效电阻为 $R_1$ 和 $R_2$ 的并联：
+
+\begin{equation}
+R_{th} = R_1 \parallel R_2 = \frac{R_1 R_2}{R_1 + R_2}
+\end{equation}
+
+因此，戴维南等效电路为：电压源 $V_s \cdot \frac{R_2}{R_1 + R_2}$ 与电阻 $\frac{R_1 R_2}{R_1 + R_2}$ 的串联。
+
+\subsubsection{含受控电源的情况}
+
+当网络中含有受控电源时，求戴维南电阻的方法需要特别注意：
+
+\begin{itemize}
+  \item 不能简单地通过独立源置零后计算等效电阻
+  \item 必须使用开路-短路法或外加电源法
+  \item 受控电源的控制关系必须保留
+\end{itemize}
+
+例如，使用外加电源法时，在端口外加测试电压源 $V_{test}$，测量端口电流 $I_{test}$，则：
+
+\begin{equation}
+R_{th} = \frac{V_{test}}{I_{test}}
+\end{equation}
+
+注意此时受控电源仍然存在，其值由控制变量决定。
 
 \section{RLC}
 
+RLC 电路是由电阻（Resistor，R）、电感（Inductor，L）和电容（Capacitor，C）组成的电路。RLC 电路是分析动态电路的基础，在电子系统中广泛应用，如滤波器、振荡器、谐振电路等。
+
+\subsection{基本元件特性}
+
+\subsubsection{电阻（R）}
+
+电阻是耗能元件，其电压-电流关系由欧姆定律给出：
+
+\begin{equation}
+v_R(t) = R \cdot i_R(t) \label{eq:resistor-v-i}
+\end{equation}
+
+电阻的功率为：
+
+\begin{equation}
+p_R(t) = v_R(t) \cdot i_R(t) = R \cdot i_R^2(t) = \frac{v_R^2(t)}{R} \label{eq:resistor-power}
+\end{equation}
+
+\subsubsection{电容（C）}
+
+电容是储能元件，存储电场能量。其电压-电流关系为：
+
+\begin{equation}
+i_C(t) = C \frac{dv_C(t)}{dt} \label{eq:capacitor-i}
+\end{equation}
+
+或积分形式：
+
+\begin{equation}
+v_C(t) = v_C(0) + \frac{1}{C} \int_0^t i_C(\tau) d\tau \label{eq:capacitor-v}
+\end{equation}
+
+电容存储的能量为：
+
+\begin{equation}
+w_C(t) = \frac{1}{2} C v_C^2(t) \label{eq:capacitor-energy}
+\end{equation}
+
+电容电压不能突变，这是分析瞬态过程的重要约束。
+
+\subsubsection{电感（L）}
+
+电感是储能元件，存储磁场能量。其电压-电流关系为：
+
+\begin{equation}
+v_L(t) = L \frac{di_L(t)}{dt} \label{eq:inductor-v}
+\end{equation}
+
+或积分形式：
+
+\begin{equation}
+i_L(t) = i_L(0) + \frac{1}{L} \int_0^t v_L(\tau) d\tau \label{eq:inductor-i}
+\end{equation}
+
+电感存储的能量为：
+
+\begin{equation}
+w_L(t) = \frac{1}{2} L i_L^2(t) \label{eq:inductor-energy}
+\end{equation}
+
+电感电流不能突变，这也是分析瞬态过程的重要约束。
+
+\subsection{一阶 RC 电路}
+
+一阶 RC 电路由一个电阻和一个电容组成，是最简单的动态电路。
+
+\subsubsection{RC 充电过程}
+
+考虑图~\ref{fig:rc-charging} 所示的 RC 充电电路。
+
+\begin{figure}[H]
+  \centering
+  \begin{circuitikz}[american,scale=0.8]
+    \draw
+    (0,0) to[V=$V_s$, *-] (0,3)
+    to[closing switch, l={$t=0$}] (3,3)
+    to[R=$R$] (5,3)
+    to[C=$C$, v=$v_C$] (5,0)
+    to[short] (0,0);
+  \end{circuitikz}
+  \caption{RC 充电电路}\label{fig:rc-charging}
+\end{figure}
+
+假设 $t=0$ 时开关闭合，且 $v_C(0) = 0$。根据 KVL：
+
+\begin{equation}
+V_s = v_R(t) + v_C(t) = R i_C(t) + v_C(t) = RC \frac{dv_C(t)}{dt} + v_C(t)
+\end{equation}
+
+整理得：
+
+\begin{equation}
+RC \frac{dv_C(t)}{dt} + v_C(t) = V_s \label{eq:rc-charging-de}
+\end{equation}
+
+这是一个一阶线性常系数微分方程。其解为：
+
+\begin{equation}
+v_C(t) = V_s (1 - e^{-t/RC}) = V_s (1 - e^{-t/\tau}) \label{eq:rc-charging-solution}
+\end{equation}
+
+其中 $\tau = RC$ 称为时间常数（Time Constant），单位为秒。
+
+电流为：
+
+\begin{equation}
+i_C(t) = C \frac{dv_C(t)}{dt} = \frac{V_s}{R} e^{-t/\tau} \label{eq:rc-charging-current}
+\end{equation}
+
+\subsubsection{RC 放电过程}
+
+考虑图~\ref{fig:rc-discharging} 所示的 RC 放电电路。
+
+\begin{figure}[H]
+  \centering
+  \begin{circuitikz}[american,scale=0.8]
+    \draw
+    (0,0) to[C=$C$, v=$v_C$, *-] (0,3)
+    to[closing switch, l={$t=0$}] (3,3)
+    to[R=$R$] (3,0)
+    to[short] (0,0);
+  \end{circuitikz}
+  \caption{RC 放电电路}\label{fig:rc-discharging}
+\end{figure}
+
+假设 $t=0$ 时开关闭合，且 $v_C(0) = V_0$。根据 KVL：
+
+\begin{equation}
+v_C(t) + v_R(t) = v_C(t) + R i_C(t) = v_C(t) + RC \frac{dv_C(t)}{dt} = 0
+\end{equation}
+
+整理得：
+
+\begin{equation}
+RC \frac{dv_C(t)}{dt} + v_C(t) = 0 \label{eq:rc-discharging-de}
+\end{equation}
+
+其解为：
+
+\begin{equation}
+v_C(t) = V_0 e^{-t/\tau} \label{eq:rc-discharging-solution}
+\end{equation}
+
+电流为：
+
+\begin{equation}
+i_C(t) = C \frac{dv_C(t)}{dt} = -\frac{V_0}{R} e^{-t/\tau} \label{eq:rc-discharging-current}
+\end{equation}
+
+\subsubsection{时间常数的物理意义}
+
+时间常数 $\tau = RC$ 具有重要的物理意义：
+
+\begin{itemize}
+  \item 经过一个时间常数，电压变化了约 63.2\%（充电）或衰减到约 36.8\%（放电）
+  \item 经过 5 个时间常数（$5\tau$），通常认为瞬态过程基本结束（变化超过 99\%）
+  \item 时间常数越大，瞬态过程越慢
+\end{itemize}
+
+\subsection{一阶 RL 电路}
+
+一阶 RL 电路由一个电阻和一个电感组成。
+
+\subsubsection{RL 充电过程}
+
+考虑图~\ref{fig:rl-charging} 所示的 RL 充电电路。
+
+\begin{figure}[H]
+  \centering
+  \begin{circuitikz}[american,scale=0.8]
+    \draw
+    (0,0) to[V=$V_s$, *-] (0,3)
+    to[closing switch, l={$t=0$}] (3,3)
+    to[L=$L$, i=$i_L$] (5,3)
+    to[R=$R$] (5,0)
+    to[short] (0,0);
+  \end{circuitikz}
+  \caption{RL 充电电路}\label{fig:rl-charging}
+\end{figure}
+
+假设 $t=0$ 时开关闭合，且 $i_L(0) = 0$。根据 KVL：
+
+\begin{equation}
+V_s = v_L(t) + v_R(t) = L \frac{di_L(t)}{dt} + R i_L(t)
+\end{equation}
+
+整理得：
+
+\begin{equation}
+L \frac{di_L(t)}{dt} + R i_L(t) = V_s \label{eq:rl-charging-de}
+\end{equation}
+
+其解为：
+
+\begin{equation}
+i_L(t) = \frac{V_s}{R} (1 - e^{-t/\tau}) \label{eq:rl-charging-solution}
+\end{equation}
+
+其中时间常数 $\tau = L/R$。
+
+电感电压为：
+
+\begin{equation}
+v_L(t) = L \frac{di_L(t)}{dt} = V_s e^{-t/\tau} \label{eq:rl-charging-voltage}
+\end{equation}
+
+\subsubsection{RL 放电过程}
+
+RL 放电过程的分析与 RC 放电类似，电流按指数衰减：
+
+\begin{equation}
+i_L(t) = I_0 e^{-t/\tau} \label{eq:rl-discharging-solution}
+\end{equation}
+
+其中 $I_0$ 是初始电流，$\tau = L/R$。
+
 \subsection{一阶瞬态}
 
-\subsection{二阶阶瞬态}
+一阶瞬态分析是动态电路分析的基础。一阶电路是指可以用一阶微分方程描述的电路，通常只包含一个储能元件（电容或电感）和电阻。
+
+\subsubsection{一阶电路的标准形式}
+
+一阶电路的标准微分方程为：
+
+\begin{equation}
+\tau \frac{dx(t)}{dt} + x(t) = f(t) \label{eq:first-order-standard}
+\end{equation}
+
+其中：
+\begin{itemize}
+  \item $x(t)$ 是待求的响应（电压或电流）
+  \item $\tau$ 是时间常数
+  \item $f(t)$ 是激励函数
+\end{itemize}
+
+\subsubsection{零输入响应（ZIR）}
+
+零输入响应是指电路在无外部激励（$f(t) = 0$）时，仅由初始储能引起的响应。
+
+对于方程：
+
+\begin{equation}
+\tau \frac{dx(t)}{dt} + x(t) = 0, \quad x(0) = X_0
+\end{equation}
+
+其解为：
+
+\begin{equation}
+x(t) = X_0 e^{-t/\tau}, \quad t \geq 0 \label{eq:zero-input-response}
+\end{equation}
+
+\subsubsection{零状态响应（ZSR）}
+
+零状态响应是指电路在零初始条件（$x(0) = 0$）时，仅由外部激励引起的响应。
+
+对于阶跃激励 $f(t) = F u(t)$（$u(t)$ 为单位阶跃函数），方程：
+
+\begin{equation}
+\tau \frac{dx(t)}{dt} + x(t) = F u(t), \quad x(0) = 0
+\end{equation}
+
+其解为：
+
+\begin{equation}
+x(t) = F (1 - e^{-t/\tau}) u(t) \label{eq:zero-state-response}
+\end{equation}
+
+\subsubsection{完全响应}
+
+完全响应是零输入响应和零状态响应的叠加：
+
+\begin{equation}
+x(t) = x_{ZIR}(t) + x_{ZSR}(t) \label{eq:complete-response}
+\end{equation}
+
+也可以表示为瞬态响应和稳态响应之和：
+
+\begin{equation}
+x(t) = x_{transient}(t) + x_{steady}(t) \label{eq:transient-steady}
+\end{equation}
+
+其中：
+\begin{itemize}
+  \item 瞬态响应：随时间衰减的部分，形式为 $A e^{-t/\tau}$
+  \item 稳态响应：激励的长期响应，当 $t \to \infty$ 时的值
+\end{itemize}
+
+\subsubsection{三要素法}
+
+对于一阶电路，可以使用三要素法快速求解：
+
+\begin{equation}
+x(t) = x(\infty) + [x(0^+) - x(\infty)] e^{-t/\tau}, \quad t \geq 0 \label{eq:three-element-method}
+\end{equation}
+
+三要素为：
+\begin{enumerate}
+  \item 初始值 $x(0^+)$：$t=0^+$ 时刻的值
+  \item 稳态值 $x(\infty)$：$t \to \infty$ 时的值
+  \item 时间常数 $\tau$：$\tau = RC$（RC 电路）或 $\tau = L/R$（RL 电路）
+\end{enumerate}
+
+\subsubsection{初始值的确定}
+
+确定初始值时需要注意：
+
+\begin{itemize}
+  \item 电容电压不能突变：$v_C(0^-) = v_C(0^+) = v_C(0)$
+  \item 电感电流不能突变：$i_L(0^-) = i_L(0^+) = i_L(0)$
+  \item 其他量（如电阻电压、电流）可能发生突变
+  \item 需要画出 $t=0^-$ 和 $t=0^+$ 的等效电路来求解
+\end{itemize}
+
+\subsubsection{稳态值的确定}
+
+确定稳态值时：
+
+\begin{itemize}
+  \item 对于直流激励，$t \to \infty$ 时，电容相当于开路，电感相当于短路
+  \item 画出 $t \to \infty$ 的等效电路（直流等效电路）
+  \item 求解该等效电路得到稳态值
+\end{itemize}
+
+\subsection{二阶瞬态}
+
+二阶瞬态分析涉及包含两个独立储能元件的电路，通常是一个 RLC 串联或并联电路。二阶电路的响应比一阶电路更复杂，可能出现欠阻尼、临界阻尼和过阻尼三种情况。
+
+\subsubsection{RLC 串联电路}
+
+考虑图~\ref{fig:rlc-series} 所示的 RLC 串联电路。
+
+\begin{figure}[H]
+  \centering
+  \begin{circuitikz}[american,scale=0.8]
+    \draw
+    (0,0) to[V=$V_s$, *-] (0,3)
+    to[closing switch, l={$t=0$}] (2,3)
+    to[R=$R$] (4,3)
+    to[L=$L$] (6,3)
+    to[C=$C$, v=$v_C$] (6,0)
+    to[short] (0,0);
+  \end{circuitikz}
+  \caption{RLC 串联电路}\label{fig:rlc-series}
+\end{figure}
+
+根据 KVL，有：
+
+\begin{equation}
+V_s = v_R(t) + v_L(t) + v_C(t) = R i(t) + L \frac{di(t)}{dt} + v_C(t)
+\end{equation}
+
+由于 $i(t) = C \frac{dv_C(t)}{dt}$，代入得：
+
+\begin{equation}
+LC \frac{d^2v_C(t)}{dt^2} + RC \frac{dv_C(t)}{dt} + v_C(t) = V_s \label{eq:rlc-series-de}
+\end{equation}
+
+这是一个二阶线性常系数微分方程。
+
+\subsubsection{特征方程和特征根}
+
+对于齐次方程（零输入响应）：
+
+\begin{equation}
+LC \frac{d^2v_C(t)}{dt^2} + RC \frac{dv_C(t)}{dt} + v_C(t) = 0 \label{eq:rlc-homogeneous}
+\end{equation}
+
+设 $v_C(t) = A e^{st}$，代入得特征方程：
+
+\begin{equation}
+LC s^2 + RC s + 1 = 0 \label{eq:characteristic-equation}
+\end{equation}
+
+特征根为：
+
+\begin{equation}
+s_{1,2} = -\frac{R}{2L} \pm \sqrt{\left(\frac{R}{2L}\right)^2 - \frac{1}{LC}} = -\alpha \pm \sqrt{\alpha^2 - \omega_0^2} \label{eq:characteristic-roots}
+\end{equation}
+
+其中：
+\begin{itemize}
+  \item $\alpha = \frac{R}{2L}$：衰减系数（Neper frequency）
+  \item $\omega_0 = \frac{1}{\sqrt{LC}}$：谐振角频率（Resonant frequency）
+\end{itemize}
+
+\subsubsection{阻尼类型}
+
+根据特征根的性质，二阶电路有三种阻尼情况：
+
+\paragraph{过阻尼（Overdamped）}
+
+当 $\alpha > \omega_0$，即 $R > 2\sqrt{L/C}$ 时，特征根为两个不相等的负实数：
+
+\begin{equation}
+s_1 = -\alpha + \sqrt{\alpha^2 - \omega_0^2}, \quad s_2 = -\alpha - \sqrt{\alpha^2 - \omega_0^2}
+\end{equation}
+
+响应为：
+
+\begin{equation}
+v_C(t) = A_1 e^{s_1 t} + A_2 e^{s_2 t} \label{eq:overdamped-response}
+\end{equation}
+
+响应单调衰减，无振荡。
+
+\paragraph{临界阻尼（Critically Damped）}
+
+当 $\alpha = \omega_0$，即 $R = 2\sqrt{L/C}$ 时，特征根为两个相等的负实数：
+
+\begin{equation}
+s_1 = s_2 = -\alpha
+\end{equation}
+
+响应为：
+
+\begin{equation}
+v_C(t) = (A_1 + A_2 t) e^{-\alpha t} \label{eq:critically-damped-response}
+\end{equation}
+
+响应以最快速度衰减到稳态，无振荡。
+
+\paragraph{欠阻尼（Underdamped）}
+
+当 $\alpha < \omega_0$，即 $R < 2\sqrt{L/C}$ 时，特征根为一对共轭复数：
+
+\begin{equation}
+s_{1,2} = -\alpha \pm j \omega_d
+\end{equation}
+
+其中 $\omega_d = \sqrt{\omega_0^2 - \alpha^2}$ 称为阻尼振荡频率（Damped natural frequency）。
+
+响应为：
+
+\begin{equation}
+v_C(t) = e^{-\alpha t} [A_1 \cos(\omega_d t) + A_2 \sin(\omega_d t)] = A e^{-\alpha t} \cos(\omega_d t + \phi) \label{eq:underdamped-response}
+\end{equation}
+
+响应呈现衰减振荡，振荡频率为 $\omega_d$。
+
+\subsubsection{品质因数}
+
+品质因数（Quality Factor，$Q$）是描述二阶电路特性的重要参数：
+
+\begin{equation}
+Q = \frac{\omega_0}{2\alpha} = \frac{1}{R} \sqrt{\frac{L}{C}} \label{eq:quality-factor}
+\end{equation}
+
+品质因数与阻尼的关系：
+\begin{itemize}
+  \item $Q < 1/2$：过阻尼
+  \item $Q = 1/2$：临界阻尼
+  \item $Q > 1/2$：欠阻尼
+\end{itemize}
+
+\subsubsection{RLC 并联电路}
+
+RLC 并联电路的分析与串联电路类似，但特征方程的形式不同。对于图~\ref{fig:rlc-parallel} 所示的并联电路：
+
+\begin{figure}[H]
+  \centering
+  \begin{circuitikz}[american,scale=0.8]
+    \draw
+    (0,0) to[I=$I_s$, *-] (0,3)
+    to[short] (3,3)
+    to[R=$R$] (3,0)
+    to[short] (0,0);
+
+    \draw (3,3) to[short] (5,3)
+    to[L=$L$] (5,0)
+    to[short] (3,0);
+
+    \draw (5,3) to[short] (7,3)
+    to[C=$C$, v=$v_C$] (7,0)
+    to[short] (5,0);
+  \end{circuitikz}
+  \caption{RLC 并联电路}\label{fig:rlc-parallel}
+\end{figure}
+
+特征方程为：
+
+\begin{equation}
+LC \frac{d^2v_C(t)}{dt^2} + \frac{L}{R} \frac{dv_C(t)}{dt} + v_C(t) = 0 \label{eq:rlc-parallel-de}
+\end{equation}
+
+衰减系数和谐振频率为：
+
+\begin{align}
+\alpha &= \frac{1}{2RC} \\
+\omega_0 &= \frac{1}{\sqrt{LC}}
+\end{align}
+
+\subsubsection{初始条件的应用}
+
+求解二阶电路时，需要两个初始条件来确定待定系数：
+\begin{itemize}
+  \item $v_C(0^+)$ 或 $i_L(0^+)$：由初始储能确定
+  \item $\frac{dv_C(0^+)}{dt}$ 或 $\frac{di_L(0^+)}{dt}$：由 $t=0^+$ 时刻的电路状态确定
+\end{itemize}
+
+例如，对于电容电压：
+
+\begin{equation}
+\frac{dv_C(0^+)}{dt} = \frac{i_C(0^+)}{C}
+\end{equation}
+
+而 $i_C(0^+)$ 可以通过 $t=0^+$ 时刻的等效电路求得。
 
 \section{AC}
 
+交流（AC，Alternating Current）电路分析是电路理论的重要组成部分。与直流（DC）电路不同，AC 电路中的电压和电流随时间周期性变化，通常为正弦波形式。AC 电路分析可以采用时域方法和频域方法。
+
 \subsection{时域}
 
+时域分析直接处理随时间变化的电压和电流，使用微分方程描述电路行为。
+
+\subsubsection{正弦交流电的基本概念}
+
+正弦交流电压和电流的一般形式为：
+
+\begin{align}
+v(t) &= V_m \cos(\omega t + \phi_v) = \sqrt{2} V_{rms} \cos(\omega t + \phi_v) \label{eq:ac-voltage} \\
+i(t) &= I_m \cos(\omega t + \phi_i) = \sqrt{2} I_{rms} \cos(\omega t + \phi_i) \label{eq:ac-current}
+\end{align}
+
+其中：
+\begin{itemize}
+  \item $V_m$、$I_m$：峰值（最大值）
+  \item $V_{rms}$、$I_{rms}$：有效值（Root Mean Square，RMS）
+  \item $\omega = 2\pi f$：角频率（rad/s），$f$ 为频率（Hz）
+  \item $\phi_v$、$\phi_i$：初相位（rad）
+  \item $T = \frac{1}{f} = \frac{2\pi}{\omega}$：周期（s）
+\end{itemize}
+
+有效值与峰值的关系：
+
+\begin{equation}
+V_{rms} = \frac{V_m}{\sqrt{2}}, \quad I_{rms} = \frac{I_m}{\sqrt{2}} \label{eq:rms-relation}
+\end{equation}
+
+\subsubsection{相位差}
+
+两个同频率正弦量的相位差为：
+
+\begin{equation}
+\phi = \phi_v - \phi_i \label{eq:phase-difference}
+\end{equation}
+
+\begin{itemize}
+  \item $\phi > 0$：电压超前电流，电路呈感性
+  \item $\phi < 0$：电压滞后电流，电路呈容性
+  \item $\phi = 0$：电压与电流同相，电路呈阻性
+\end{itemize}
+
+\subsubsection{基本元件的 AC 特性}
+
+\paragraph{电阻}
+
+电阻的电压-电流关系：
+
+\begin{equation}
+v_R(t) = R i_R(t) \label{eq:resistor-ac}
+\end{equation}
+
+对于正弦电流 $i_R(t) = I_m \cos(\omega t + \phi)$，有：
+
+\begin{equation}
+v_R(t) = R I_m \cos(\omega t + \phi) = V_m \cos(\omega t + \phi)
+\end{equation}
+
+电阻的电压和电流同相，$V_m = R I_m$。
+
+\paragraph{电容}
+
+电容的电压-电流关系：
+
+\begin{equation}
+i_C(t) = C \frac{dv_C(t)}{dt} \label{eq:capacitor-ac}
+\end{equation}
+
+对于正弦电压 $v_C(t) = V_m \cos(\omega t + \phi)$，有：
+
+\begin{equation}
+i_C(t) = -\omega C V_m \sin(\omega t + \phi) = \omega C V_m \cos(\omega t + \phi + \frac{\pi}{2})
+\end{equation}
+
+电容的电流超前电压 $90^\circ$（$\pi/2$ 弧度）。定义容抗（Capacitive Reactance）：
+
+\begin{equation}
+X_C = \frac{1}{\omega C} = \frac{1}{2\pi f C} \label{eq:capacitive-reactance}
+\end{equation}
+
+则 $V_m = X_C I_m$。
+
+\paragraph{电感}
+
+电感的电压-电流关系：
+
+\begin{equation}
+v_L(t) = L \frac{di_L(t)}{dt} \label{eq:inductor-ac}
+\end{equation}
+
+对于正弦电流 $i_L(t) = I_m \cos(\omega t + \phi)$，有：
+
+\begin{equation}
+v_L(t) = -\omega L I_m \sin(\omega t + \phi) = \omega L I_m \cos(\omega t + \phi + \frac{\pi}{2})
+\end{equation}
+
+电感的电压超前电流 $90^\circ$（$\pi/2$ 弧度）。定义感抗（Inductive Reactance）：
+
+\begin{equation}
+X_L = \omega L = 2\pi f L \label{eq:inductive-reactance}
+\end{equation}
+
+则 $V_m = X_L I_m$。
+
+\subsubsection{RLC 串联电路的时域分析}
+
+考虑 RLC 串联电路，根据 KVL：
+
+\begin{equation}
+v(t) = v_R(t) + v_L(t) + v_C(t) = R i(t) + L \frac{di(t)}{dt} + \frac{1}{C} \int i(t) dt \label{eq:rlc-series-ac}
+\end{equation}
+
+对于正弦激励 $v(t) = V_m \cos(\omega t)$，这是一个二阶线性常系数微分方程，可以通过求解得到电流响应。
+
+\subsubsection{功率}
+
+瞬时功率为：
+
+\begin{equation}
+p(t) = v(t) i(t) \label{eq:instantaneous-power}
+\end{equation}
+
+对于正弦电压和电流，平均功率（有功功率）为：
+
+\begin{equation}
+P = V_{rms} I_{rms} \cos(\phi) = \frac{1}{2} V_m I_m \cos(\phi) \label{eq:average-power}
+\end{equation}
+
+其中 $\cos(\phi)$ 称为功率因数（Power Factor）。
+
+视在功率（Apparent Power）为：
+
+\begin{equation}
+S = V_{rms} I_{rms} \label{eq:apparent-power}
+\end{equation}
+
+无功功率（Reactive Power）为：
+
+\begin{equation}
+Q = V_{rms} I_{rms} \sin(\phi) \label{eq:reactive-power}
+\end{equation}
+
+三者关系：
+
+\begin{equation}
+S^2 = P^2 + Q^2 \label{eq:power-triangle}
+\end{equation}
+
 \subsection{频域}
+
+频域分析使用相量（Phasor）和复数阻抗（Impedance）方法，将时域微分方程转化为频域代数方程，大大简化了 AC 电路的分析。
+
+\subsubsection{相量表示}
+
+相量是用复数表示正弦量的方法。对于正弦量 $v(t) = V_m \cos(\omega t + \phi)$，其相量表示为：
+
+\begin{equation}
+\mathbf{V} = V_m e^{j\phi} = V_m \angle \phi = V_m (\cos \phi + j \sin \phi) \label{eq:phasor-representation}
+\end{equation}
+
+通常使用有效值相量：
+
+\begin{equation}
+\mathbf{V} = V_{rms} e^{j\phi} = V_{rms} \angle \phi \label{eq:rms-phasor}
+\end{equation}
+
+相量与时间函数的对应关系：
+
+\begin{equation}
+v(t) = \text{Re}[\sqrt{2} \mathbf{V} e^{j\omega t}] \label{eq:phasor-to-time}
+\end{equation}
+
+\subsubsection{阻抗和导纳}
+
+阻抗（Impedance）定义为电压相量与电流相量的比值：
+
+\begin{equation}
+\mathbf{Z} = \frac{\mathbf{V}}{\mathbf{I}} = R + jX = |Z| \angle \theta \label{eq:impedance}
+\end{equation}
+
+其中：
+\begin{itemize}
+  \item $R$：电阻（实部）
+  \item $X$：电抗（虚部）
+  \item $|Z| = \sqrt{R^2 + X^2}$：阻抗的模
+  \item $\theta = \arctan(X/R)$：阻抗角
+\end{itemize}
+
+基本元件的阻抗：
+
+\begin{align}
+\mathbf{Z}_R &= R \label{eq:resistor-impedance} \\
+\mathbf{Z}_C &= \frac{1}{j\omega C} = -j \frac{1}{\omega C} = -j X_C \label{eq:capacitor-impedance} \\
+\mathbf{Z}_L &= j\omega L = j X_L \label{eq:inductor-impedance}
+\end{align}
+
+导纳（Admittance）是阻抗的倒数：
+
+\begin{equation}
+\mathbf{Y} = \frac{1}{\mathbf{Z}} = G + jB = |Y| \angle (-\theta) \label{eq:admittance}
+\end{equation}
+
+其中：
+\begin{itemize}
+  \item $G$：电导（实部）
+  \item $B$：电纳（虚部）
+\end{itemize}
+
+\subsubsection{阻抗的串联和并联}
+
+阻抗串联时，总阻抗为各阻抗之和：
+
+\begin{equation}
+\mathbf{Z}_{eq} = \mathbf{Z}_1 + \mathbf{Z}_2 + \cdots + \mathbf{Z}_n \label{eq:impedance-series}
+\end{equation}
+
+阻抗并联时，总导纳为各导纳之和：
+
+\begin{equation}
+\mathbf{Y}_{eq} = \mathbf{Y}_1 + \mathbf{Y}_2 + \cdots + \mathbf{Y}_n \label{eq:admittance-parallel}
+\end{equation}
+
+或：
+
+\begin{equation}
+\frac{1}{\mathbf{Z}_{eq}} = \frac{1}{\mathbf{Z}_1} + \frac{1}{\mathbf{Z}_2} + \cdots + \frac{1}{\mathbf{Z}_n} \label{eq:impedance-parallel}
+\end{equation}
+
+\subsubsection{频域电路分析}
+
+在频域中，AC 电路的分析方法与 DC 电路完全相同，只需将：
+\begin{itemize}
+  \item 电压和电流替换为相量
+  \item 电阻替换为阻抗
+  \item 电导替换为导纳
+\end{itemize}
+
+基尔霍夫定律在频域中仍然成立：
+
+\begin{align}
+\sum \mathbf{I}_k &= 0 \quad \text{（KCL）} \label{eq:kcl-phasor} \\
+\sum \mathbf{V}_k &= 0 \quad \text{（KVL）} \label{eq:kvl-phasor}
+\end{align}
+
+欧姆定律在频域中的形式：
+
+\begin{equation}
+\mathbf{V} = \mathbf{Z} \mathbf{I} \label{eq:ohm-law-phasor}
+\end{equation}
+
+\subsubsection{RLC 串联电路的频域分析}
+
+对于 RLC 串联电路，总阻抗为：
+
+\begin{equation}
+\mathbf{Z} = R + j\omega L + \frac{1}{j\omega C} = R + j\left(\omega L - \frac{1}{\omega C}\right) \label{eq:rlc-series-impedance}
+\end{equation}
+
+阻抗的模和相位：
+
+\begin{align}
+|\mathbf{Z}| &= \sqrt{R^2 + \left(\omega L - \frac{1}{\omega C}\right)^2} \label{eq:rlc-impedance-magnitude} \\
+\theta &= \arctan\left(\frac{\omega L - 1/(\omega C)}{R}\right) \label{eq:rlc-impedance-phase}
+\end{align}
+
+\subsubsection{谐振}
+
+当 $\omega L = \frac{1}{\omega C}$ 时，电路发生谐振（Resonance），此时：
+
+\begin{equation}
+\omega_0 = \frac{1}{\sqrt{LC}} \quad \text{或} \quad f_0 = \frac{1}{2\pi\sqrt{LC}} \label{eq:resonant-frequency}
+\end{equation}
+
+谐振时：
+\begin{itemize}
+  \item 阻抗为纯电阻：$\mathbf{Z} = R$（最小值）
+  \item 电流最大（串联谐振）或电压最大（并联谐振）
+  \item 电压与电流同相
+  \item 电感和电容的电压（或电流）可能远大于电源电压（或电流）
+\end{itemize}
+
+品质因数 $Q$ 定义为：
+
+\begin{equation}
+Q = \frac{\omega_0 L}{R} = \frac{1}{\omega_0 RC} = \frac{1}{R}\sqrt{\frac{L}{C}} \label{eq:q-factor-ac}
+\end{equation}
+
+$Q$ 值越高，谐振曲线越尖锐，选择性越好。
+
+\subsubsection{频率响应}
+
+电路的频率响应描述了电路对不同频率信号的响应特性。常用的分析方法包括：
+
+\begin{itemize}
+  \item \textbf{传递函数}：$H(j\omega) = \frac{\mathbf{V}_{out}}{\mathbf{V}_{in}}$
+  \item \textbf{幅频特性}：$|H(j\omega)|$ 随频率的变化
+  \item \textbf{相频特性}：$\angle H(j\omega)$ 随频率的变化
+  \item \textbf{波特图}（Bode Plot）：用对数坐标表示频率响应
+\end{itemize}
+
+\subsubsection{滤波器}
+
+基于频率响应的特性，RLC 电路可以构成各种滤波器：
+
+\begin{itemize}
+  \item \textbf{低通滤波器}（LPF）：允许低频信号通过，抑制高频信号
+  \item \textbf{高通滤波器}（HPF）：允许高频信号通过，抑制低频信号
+  \item \textbf{带通滤波器}（BPF）：允许特定频带通过
+  \item \textbf{带阻滤波器}（BSF）：抑制特定频带
+\end{itemize}
+
+截止频率（Cutoff Frequency）$f_c$ 定义为幅频特性下降 3 dB（即 $|H| = 1/\sqrt{2}$）时的频率。

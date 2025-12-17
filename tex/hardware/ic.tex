@@ -1,9 +1,1218 @@
-\chapter{IC}
+\chapter{集成电路}
 
-\section{Power Supply}
-\subsection{LDO}
-\subsection{DCDC (SMPS)}
+集成电路（Integrated Circuit，IC）是将大量电子元件（晶体管、电阻、电容等）集成在一块半导体晶片上的电子器件。自 1958 年第一块集成电路诞生以来，IC 技术经历了飞速发展，从最初只有几个晶体管的简单电路，发展到今天包含数十亿晶体管的复杂系统芯片（SoC）。本章将系统介绍各类集成电路的工作原理、特性参数、应用电路和选型指南。
 
-\section{555}
+\section{集成电路基础}
 
-\section{专用 IC}
+\subsection{集成电路的发展历史}
+
+集成电路的发展历程可以分为以下几个重要阶段：
+
+\begin{enumerate}
+  \item \textbf{1958--1960 年代}：小规模集成电路（SSI），集成度 10--100 个元件
+  \item \textbf{1970 年代}：中规模集成电路（MSI），集成度 100--1000 个元件
+  \item \textbf{1980 年代}：大规模集成电路（LSI），集成度 1000--10 万个元件
+  \item \textbf{1990 年代}：超大规模集成电路（VLSI），集成度 10 万--1000 万个元件
+  \item \textbf{2000 年代至今}：超大规模集成电路（ULSI）和系统芯片（SoC），集成度超过 1000 万个元件
+\end{enumerate}
+
+\subsection{集成电路的分类}
+
+\subsubsection{按功能分类}
+
+\begin{enumerate}
+  \item \textbf{模拟集成电路}
+    \begin{itemize}
+      \item 运算放大器
+      \item 比较器
+      \item 基准电压源
+      \item 模拟开关和多路复用器
+      \item 数据转换器（ADC/DAC）
+      \item 电源管理 IC
+      \item 射频 IC
+    \end{itemize}
+
+  \item \textbf{数字集成电路}
+    \begin{itemize}
+      \item 逻辑门电路
+      \item 触发器
+      \item 计数器
+      \item 存储器
+      \item 微处理器和微控制器
+      \item 数字信号处理器（DSP）
+      \item 可编程逻辑器件（FPGA/CPLD）
+    \end{itemize}
+
+  \item \textbf{混合信号集成电路}
+    \begin{itemize}
+      \item 同时包含模拟和数字电路
+      \item 数据转换器
+      \item 接口电路
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{按制造工艺分类}
+
+\begin{enumerate}
+  \item \textbf{双极型工艺}：速度快，但功耗大，集成度低
+  \item \textbf{CMOS 工艺}：功耗低，集成度高，是现代 IC 的主流工艺
+  \item \textbf{BiCMOS 工艺}：结合双极型和 CMOS 的优点
+  \item \textbf{GaAs 工艺}：用于高频、高速应用
+\end{enumerate}
+
+\subsubsection{按封装分类}
+
+\begin{enumerate}
+  \item \textbf{通孔封装}：DIP、TO 等
+  \item \textbf{表面贴装封装}：SOP、QFP、BGA 等
+  \item \textbf{芯片级封装}：CSP、WLCSP 等
+\end{enumerate}
+
+\subsection{集成电路的制造工艺}
+
+\subsubsection{基本工艺流程}
+
+集成电路制造的主要步骤包括：
+
+\begin{enumerate}
+  \item \textbf{晶圆制备}：从硅锭切割出晶圆
+  \item \textbf{氧化}：在晶圆表面生长二氧化硅层
+  \item \textbf{光刻}：使用光刻胶和掩膜版定义电路图形
+  \item \textbf{刻蚀}：去除不需要的材料
+  \item \textbf{掺杂}：通过离子注入或扩散引入杂质
+  \item \textbf{沉积}：沉积金属或多晶硅层
+  \item \textbf{化学机械抛光（CMP）}：平整化表面
+  \item \textbf{测试和封装}：测试芯片功能并封装
+\end{enumerate}
+
+\subsubsection{特征尺寸}
+
+特征尺寸（Feature Size）是指制造工艺能够实现的最小线宽，通常用纳米（nm）表示。特征尺寸越小，集成度越高，性能越好，但制造难度也越大。
+
+\subsection{集成电路的封装}
+
+\subsubsection{封装的作用}
+
+封装的主要作用包括：
+\begin{itemize}
+  \item 保护芯片免受机械损伤和环境影响
+  \item 提供电气连接（引脚）
+  \item 散热
+  \item 便于安装和测试
+\end{itemize}
+
+\subsubsection{常见封装类型}
+
+\begin{enumerate}
+  \item \textbf{DIP（Dual In-line Package）}：双列直插封装，适用于通孔安装
+  \item \textbf{SOP/SOIC（Small Outline Package）}：小外形封装，表面贴装
+  \item \textbf{QFP（Quad Flat Package）}：四边扁平封装，引脚密度高
+  \item \textbf{BGA（Ball Grid Array）}：球栅阵列封装，引脚在底部
+  \item \textbf{QFN（Quad Flat No-leads）}：无引脚四边扁平封装，散热好
+\end{enumerate}
+
+\section{电源管理集成电路}
+
+电源管理集成电路（Power Management IC，PMIC）是现代电子系统的重要组成部分，负责为系统提供稳定、高效的电源。电源管理 IC 包括线性稳压器、开关稳压器、电池管理、电源监控等功能。
+
+\subsection{线性稳压器（LDO）}
+
+线性稳压器（Low Dropout Regulator，LDO）是一种使用线性调节方式的稳压器，具有结构简单、噪声低、响应快等优点。
+
+\subsubsection{LDO 的工作原理}
+
+LDO 的基本结构如图~\ref{fig:ldo-basic} 所示，包括误差放大器、调整管（通常为 PNP 或 PMOS 晶体管）和反馈网络。
+
+\begin{figure}[H]
+  \centering
+  \begin{circuitikz}[american,scale=1.0]
+    % Error Amplifier
+    \draw (0,2) node[op amp] (opamp) {};
+
+    % Pass Transistor (PNP)
+    \draw (opamp.out) to[short] ++(0.5,0) coordinate (base);
+    \draw (base) to[short] ++(0,0.5) node[pnp, anchor=B] (Q1) {};
+
+    % Connections to OpAmp
+    \draw (opamp.+) to[short] ++(-0.5,0) to[short, -o] ++(-0.5,0) node[left] {$V_{ref}$};
+
+    % Input
+    \draw (Q1.E) to[short, -o] ++(0,0.5) node[above] {$V_{in}$};
+
+    % Output and Feedback
+    \draw (Q1.C) to[short, *-o] ++(2,0) coordinate (out) node[right] {$V_{out}$};
+    \draw (Q1.C) to[short] ++(0,-0.5) coordinate (fb_top);
+    \draw (fb_top) to[R=$R_1$] ++(0,-2) coordinate (fb_mid);
+    \draw (fb_mid) to[R=$R_2$] ++(0,-2) node[ground] {};
+
+    % Feedback connection
+    \draw (fb_mid) to[short, *-] (fb_mid -| opamp.-) -- (opamp.-);
+  \end{circuitikz}
+  \caption{LDO 基本结构}\label{fig:ldo-basic}
+\end{figure}
+
+工作原理：
+\begin{enumerate}
+  \item 误差放大器比较参考电压 $V_{ref}$ 和反馈电压 $V_{fb}$
+  \item 根据误差信号控制调整管的导通程度
+  \item 反馈网络将输出电压分压后反馈到误差放大器
+  \item 通过负反馈使输出电压稳定在设定值
+\end{enumerate}
+
+输出电压为：
+
+\begin{equation}
+V_{out} = V_{ref} \left(1 + \frac{R_1}{R_2}\right) \label{eq:ldo-output}
+\end{equation}
+
+\subsubsection{LDO 的关键参数}
+
+\begin{enumerate}
+  \item \textbf{压差（Dropout Voltage）$V_{DO}$}
+    \begin{itemize}
+      \item 定义：维持正常稳压所需的最小输入输出压差
+      \item 典型值：0.1--0.5 V（低压差 LDO）
+      \item 压差越小，效率越高
+    \end{itemize}
+
+  \item \textbf{负载调整率（Load Regulation）}
+    \begin{itemize}
+      \item 定义：负载电流变化时输出电压的变化
+      \item 通常用百分比或 mV 表示
+    \end{itemize}
+
+  \item \textbf{线性调整率（Line Regulation）}
+    \begin{itemize}
+      \item 定义：输入电压变化时输出电压的变化
+      \item 反映 LDO 对输入电压变化的抑制能力
+    \end{itemize}
+
+  \item \textbf{静态电流（Quiescent Current）$I_Q$}
+    \begin{itemize}
+      \item 定义：无负载时 LDO 自身消耗的电流
+      \item 影响轻载效率，低功耗应用要求 $I_Q$ 小
+    \end{itemize}
+
+  \item \textbf{电源抑制比（PSRR）}
+    \begin{itemize}
+      \item 定义：LDO 对输入电源纹波的抑制能力
+      \item 频率越高，PSRR 通常越低
+    \end{itemize}
+
+  \item \textbf{输出噪声}
+    \begin{itemize}
+      \item LDO 内部产生的噪声
+      \item 低噪声 LDO 用于精密应用
+    \end{itemize}
+
+  \item \textbf{瞬态响应}
+    \begin{itemize}
+      \item 负载电流突变时输出电压的恢复时间
+      \item 影响动态性能
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{LDO 的效率}
+
+LDO 的效率为：
+
+\begin{equation}
+\eta = \frac{P_{out}}{P_{in}} = \frac{V_{out} I_{out}}{V_{in} I_{in}} \approx \frac{V_{out}}{V_{in}} \label{eq:ldo-efficiency}
+\end{equation}
+
+由于 $V_{out} < V_{in}$，LDO 的效率总是小于 100\%，且压差越大，效率越低。这是 LDO 的主要缺点。
+
+\subsubsection{LDO 的应用}
+
+LDO 适用于以下场景：
+\begin{itemize}
+  \item 低噪声要求的应用（如模拟电路供电）
+  \item 小电流应用（< 1 A）
+  \item 压差较小的应用
+  \item 需要快速响应的应用
+  \item 成本敏感的应用
+\end{itemize}
+
+\subsubsection{LDO 的选型}
+
+选择 LDO 时需要考虑：
+\begin{enumerate}
+  \item 输入输出电压范围
+  \item 最大输出电流
+  \item 压差要求
+  \item 静态电流（低功耗应用）
+  \item PSRR（对电源噪声敏感的应用）
+  \item 输出噪声（精密应用）
+  \item 封装和热设计
+\end{enumerate}
+
+\subsection{开关稳压器（DC-DC）}
+
+开关稳压器（Switching Regulator）通过开关管的开关动作，将输入电压转换为所需的输出电压，具有效率高、功率密度大等优点。
+
+\subsubsection{开关稳压器的基本工作原理}
+
+开关稳压器的基本结构包括开关管、电感、电容、二极管（或同步开关管）和控制电路，如图~\ref{fig:buck-basic} 所示（以 Buck 转换器为例）。
+
+\begin{figure}[H]
+  \centering
+  \begin{circuitikz}[american,scale=0.8]
+    \draw
+    (0,3) node[above] {$V_{in}$} to[switch, name=S1] (2,3)
+    (2,3) to[L=$L$] (4,3)
+    (4,3) to[C=$C$] (4,0) node[ground] {}
+    (4,3) to[short] (5,3) node[right] {$V_{out}$}
+    (2,0) node[ground] {}
+    (2,3) to[D, name=D1] (2,0)
+    (0,0) to[short] (5,0);
+  \end{circuitikz}
+  \caption{Buck 转换器基本结构}\label{fig:buck-basic}
+\end{figure}
+
+工作原理：
+\begin{enumerate}
+  \item 开关管导通时，输入电压通过电感和负载，电感储能
+  \item 开关管关断时，电感通过二极管（或同步开关管）续流，向负载供电
+  \item 通过控制开关管的占空比，调节输出电压
+\end{enumerate}
+
+\subsubsection{开关稳压器的拓扑结构}
+
+\paragraph{Buck 转换器（降压）}
+
+Buck 转换器将高电压转换为低电压，输出电压为：
+
+\begin{equation}
+V_{out} = D \cdot V_{in} \label{eq:buck-output}
+\end{equation}
+
+其中 $D$ 是占空比（$0 < D < 1$）。
+
+特点：
+\begin{itemize}
+  \item 输出电压低于输入电压
+  \item 效率高（通常 80--95\%）
+  \item 输出电流连续
+\end{itemize}
+
+\paragraph{Boost 转换器（升压）}
+
+Boost 转换器将低电压转换为高电压，输出电压为：
+
+\begin{equation}
+V_{out} = \frac{V_{in}}{1 - D} \label{eq:boost-output}
+\end{equation}
+
+特点：
+\begin{itemize}
+  \item 输出电压高于输入电压
+  \item 输入电流连续
+  \item 输出电流断续
+\end{itemize}
+
+\paragraph{Buck-Boost 转换器}
+
+Buck-Boost 转换器可以实现升压和降压，输出电压为：
+
+\begin{equation}
+V_{out} = \frac{D}{1 - D} V_{in} \label{eq:buck-boost-output}
+\end{equation}
+
+特点：
+\begin{itemize}
+  \item 输出电压可以高于或低于输入电压
+  \item 输出电压与输入电压反相
+\end{itemize}
+
+\paragraph{SEPIC 和 Cuk 转换器}
+
+SEPIC（Single-Ended Primary Inductor Converter）和 Cuk 转换器也可以实现升降压，且输出电压与输入电压同相。
+
+\subsubsection{开关稳压器的控制方式}
+
+\begin{enumerate}
+  \item \textbf{脉宽调制（PWM）}
+    \begin{itemize}
+      \item 开关频率固定，调节占空比
+      \item 适用于大功率应用
+      \item 效率高，但轻载效率低
+    \end{itemize}
+
+  \item \textbf{脉冲频率调制（PFM）}
+    \begin{itemize}
+      \item 占空比固定或变化，调节开关频率
+      \item 适用于轻载应用
+      \item 轻载效率高，但输出纹波较大
+    \end{itemize}
+
+  \item \textbf{混合模式}
+    \begin{itemize}
+      \item 重载时使用 PWM，轻载时使用 PFM
+      \item 兼顾效率和性能
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{开关稳压器的关键参数}
+
+\begin{enumerate}
+  \item \textbf{效率}
+    \begin{itemize}
+      \item 开关稳压器的效率通常为 80--95\%
+      \item 效率与负载电流、输入输出电压、开关频率等因素有关
+    \end{itemize}
+
+  \item \textbf{开关频率}
+    \begin{itemize}
+      \item 典型值：几百 kHz 到几 MHz
+      \item 频率越高，电感和电容可以越小，但开关损耗增加
+    \end{itemize}
+
+  \item \textbf{输出纹波}
+    \begin{itemize}
+      \item 输出电压的交流分量
+      \item 与开关频率、电感和电容值有关
+    \end{itemize}
+
+  \item \textbf{负载调整率和线性调整率}
+    \begin{itemize}
+      \item 与 LDO 类似，但通常比 LDO 差
+    \end{itemize}
+
+  \item \textbf{瞬态响应}
+    \begin{itemize}
+      \item 负载突变时输出电压的恢复时间
+      \item 影响动态性能
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{开关稳压器的设计考虑}
+
+\paragraph{电感选择}
+
+电感值影响输出纹波和瞬态响应：
+
+\begin{equation}
+L = \frac{(V_{in} - V_{out}) D}{f_{sw} \Delta I_L} \label{eq:inductor-selection}
+\end{equation}
+
+其中 $\Delta I_L$ 是电感电流纹波，通常选择为负载电流的 20--40\%。
+
+\paragraph{电容选择}
+
+输出电容影响输出纹波：
+
+\begin{equation}
+C_{out} \geq \frac{\Delta I_L}{8 f_{sw} \Delta V_{out}} \label{eq:capacitor-selection}
+\end{equation}
+
+其中 $\Delta V_{out}$ 是允许的输出纹波。
+
+\paragraph{开关频率选择}
+
+开关频率的选择需要在效率和体积之间权衡：
+\begin{itemize}
+  \item 频率高：电感和电容小，但开关损耗大
+  \item 频率低：效率高，但电感和电容大
+\end{itemize}
+
+\subsubsection{LDO 与开关稳压器的比较}
+
+\begin{table}[H]
+  \centering
+  \caption{LDO 与开关稳压器的比较}
+  \begin{tabular}{|l|l|l|}
+    \hline
+    特性 & LDO & 开关稳压器 \\
+    \hline
+    效率 & 低（30--70\%） & 高（80--95\%） \\
+    输出噪声 & 低 & 高 \\
+    响应速度 & 快 & 较慢 \\
+    成本 & 低 & 较高 \\
+    复杂度 & 简单 & 复杂 \\
+    适用电流 & 小（< 1 A） & 大（> 100 mA） \\
+    压差 & 需要 & 不需要 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+\subsection{电源管理单元（PMIC）}
+
+电源管理单元（Power Management Unit，PMIC）是集成了多种电源管理功能的芯片，通常包括：
+
+\begin{itemize}
+  \item 多个 LDO 和开关稳压器
+  \item 电池充电管理
+  \item 电源监控和保护
+  \item 电源时序控制
+  \item 低功耗模式管理
+\end{itemize}
+
+PMIC 广泛应用于便携式设备、智能手机、平板电脑等，可以简化电源设计，提高系统效率。
+
+\section{定时器集成电路}
+
+定时器 IC 用于产生精确的时间延迟、脉冲宽度调制（PWM）信号、振荡信号等。最著名的是 555 定时器。
+
+\subsection{555 定时器}
+
+555 定时器是一种多功能的模拟-数字混合集成电路，可以用于产生各种定时和振荡功能。
+
+\subsubsection{555 定时器的内部结构}
+
+555 定时器内部包括：
+\begin{itemize}
+  \item 两个比较器（上比较器和下比较器）
+  \item 一个 RS 触发器
+  \item 一个放电晶体管
+  \item 一个输出缓冲器
+  \item 三个 5 k$\Omega$ 电阻组成的分压网络（555 名称的由来）
+\end{itemize}
+
+\subsubsection{555 定时器的引脚}
+
+555 定时器（8 引脚 DIP 封装）的引脚功能：
+\begin{enumerate}
+  \item \textbf{GND}：地
+  \item \textbf{TRIG}：触发输入
+  \item \textbf{OUT}：输出
+  \item \textbf{RESET}：复位输入
+  \item \textbf{CTRL}：控制电压（用于调制）
+  \item \textbf{THRES}：阈值输入
+  \item \textbf{DISCH}：放电端
+  \item \textbf{$V_{CC}$}：电源
+\end{enumerate}
+
+\subsubsection{555 定时器的工作模式}
+
+\paragraph{单稳态模式（Monostable Mode）}
+
+单稳态模式用于产生固定宽度的脉冲，电路如图~\ref{fig:555-monostable} 所示。
+
+\begin{figure}[H]
+  \centering
+  \begin{circuitikz}[american,scale=1.0]
+    \tikzset{ic555/.style={muxdemux,
+            muxdemux def={Lh=10, NL=5, Rh=10, NR=5,
+            NB=2, w=6, NT=2, square pins=1},
+        no input leads, external pins width=0.4,
+        circuitikz/muxdemuxes/fill=blue!10}
+    }
+    % 555 Timer Chip
+    \node [ic555, font=\small\ttfamily,align=center](A) at (4,2.5) {555\\Timer};
+
+    % Pin assignments based on standard 555 pinout
+    % Left: 2 (Trigger), 6 (Threshold), 7 (Discharge) - arbitrary mapping to mux pins
+    % Right: 3 (Output)
+    % Top: 8 (VCC), 4 (Reset)
+    % Bottom: 1 (GND), 5 (Control)
+
+    % Define pins for readability
+    % Using muxdemux pins: lpin (left), rpin (right), tpin (top), bpin (bottom)
+    % We map schematic logic to visual pins
+
+    % Left side
+    \draw (A.lpin 2) -- (A.blpin 2) node[midway, blue, font=\tiny, above]{7} node[right, font=\tiny]{DISCH};
+    \draw (A.lpin 3) -- (A.blpin 3) node[midway, blue, font=\tiny, above]{6} node[right, font=\tiny]{THRES};
+    \draw (A.lpin 4) -- (A.blpin 4) node[midway, blue, font=\tiny, above]{2} node[right, font=\tiny]{TRIG};
+
+    % Right side
+    \draw (A.rpin 3) -- (A.brpin 3) node[midway, blue, font=\tiny, above]{3} node[left, font=\tiny]{OUT};
+
+    % Top side
+    \draw (A.tpin 1) -- (A.btpin 1) node[midway, blue, font=\tiny, left]{8} node[below, font=\tiny]{VCC};
+    \draw (A.tpin 2) -- (A.btpin 2) node[midway, blue, font=\tiny, left]{4} node[below, font=\tiny]{RESET};
+
+    % Bottom side
+    \draw (A.bpin 1) -- (A.bbpin 1) node[midway, blue, font=\tiny, left]{5} node[above, font=\tiny]{CTRL};
+    \draw (A.bpin 2) -- (A.bbpin 2) node[midway, blue, font=\tiny, left]{1} node[above, font=\tiny]{GND};
+
+    % External Circuitry for Monostable
+
+    % VCC connection
+    \draw (A.btpin 1) -- ++(0,1) node[vcc] {$V_{CC}$};
+    \draw (A.btpin 2) -- ++(0,0.5) -- ++(-1.5,0) -- ++(0,0.5); % Reset to VCC
+
+    % RC Network
+    \draw (A.btpin 1) ++(0,1) -- ++(-4,0) coordinate (vcc_line);
+    \draw (vcc_line) to[R=$R$] ++(0,-2.5) coordinate (rc_node);
+    \draw (rc_node) to[C=$C$] ++(0,-2) coordinate (gnd_line) node[ground] {};
+
+    % Connections to chip
+    \draw (rc_node) -- (rc_node -| A.blpin 2) -- (A.blpin 2); % To Discharge
+    \draw (rc_node) -- (rc_node -| A.blpin 3) -- (A.blpin 3); % To Threshold
+
+    % Trigger Input
+    \draw (A.blpin 4) -- ++(-1,0) node[left] {Trigger Input};
+
+    % Output
+    \draw (A.brpin 3) -- ++(1,0) node[right] {Output};
+
+    % Ground
+    \draw (A.bbpin 2) -- ++(0,-0.5) node[ground] {};
+
+    % Control Voltage (Capacitor usually)
+    \draw (A.bbpin 1) to[C=10nF] ++(0,-1) node[ground] {};
+
+  \end{circuitikz}
+  \caption{555 单稳态电路}\label{fig:555-monostable}
+\end{figure}
+
+输出脉冲宽度为：
+
+\begin{equation}
+T = 1.1 RC \label{eq:555-monostable}
+\end{equation}
+
+\paragraph{无稳态模式（Astable Mode）}
+
+无稳态模式用于产生方波振荡，电路如图~\ref{fig:555-astable} 所示。
+
+\begin{figure}[H]
+  \centering
+  \begin{circuitikz}[american,scale=1.0]
+    \tikzset{ic555/.style={muxdemux,
+            muxdemux def={Lh=10, NL=5, Rh=10, NR=5,
+            NB=2, w=6, NT=2, square pins=1},
+        no input leads, external pins width=0.4,
+        circuitikz/muxdemuxes/fill=blue!10}
+    }
+    % 555 Timer Chip
+    \node [ic555, font=\small\ttfamily,align=center](A) at (4,2.5) {555\\Timer};
+
+    % Pin Mapping
+    % Left: 7 (Discharge), 6 (Threshold), 2 (Trigger)
+    \draw (A.lpin 2) -- (A.blpin 2) node[midway, blue, font=\tiny, above]{7} node[right, font=\tiny]{DISCH};
+    \draw (A.lpin 3) -- (A.blpin 3) node[midway, blue, font=\tiny, above]{6} node[right, font=\tiny]{THRES};
+    \draw (A.lpin 4) -- (A.blpin 4) node[midway, blue, font=\tiny, above]{2} node[right, font=\tiny]{TRIG};
+
+    % Right: 3 (Output)
+    \draw (A.rpin 3) -- (A.brpin 3) node[midway, blue, font=\tiny, above]{3} node[left, font=\tiny]{OUT};
+
+    % Top: 8 (VCC), 4 (Reset)
+    \draw (A.tpin 1) -- (A.btpin 1) node[midway, blue, font=\tiny, left]{8} node[below, font=\tiny]{VCC};
+    \draw (A.tpin 2) -- (A.btpin 2) node[midway, blue, font=\tiny, left]{4} node[below, font=\tiny]{RESET};
+
+    % Bottom: 5 (Control), 1 (GND)
+    \draw (A.bpin 1) -- (A.bbpin 1) node[midway, blue, font=\tiny, left]{5} node[above, font=\tiny]{CTRL};
+    \draw (A.bpin 2) -- (A.bbpin 2) node[midway, blue, font=\tiny, left]{1} node[above, font=\tiny]{GND};
+
+    % External Circuitry for Astable
+
+    % VCC connection
+    \draw (A.btpin 1) -- ++(0,1) node[vcc] {$V_{CC}$};
+    \draw (A.btpin 2) -- ++(0,0.5) -- ++(-1.5,0) -- ++(0,0.5); % Reset to VCC
+
+    % Resistor Network
+    \draw (A.btpin 1) ++(0,1) -- ++(-4,0) coordinate (vcc_line);
+    \draw (vcc_line) to[R=$R_1$] ++(0,-2) coordinate (r1_node);
+    \draw (r1_node) to[R=$R_2$] ++(0,-2) coordinate (r2_node);
+    \draw (r2_node) to[C=$C$] ++(0,-1.5) coordinate (gnd_line) node[ground] {};
+
+    % Connections to chip
+    \draw (r1_node) -- (r1_node -| A.blpin 2) -- (A.blpin 2); % To Discharge (Pin 7)
+
+    \draw (r2_node) -- (r2_node -| A.blpin 3) -- (A.blpin 3); % To Threshold (Pin 6)
+    \draw (r2_node) -- ++(0.5,0) |- (A.blpin 4); % To Trigger (Pin 2) - Trigger connected to Threshold in Astable
+
+    % Output
+    \draw (A.brpin 3) -- ++(1,0) node[right] {$V_{out}$};
+
+    % Ground
+    \draw (A.bbpin 2) -- ++(0,-0.5) node[ground] {};
+
+    % Control Voltage
+    \draw (A.bbpin 1) to[C=10nF] ++(0,-1) node[ground] {};
+
+  \end{circuitikz}
+  \caption{555 无稳态电路}\label{fig:555-astable}
+\end{figure}
+
+振荡频率为：
+
+\begin{equation}
+f = \frac{1.44}{(R_1 + 2R_2)C} \label{eq:555-frequency}
+\end{equation}
+
+占空比为：
+
+\begin{equation}
+D = \frac{R_1 + R_2}{R_1 + 2R_2} \label{eq:555-duty-cycle}
+\end{equation}
+
+\paragraph{双稳态模式（Bistable Mode）}
+
+双稳态模式用作施密特触发器，输出状态由输入信号决定。
+
+\subsubsection{555 定时器的应用}
+
+\begin{enumerate}
+  \item 脉冲发生器
+  \item PWM 信号发生器
+  \item 延时电路
+  \item 频率分频器
+  \item 电压-频率转换器
+\end{enumerate}
+
+\subsection{其他定时器 IC}
+
+除了 555，还有其他定时器 IC，如：
+\begin{itemize}
+  \item 556：双 555 定时器
+  \item 558：四 555 定时器
+  \item 专用定时器：如微控制器中的定时器/计数器模块
+\end{itemize}
+
+\section{比较器和基准电压源}
+
+\subsection{比较器}
+
+比较器用于比较两个电压的大小，输出数字信号（高电平或低电平）。
+
+\subsubsection{比较器的特性}
+
+比较器与运算放大器类似，但有以下区别：
+\begin{itemize}
+  \item 比较器设计用于开环工作，不需要负反馈
+  \item 比较器通常具有更快的响应速度
+  \item 比较器的输出是数字信号，可以直接驱动数字电路
+  \item 比较器可能具有推挽输出或开漏输出
+\end{itemize}
+
+\subsubsection{比较器的应用}
+
+\begin{enumerate}
+  \item 电压监控和过压/欠压保护
+  \item 窗口比较器（检测电压是否在范围内）
+  \item 零交叉检测
+  \item A/D 转换器中的比较器
+  \item 施密特触发器（带滞回的比较器）
+\end{enumerate}
+
+\subsubsection{施密特触发器}
+
+施密特触发器是具有滞回特性的比较器，可以消除噪声引起的误触发。
+
+滞回电压（Hysteresis）为：
+
+\begin{equation}
+V_{HYS} = V_{TH+} - V_{TH-} \label{eq:schmitt-hysteresis}
+\end{equation}
+
+其中 $V_{TH+}$ 是上阈值，$V_{TH-}$ 是下阈值。
+
+\subsection{基准电压源}
+
+基准电压源提供精确、稳定的参考电压，用于 ADC、DAC、稳压器等电路。
+
+\subsubsection{基准电压源的分类}
+
+\begin{enumerate}
+  \item \textbf{齐纳基准}
+    \begin{itemize}
+      \item 基于齐纳二极管
+      \item 精度中等，温度系数较大
+      \item 成本低
+    \end{itemize}
+
+  \item \textbf{带隙基准（Bandgap Reference）}
+    \begin{itemize}
+      \item 利用带隙电压的温度特性
+      \item 精度高，温度系数小（< 50 ppm/$^\circ$C）
+      \item 现代 IC 中最常用的基准
+    \end{itemize}
+
+  \item \textbf{埋层齐纳基准}
+    \begin{itemize}
+      \item 精度很高，温度系数很小
+      \item 成本较高
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{基准电压源的关键参数}
+
+\begin{enumerate}
+  \item \textbf{初始精度}：出厂时的电压误差
+  \item \textbf{温度系数（TC）}：电压随温度的变化率
+  \item \textbf{长期稳定性}：电压随时间的变化
+  \item \textbf{负载调整率}：负载电流变化时电压的变化
+  \item \textbf{线性调整率}：电源电压变化时电压的变化
+  \item \textbf{噪声}：基准电压的噪声水平
+\end{enumerate}
+
+\subsubsection{常见基准电压}
+
+\begin{itemize}
+  \item 1.25 V：带隙基准的典型值
+  \item 2.5 V：常用的基准电压
+  \item 4.096 V：用于 12 位 ADC 的基准
+  \item 5.0 V：传统基准电压
+\end{itemize}
+
+\section{模拟开关和多路复用器}
+
+模拟开关和多路复用器用于在多个模拟信号之间进行切换。
+
+\subsection{模拟开关}
+
+模拟开关是电子控制的开关，可以导通或断开模拟信号路径。
+
+\subsubsection{模拟开关的结构}
+
+模拟开关通常使用 MOSFET 实现，包括：
+\begin{itemize}
+  \item 单刀单掷（SPST）
+  \item 单刀双掷（SPDT）
+  \item 多路开关
+\end{itemize}
+
+\subsubsection{模拟开关的关键参数}
+
+\begin{enumerate}
+  \item \textbf{导通电阻（$R_{ON}$）}
+    \begin{itemize}
+      \item 开关导通时的电阻
+      \item 典型值：几欧姆到几百欧姆
+      \item 影响信号衰减和失真
+    \end{itemize}
+
+  \item \textbf{关断电阻（$R_{OFF}$）}
+    \begin{itemize}
+      \item 开关关断时的电阻
+      \item 通常 > 1 M$\Omega$
+    \end{itemize}
+
+  \item \textbf{带宽}
+    \begin{itemize}
+      \item 开关能够处理的信号频率范围
+    \end{itemize}
+
+  \item \textbf{串扰（Crosstalk）}
+    \begin{itemize}
+      \item 关断通道对导通通道的影响
+    \end{itemize}
+
+  \item \textbf{电荷注入}
+    \begin{itemize}
+      \item 开关切换时注入到信号路径的电荷
+      \item 影响采样保持电路
+    \end{itemize}
+\end{enumerate}
+
+\subsection{多路复用器}
+
+多路复用器（Multiplexer，MUX）可以从多个输入中选择一个输出。
+
+\subsubsection{多路复用器的应用}
+
+\begin{enumerate}
+  \item ADC 的多通道输入选择
+  \item 信号路由
+  \item 数据采集系统
+\end{enumerate}
+
+\section{数据转换器}
+
+数据转换器包括模数转换器（ADC）和数模转换器（DAC），是连接模拟世界和数字世界的桥梁。
+
+\subsection{模数转换器（ADC）}
+
+ADC 将模拟信号转换为数字信号。
+
+\subsubsection{ADC 的主要参数}
+
+\begin{enumerate}
+  \item \textbf{分辨率（Resolution）}
+    \begin{itemize}
+      \item 用位数表示，如 8 位、10 位、12 位、16 位等
+      \item 分辨率越高，量化误差越小
+    \end{itemize}
+
+  \item \textbf{采样率（Sampling Rate）}
+    \begin{itemize}
+      \item ADC 每秒采样的次数
+      \item 根据奈奎斯特定理，采样率应至少为信号最高频率的 2 倍
+    \end{itemize}
+
+  \item \textbf{量化误差}
+    \begin{itemize}
+      \item 由于量化产生的误差
+      \item 对于 $N$ 位 ADC，量化误差为 $\pm \frac{1}{2} LSB$
+    \end{itemize}
+
+  \item \textbf{积分非线性（INL）}
+    \begin{itemize}
+      \item 实际转换特性与理想直线的偏差
+    \end{itemize}
+
+  \item \textbf{微分非线性（DNL）}
+    \begin{itemize}
+      \item 相邻码之间的实际步长与理想步长的偏差
+    \end{itemize}
+
+  \item \textbf{信噪比（SNR）}
+    \begin{itemize}
+      \item 信号功率与噪声功率的比值
+      \item 理想 $N$ 位 ADC 的理论 SNR 为 $6.02N + 1.76$ dB
+    \end{itemize}
+
+  \item \textbf{有效位数（ENOB）}
+    \begin{itemize}
+      \item 考虑所有误差后的实际有效位数
+      \item ENOB < 分辨率
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{ADC 的架构}
+
+\begin{enumerate}
+  \item \textbf{逐次逼近型（SAR）}
+    \begin{itemize}
+      \item 中等速度，中等精度
+      \item 功耗低
+      \item 适用于一般应用
+    \end{itemize}
+
+  \item \textbf{流水线型（Pipeline）}
+    \begin{itemize}
+      \item 高速，中等精度
+      \item 适用于高速数据采集
+    \end{itemize}
+
+  \item \textbf{Σ-Δ 型}
+    \begin{itemize}
+      \item 高精度，低速度
+      \item 过采样技术
+      \item 适用于高精度测量
+    \end{itemize}
+
+  \item \textbf{闪存型（Flash）}
+    \begin{itemize}
+      \item 极高速度，低精度
+      \item 成本高
+      \item 适用于超高速应用
+    \end{itemize}
+
+  \item \textbf{双斜率型（Dual-Slope）}
+    \begin{itemize}
+      \item 高精度，低速度
+      \item 抗干扰能力强
+      \item 适用于数字万用表等
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{ADC 的接口}
+
+\begin{enumerate}
+  \item \textbf{并行接口}：速度快，但引脚多
+  \item \textbf{串行接口}：引脚少，但速度较慢
+    \begin{itemize}
+      \item SPI
+      \item I2C
+      \item 串行外设接口（Serial Peripheral Interface）
+    \end{itemize}
+\end{enumerate}
+
+\subsection{数模转换器（DAC）}
+
+DAC 将数字信号转换为模拟信号。
+
+\subsubsection{DAC 的主要参数}
+
+\begin{enumerate}
+  \item \textbf{分辨率}：与 ADC 类似
+  \item \textbf{建立时间（Settling Time）}：输出达到稳定值所需的时间
+  \item \textbf{毛刺（Glitch）}：数字码切换时产生的瞬态误差
+  \item \textbf{INL 和 DNL}：与 ADC 类似
+\end{enumerate}
+
+\subsubsection{DAC 的架构}
+
+\begin{enumerate}
+  \item \textbf{电阻网络型}
+    \begin{itemize}
+      \item R-2R 梯形网络
+      \item 加权电阻网络
+    \end{itemize}
+
+  \item \textbf{电流舵型（Current Steering）}
+    \begin{itemize}
+      \item 高速应用
+    \end{itemize}
+
+  \item \textbf{Σ-Δ 型}
+    \begin{itemize}
+      \item 高精度应用
+    \end{itemize}
+\end{enumerate}
+
+\section{专用集成电路}
+
+专用集成电路（Application-Specific Integrated Circuit，ASIC）是为特定应用设计的 IC，包括各种功能芯片。
+
+\subsection{传感器接口 IC}
+
+传感器接口 IC 用于处理各种传感器的信号。
+
+\subsubsection{温度传感器接口}
+
+\begin{itemize}
+  \item 热敏电阻接口
+  \item 热电偶放大器
+  \item 数字温度传感器（如 DS18B20）
+\end{itemize}
+
+\subsubsection{压力传感器接口}
+
+\begin{itemize}
+  \item 应变计放大器
+  \item 压力传感器信号调理
+\end{itemize}
+
+\subsubsection{光传感器接口}
+
+\begin{itemize}
+  \item 光电二极管放大器
+  \item 光强度传感器接口
+\end{itemize}
+
+\subsection{电机驱动 IC}
+
+电机驱动 IC 用于控制各种电机。
+
+\subsubsection{直流电机驱动}
+
+\begin{itemize}
+  \item H 桥驱动 IC
+  \item 有刷直流电机驱动
+  \item 无刷直流电机（BLDC）驱动
+\end{itemize}
+
+\subsubsection{步进电机驱动}
+
+\begin{itemize}
+  \item 步进电机驱动器
+  \item 微步进控制
+\end{itemize}
+
+\subsection{音频功放 IC}
+
+音频功放 IC 用于放大音频信号。
+
+\subsubsection{分类}
+
+\begin{enumerate}
+  \item \textbf{A 类功放}
+    \begin{itemize}
+      \item 线性度好，但效率低
+    \end{itemize}
+
+  \item \textbf{B 类功放}
+    \begin{itemize}
+      \item 效率较高，但有交越失真
+    \end{itemize}
+
+  \item \textbf{AB 类功放}
+    \begin{itemize}
+      \item 兼顾效率和线性度
+      \item 最常用
+    \end{itemize}
+
+  \item \textbf{D 类功放}
+    \begin{itemize}
+      \item 效率很高（> 90\%）
+      \item 开关式功放
+      \item 需要输出滤波器
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{关键参数}
+
+\begin{itemize}
+  \item 输出功率
+  \item 总谐波失真（THD）
+  \item 效率
+  \item 信噪比（SNR）
+\end{itemize}
+
+\subsection{接口 IC}
+
+接口 IC 用于不同系统之间的连接。
+
+\subsubsection{电平转换器}
+
+\begin{itemize}
+  \item 3.3 V 与 5 V 电平转换
+  \item I2C 电平转换
+  \item RS-232 电平转换
+\end{itemize}
+
+\subsubsection{总线驱动器和接收器}
+
+\begin{itemize}
+  \item RS-485 驱动/接收器
+  \item CAN 总线驱动/接收器
+  \item USB 接口 IC
+\end{itemize}
+
+\subsection{显示驱动 IC}
+
+显示驱动 IC 用于驱动各种显示器。
+
+\begin{itemize}
+  \item LED 驱动 IC
+  \item LCD 驱动 IC
+  \item OLED 驱动 IC
+  \item 段式显示驱动
+\end{itemize}
+
+\section{数字逻辑集成电路}
+
+数字逻辑 IC 实现各种逻辑功能。
+
+\subsection{基本逻辑门}
+
+\begin{itemize}
+  \item 与门（AND）
+  \item 或门（OR）
+  \item 非门（NOT）
+  \item 与非门（NAND）
+  \item 或非门（NOR）
+  \item 异或门（XOR）
+\end{itemize}
+
+\subsection{组合逻辑电路}
+
+\begin{itemize}
+  \item 编码器/解码器
+  \item 多路复用器/解复用器
+  \item 比较器
+  \item 算术逻辑单元（ALU）
+\end{itemize}
+
+\subsection{时序逻辑电路}
+
+\begin{itemize}
+  \item 触发器（Flip-Flop）
+  \item 锁存器（Latch）
+  \item 计数器
+  \item 移位寄存器
+\end{itemize}
+
+\subsection{可编程逻辑器件}
+
+\begin{itemize}
+  \item 可编程逻辑阵列（PLA）
+  \item 可编程阵列逻辑（PAL）
+  \item 复杂可编程逻辑器件（CPLD）
+  \item 现场可编程门阵列（FPGA）
+\end{itemize}
+
+\section{集成电路的选型和应用}
+
+\subsection{选型原则}
+
+选择 IC 时需要考虑：
+
+\begin{enumerate}
+  \item \textbf{功能需求}
+    \begin{itemize}
+      \item 是否满足功能要求
+      \item 性能指标是否足够
+    \end{itemize}
+
+  \item \textbf{电气特性}
+    \begin{itemize}
+      \item 电源电压范围
+      \item 工作电流
+      \item 输入输出电平
+      \item 速度要求
+    \end{itemize}
+
+  \item \textbf{环境条件}
+    \begin{itemize}
+      \item 工作温度范围
+      \item 湿度要求
+      \item 可靠性要求
+    \end{itemize}
+
+  \item \textbf{封装}
+    \begin{itemize}
+      \item 封装类型
+      \item 引脚数
+      \item 散热要求
+    \end{itemize}
+
+  \item \textbf{成本和可获得性}
+    \begin{itemize}
+      \item 价格
+      \item 供货情况
+      \item 生命周期
+    \end{itemize}
+\end{enumerate}
+
+\subsection{应用注意事项}
+
+\subsubsection{电源设计}
+
+\begin{itemize}
+  \item 提供稳定的电源电压
+  \item 使用去耦电容
+  \item 注意电源时序
+  \item 考虑功耗和散热
+\end{itemize}
+
+\subsubsection{PCB 布局}
+
+\begin{itemize}
+  \item 缩短信号路径
+  \item 减小寄生参数
+  \item 注意地平面设计
+  \item 分离模拟和数字部分
+\end{itemize}
+
+\subsubsection{热设计}
+
+\begin{itemize}
+  \item 计算功耗
+  \item 选择合适的封装
+  \item 必要时使用散热器
+  \item 考虑环境温度
+\end{itemize}
+
+\subsubsection{可靠性}
+
+\begin{itemize}
+  \item 留有余量
+  \item 考虑最坏情况
+  \item 进行充分测试
+  \item 遵循数据手册的推荐
+\end{itemize}
+
+\section{集成电路的发展趋势}
+
+\subsection{工艺技术}
+
+\begin{itemize}
+  \item 特征尺寸不断缩小（已进入 3 nm 时代）
+  \item 三维集成技术
+  \item 新材料的应用
+\end{itemize}
+
+\subsection{设计技术}
+
+\begin{itemize}
+  \item 系统级设计（SoC）
+  \item IP 核复用
+  \item 低功耗设计
+  \item 可测试性设计
+\end{itemize}
+
+\subsection{应用领域}
+
+\begin{itemize}
+  \item 人工智能芯片
+  \item 物联网（IoT）芯片
+  \item 汽车电子
+  \item 医疗电子
+  \item 可穿戴设备
+\end{itemize}

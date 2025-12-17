@@ -1,7 +1,1421 @@
 \chapter{Bootloader}
 
+Bootloader（引导加载程序）是系统启动过程中的关键组件，负责初始化硬件、加载操作系统内核，并完成从硬件上电到操作系统运行的过渡。
+在嵌入式系统和通用计算系统中，Bootloader 的设计和实现直接影响系统的启动速度、安全性和可靠性。
+本章深入探讨 Bootloader 的工作原理、主流实现以及开发实践。
+
+\section{Bootloader 基础}
+
+\subsection{Bootloader 的作用}
+
+\BlockDesc{Bootloader}
+
+Bootloader 是系统启动的第一个软件组件，其主要职责包括：
+
+\begin{enumerate}
+  \item \textbf{硬件初始化}
+    \begin{itemize}
+      \item 初始化 CPU、内存控制器
+      \item 配置时钟系统
+      \item 初始化存储设备（Flash、eMMC、SD 卡等）
+      \item 初始化串口、网络等外设
+    \end{itemize}
+
+  \item \textbf{加载操作系统}
+    \begin{itemize}
+      \item 从存储设备读取内核镜像
+      \item 加载设备树（Device Tree）或 ACPI 表
+      \item 加载初始 RAM 文件系统（initramfs/initrd）
+      \item 设置内核启动参数
+    \end{itemize}
+
+  \item \textbf{系统配置}
+    \begin{itemize}
+      \item 设置内存布局
+      \item 配置中断向量表
+      \item 设置安全启动参数
+      \item 提供用户交互界面（可选）
+    \end{itemize}
+
+  \item \textbf{系统维护}
+    \begin{itemize}
+      \item 固件更新
+      \item 系统恢复
+      \item 诊断和调试
+    \end{itemize}
+\end{enumerate}
+
+\subsection{系统启动流程}
+
+\BlockDesc{系统启动流程}
+
+现代计算机系统的启动是一个多阶段的过程，不同架构和系统有不同的实现，但基本流程相似：
+
+\subsubsection{通用启动流程}
+
+\begin{enumerate}
+  \item \textbf{硬件上电（Power-On）}
+    \begin{itemize}
+      \item CPU 从固定地址（Reset Vector）开始执行
+      \item 在 x86 架构中，CPU 从 0xFFFFFFF0 开始执行
+      \item 在 ARM 架构中，通常从 0x00000000 或 0xFFFF0000 开始执行
+      \item 在 RISC-V 架构中，从设备树或配置指定的地址开始执行
+    \end{itemize}
+
+  \item \textbf{ROM Bootloader（第一阶段）}
+    \begin{itemize}
+      \item CPU 内置的只读引导代码
+      \item 初始化最基本的硬件（时钟、内存控制器）
+      \item 从预定义位置加载下一阶段 Bootloader
+      \item 在 x86 系统中，这是 BIOS 或 UEFI 固件
+      \item 在 ARM 系统中，可能是 BootROM 或 ARM Trusted Firmware
+    \end{itemize}
+
+  \item \textbf{主 Bootloader（第二阶段）}
+    \begin{itemize}
+      \item 从存储设备加载的 Bootloader
+      \item 在 PC 系统中，通常是 GRUB、LILO 等
+      \item 在嵌入式系统中，通常是 U-Boot、barebox 等
+      \item 提供更丰富的功能和用户界面
+    \end{itemize}
+
+  \item \textbf{内核加载}
+    \begin{itemize}
+      \item Bootloader 加载内核镜像到内存
+      \item 设置内核启动参数
+      \item 跳转到内核入口点
+    \end{itemize}
+
+  \item \textbf{内核初始化}
+    \begin{itemize}
+      \item 内核初始化各种子系统
+      \item 挂载根文件系统
+      \item 启动第一个用户空间进程（init）
+    \end{itemize}
+
+  \item \textbf{用户空间启动}
+    \begin{itemize}
+      \item init 进程启动
+      \item 执行启动脚本
+      \item 启动系统服务
+      \item 进入正常运行状态
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{ARM 架构启动流程}
+
+ARM 架构的启动流程具有特殊性，特别是在 ARMv8-A 架构中：
+
+\begin{enumerate}
+  \item \textbf{EL3 阶段（Secure Monitor）}
+    \begin{itemize}
+      \item CPU 从 EL3（最高特权级）开始执行
+      \item ARM Trusted Firmware（ATF）在此阶段运行
+      \item 初始化安全世界（Secure World）和非安全世界（Non-Secure World）
+      \item 配置系统安全状态
+    \end{itemize}
+
+  \item \textbf{EL2 阶段（Hypervisor，可选）}
+    \begin{itemize}
+      \item 如果启用虚拟化，在此阶段初始化 Hypervisor
+      \item 配置虚拟化相关寄存器
+    \end{itemize}
+
+  \item \textbf{EL1 阶段（Kernel）}
+    \begin{itemize}
+      \item 操作系统内核在 EL1 运行
+      \item U-Boot 或其他 Bootloader 在此阶段运行
+      \item 加载并启动 Linux 内核
+    \end{itemize}
+
+  \item \textbf{EL0 阶段（User Space）}
+    \begin{itemize}
+      \item 用户空间应用程序运行
+    \end{itemize}
+\end{enumerate}
+
+\subsection{Bootloader 的分类}
+
+根据应用场景和功能，Bootloader 可以分为以下几类：
+
+\begin{enumerate}
+  \item \textbf{PC 系统 Bootloader}
+    \begin{itemize}
+      \item GRUB：GNU GRand Unified Bootloader，Linux 系统最常用
+      \item LILO：Linux Loader，较老的 Bootloader
+      \item Windows Boot Manager：Windows 系统的 Bootloader
+      \item rEFInd：UEFI 启动管理器
+    \end{itemize}
+
+  \item \textbf{嵌入式系统 Bootloader}
+    \begin{itemize}
+      \item U-Boot：Universal Bootloader，最流行的嵌入式 Bootloader
+      \item barebox：轻量级嵌入式 Bootloader
+      \item RedBoot：基于 eCos 的 Bootloader
+      \item Das U-Boot：U-Boot 的早期名称
+    \end{itemize}
+
+  \item \textbf{固件级 Bootloader}
+    \begin{itemize}
+      \item UEFI：统一可扩展固件接口
+      \item BIOS：传统 PC 固件
+      \item ARM Trusted Firmware：ARM 安全固件
+      \item Coreboot：开源固件项目
+    \end{itemize}
+
+  \item \textbf{专用 Bootloader}
+    \begin{itemize}
+      \item 各种 SoC 厂商提供的专用 Bootloader
+      \item 手机 Bootloader（如 Android Bootloader）
+      \item 路由器 Bootloader（如 CFE、U-Boot）
+    \end{itemize}
+\end{enumerate}
+
 \section{U-Boot}
+
+\BlockDesc{U-Boot}
+
+U-Boot（Universal Bootloader）是嵌入式系统中最广泛使用的开源 Bootloader。
+它支持多种 CPU 架构（ARM、x86、MIPS、PowerPC、RISC-V 等）和大量硬件平台。
+
+\subsection{U-Boot 概述}
+
+U-Boot 最初由 Wolfgang Denk 开发，是 Das U-Boot 项目的延续。
+它提供了丰富的功能，包括：
+
+\begin{itemize}
+  \item 多架构支持：ARM、ARM64、x86、x86\_64、MIPS、PowerPC、RISC-V 等
+  \item 网络支持：TFTP、NFS、DHCP、HTTP 等
+  \item 文件系统支持：FAT、ext2/3/4、UBIFS、JFFS2 等
+  \item 设备树支持：完整的设备树解析和传递
+  \item 安全启动：支持 UEFI Secure Boot、Verified Boot
+  \item 脚本支持：U-Boot 脚本语言
+  \item 交互式命令行：类似 Shell 的命令行界面
+\end{itemize}
+
+\subsection{U-Boot 架构}
+
+U-Boot 采用模块化设计，主要组件包括：
+
+\subsubsection{启动阶段}
+
+U-Boot 的启动分为多个阶段：
+
+\begin{enumerate}
+  \item \textbf{SPL（Secondary Program Loader）}
+    \begin{itemize}
+      \item 第一阶段 Bootloader，通常很小（< 64KB）
+      \item 初始化 DDR 内存
+      \item 加载主 U-Boot 到内存
+      \item 在内存受限的系统中使用
+    \end{itemize}
+
+  \item \textbf{TPL（Tertiary Program Loader）}
+    \begin{itemize}
+      \item 在某些 SoC 中使用，在 SPL 之前运行
+      \item 初始化更基础的硬件
+    \end{itemize}
+
+  \item \textbf{主 U-Boot}
+    \begin{itemize}
+      \item 完整的 U-Boot 功能
+      \item 提供命令行界面
+      \item 加载内核和文件系统
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{核心组件}
+
+\begin{enumerate}
+  \item \textbf{板级支持包（BSP）}
+    \begin{itemize}
+      \item 板级特定的初始化代码
+      \item 位于 \texttt{board/} 目录
+      \item 包含硬件初始化、内存配置等
+    \end{itemize}
+
+  \item \textbf{驱动框架}
+    \begin{itemize}
+      \item 统一的驱动模型（DM, Driver Model）
+      \item 支持设备树绑定
+      \item 自动设备发现和初始化
+    \end{itemize}
+
+  \item \textbf{命令系统}
+    \begin{itemize}
+      \item 可扩展的命令框架
+      \item 每个命令是独立的模块
+      \item 支持命令别名和脚本
+    \end{itemize}
+
+  \item \textbf{环境变量系统}
+    \begin{itemize}
+      \item 存储在 Flash 或 eMMC 的特定区域
+      \item 用于配置启动参数
+      \item 支持默认值和用户自定义值
+    \end{itemize}
+\end{enumerate}
+
+\subsection{U-Boot 编译和配置}
+
+\subsubsection{配置系统}
+
+U-Boot 使用 Kconfig 系统进行配置，类似于 Linux 内核：
+
+\begin{lstlisting}[language=bash, caption={U-Boot 配置示例}]
+# 查看支持的板级配置
+ls configs/ | grep rpi
+
+# 配置 Raspberry Pi 4
+make rpi_4_defconfig
+
+# 交互式配置
+make menuconfig
+
+# 编译
+make -j$(nproc)
+\end{lstlisting}
+
+\subsubsection{关键配置选项}
+
+\begin{enumerate}
+  \item \textbf{架构相关}
+    \begin{itemize}
+      \item \texttt{CONFIG\_ARM}：ARM 架构支持
+      \item \texttt{CONFIG\_ARM64}：ARM64 架构支持
+      \item \texttt{CONFIG\_CPU}：CPU 类型
+    \end{itemize}
+
+  \item \textbf{存储支持}
+    \begin{itemize}
+      \item \texttt{CONFIG\_MMC}：MMC/SD 卡支持
+      \item \texttt{CONFIG\_USB\_STORAGE}：USB 存储支持
+      \item \texttt{CONFIG\_SATA}：SATA 硬盘支持
+      \item \texttt{CONFIG\_NVME}：NVMe SSD 支持
+    \end{itemize}
+
+  \item \textbf{网络支持}
+    \begin{itemize}
+      \item \texttt{CONFIG\_NET}：网络功能
+      \item \texttt{CONFIG\_CMD\_TFTP}：TFTP 命令
+      \item \texttt{CONFIG\_CMD\_DHCP}：DHCP 客户端
+      \item \texttt{CONFIG\_CMD\_NFS}：NFS 支持
+    \end{itemize}
+
+  \item \textbf{文件系统}
+    \begin{itemize}
+      \item \texttt{CONFIG\_FS\_EXT4}：ext4 文件系统
+      \item \texttt{CONFIG\_FS\_FAT}：FAT 文件系统
+      \item \texttt{CONFIG\_FS\_UBIFS}：UBIFS 文件系统
+    \end{itemize}
+
+  \item \textbf{设备树}
+    \begin{itemize}
+      \item \texttt{CONFIG\_OF\_LIBFDT}：设备树库支持
+      \item \texttt{CONFIG\_OF\_CONTROL}：设备树控制
+    \end{itemize}
+\end{enumerate}
+
+\subsection{U-Boot 命令}
+
+U-Boot 提供了丰富的命令，用于系统配置、调试和启动：
+
+\subsubsection{信息查询命令}
+
+\begin{lstlisting}[language=bash, caption={U-Boot 信息查询命令}]
+# 显示环境变量
+printenv
+
+# 显示内存信息
+bdinfo
+
+# 显示版本信息
+version
+
+# 显示设备树
+fdt print
+
+# 显示帮助
+help
+help <command>
+\end{lstlisting}
+
+\subsubsection{环境变量命令}
+
+\begin{lstlisting}[language=bash, caption={U-Boot 环境变量操作}]
+# 设置环境变量
+setenv bootargs 'console=ttyS0,115200 root=/dev/mmcblk0p2'
+
+# 保存环境变量到 Flash
+saveenv
+
+# 删除环境变量
+env delete bootdelay
+
+# 重置为默认值
+env default -a
+\end{lstlisting}
+
+\subsubsection{存储设备命令}
+
+\begin{lstlisting}[language=bash, caption={U-Boot 存储设备操作}]
+# 列出存储设备
+mmc list
+usb storage
+
+# 读取/写入内存
+md.b 0x80000000 0x100    # 显示内存内容
+mw.l 0x80000000 0x12345678 0x100  # 写入内存
+
+# 从存储设备读取
+mmc read 0x80000000 0x2000 0x1000  # 从 MMC 读取
+fatload mmc 0:1 0x80000000 zImage  # 从 FAT 分区加载文件
+ext4load mmc 0:2 0x80000000 /boot/zImage  # 从 ext4 分区加载
+\end{lstlisting}
+
+\subsubsection{网络命令}
+
+\begin{lstlisting}[language=bash, caption={U-Boot 网络操作}]
+# 配置网络
+setenv ipaddr 192.168.1.100
+setenv serverip 192.168.1.1
+setenv netmask 255.255.255.0
+
+# 使用 DHCP
+dhcp
+
+# TFTP 下载
+tftp 0x80000000 zImage
+tftp 0x82000000 dtb
+
+# NFS 启动
+nfs 0x80000000 192.168.1.1:/tftpboot/zImage
+\end{lstlisting}
+
+\subsubsection{启动命令}
+
+\begin{lstlisting}[language=bash, caption={U-Boot 启动命令}]
+# 启动内核
+bootm 0x80000000 - 0x82000000  # 地址、initrd、设备树
+
+# 从文件系统启动
+bootz 0x80000000 0x81000000 0x82000000  # zImage、initrd、dtb
+
+# 执行脚本
+source 0x80000000
+run bootcmd
+\end{lstlisting}
+
+\subsection{U-Boot 脚本}
+
+U-Boot 支持脚本语言，可以自动化启动过程：
+
+\begin{lstlisting}[language=bash, caption={U-Boot 启动脚本示例}]
+# 设置启动参数
+setenv bootargs 'console=ttyS0,115200 root=/dev/mmcblk0p2 rw rootwait'
+
+# 定义启动命令
+setenv bootcmd 'mmc dev 0; \
+                fatload mmc 0:1 0x80000000 zImage; \
+                fatload mmc 0:1 0x82000000 dtb; \
+                bootz 0x80000000 - 0x82000000'
+
+# 网络启动脚本
+setenv netboot 'dhcp; \
+                tftp 0x80000000 zImage; \
+                tftp 0x82000000 dtb; \
+                setenv bootargs console=ttyS0,115200 root=/dev/nfs nfsroot=192.168.1.1:/nfsroot ip=192.168.1.100; \
+                bootz 0x80000000 - 0x82000000'
+
+# 保存并执行
+saveenv
+run bootcmd
+\end{lstlisting}
+
+\subsection{U-Boot 设备树支持}
+
+U-Boot 完全支持设备树（Device Tree），可以：
+
+\begin{enumerate}
+  \item \textbf{解析设备树}
+    \begin{itemize}
+      \item 在编译时或运行时加载设备树
+      \item 验证设备树格式
+      \item 提取硬件配置信息
+    \end{itemize}
+
+  \item \textbf{修改设备树}
+    \begin{itemize}
+      \item 在运行时修改设备树节点
+      \item 添加或删除设备
+      \item 修改设备属性
+    \end{itemize}
+
+  \item \textbf{传递设备树}
+    \begin{itemize}
+      \item 将设备树传递给内核
+      \item 设置设备树地址
+      \item 验证设备树完整性
+    \end{itemize}
+\end{enumerate}
+
+设备树操作示例：
+
+\begin{lstlisting}[language=bash, caption={U-Boot 设备树操作}]
+# 显示设备树
+fdt print
+fdt print /cpus
+fdt print /memory
+
+# 修改设备树
+fdt set /chosen bootargs "console=ttyS0,115200"
+fdt set /memory reg <0x80000000 0x40000000>
+
+# 添加节点
+fdt mknode /test-node
+fdt set /test-node compatible "test,device"
+fdt set /test-node reg <0x10000000 0x1000>
+
+# 保存设备树
+fdt save 0x82000000
+\end{lstlisting}
+
+\subsection{U-Boot 开发实践}
+
+\subsubsection{添加新命令}
+
+在 U-Boot 中添加新命令的步骤：
+
+\begin{enumerate}
+  \item 创建命令源文件（如 \texttt{cmd\_mycmd.c}）
+  \item 实现命令处理函数
+  \item 注册命令到 U-Boot 命令系统
+\end{enumerate}
+
+示例代码：
+
+\begin{lstlisting}[language=C, caption={U-Boot 自定义命令示例}]
+#include <common.h>
+#include <command.h>
+
+static int do_mycmd(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
+{
+    if (argc < 2) {
+        printf("Usage: mycmd <arg>\n");
+        return CMD_RET_USAGE;
+    }
+
+    printf("My command executed with arg: %s\n", argv[1]);
+    return CMD_RET_SUCCESS;
+}
+
+U_BOOT_CMD(
+    mycmd,    // 命令名
+    2,        // 最大参数数
+    1,        // 可重复执行
+    do_mycmd, // 处理函数
+    "My custom command",           // 简短描述
+    "mycmd <arg> - Execute my command"  // 详细帮助
+);
+\end{lstlisting}
+
+\subsubsection{添加板级支持}
+
+添加新板级支持的步骤：
+
+\begin{enumerate}
+  \item 创建板级目录（如 \texttt{board/mycompany/myboard/}）
+  \item 实现板级初始化函数
+  \item 创建配置文件
+  \item 添加设备树文件
+\end{enumerate}
 
 \section{UEFI}
 
-\section{Grub}
+\BlockDesc{UEFI}
+
+UEFI（Unified Extensible Firmware Interface，统一可扩展固件接口）是现代 PC 和服务器系统的主流固件标准，替代了传统的 BIOS。
+
+\subsection{UEFI 概述}
+
+UEFI 由 UEFI Forum 制定和维护，提供了：
+
+\begin{itemize}
+  \item 标准化的固件接口
+  \item 模块化设计
+  \item 网络和图形支持
+  \item 安全启动（Secure Boot）
+  \item 更大的磁盘支持（> 2TB）
+  \item 更快的启动速度
+\end{itemize}
+
+\subsection{UEFI 架构}
+
+\subsubsection{启动流程}
+
+UEFI 启动流程：
+
+\begin{enumerate}
+  \item \textbf{SEC 阶段（Security Phase）}
+    \begin{itemize}
+      \item CPU 初始化
+      \item 临时 RAM 初始化
+      \item 验证固件完整性
+    \end{itemize}
+
+  \item \textbf{PEI 阶段（Pre-EFI Initialization）}
+    \begin{itemize}
+      \item 内存初始化
+      \item CPU 初始化
+      \item 芯片组初始化
+      \item 传递信息到 DXE 阶段
+    \end{itemize}
+
+  \item \textbf{DXE 阶段（Driver Execution Environment）}
+    \begin{itemize}
+      \item 加载和执行驱动程序
+      \item 初始化所有硬件
+      \item 提供 UEFI 服务
+    \end{itemize}
+
+  \item \textbf{BS 阶段（Boot Services）}
+    \begin{itemize}
+      \item 提供启动时服务
+      \item 加载操作系统加载器
+      \item 传递控制权给操作系统
+    \end{itemize}
+
+  \item \textbf{RT 阶段（Runtime Services）}
+    \begin{itemize}
+      \item 操作系统运行时的 UEFI 服务
+      \item 系统管理功能
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{UEFI 服务}
+
+UEFI 提供两类服务：
+
+\begin{enumerate}
+  \item \textbf{启动服务（Boot Services）}
+    \begin{itemize}
+      \item \texttt{EFI\_BOOT\_SERVICES.AllocatePages}：分配内存页
+      \item \texttt{EFI\_BOOT\_SERVICES.FreePages}：释放内存页
+      \item \texttt{EFI\_BOOT\_SERVICES.InstallProtocolInterface}：安装协议接口
+      \item \texttt{EFI\_BOOT\_SERVICES.LoadImage}：加载可执行镜像
+      \item \texttt{EFI\_BOOT\_SERVICES.StartImage}：启动镜像
+      \item \texttt{EFI\_BOOT\_SERVICES.ExitBootServices}：退出启动服务
+    \end{itemize}
+
+  \item \textbf{运行时服务（Runtime Services）}
+    \begin{itemize}
+      \item \texttt{EFI\_RUNTIME\_SERVICES.GetTime}：获取系统时间
+      \item \texttt{EFI\_RUNTIME\_SERVICES.SetTime}：设置系统时间
+      \item \texttt{EFI\_RUNTIME\_SERVICES.GetVariable}：获取 UEFI 变量
+      \item \texttt{EFI\_RUNTIME\_SERVICES.SetVariable}：设置 UEFI 变量
+      \item \texttt{EFI\_RUNTIME\_SERVICES.ResetSystem}：重置系统
+    \end{itemize}
+\end{enumerate}
+
+\subsection{UEFI 协议}
+
+UEFI 使用协议（Protocol）机制提供功能接口：
+
+\begin{enumerate}
+  \item \textbf{设备协议}
+    \begin{itemize}
+      \item \texttt{EFI\_BLOCK\_IO\_PROTOCOL}：块设备接口
+      \item \texttt{EFI\_SIMPLE\_FILE\_SYSTEM\_PROTOCOL}：文件系统接口
+      \item \texttt{EFI\_GRAPHICS\_OUTPUT\_PROTOCOL}：图形输出接口
+      \item \texttt{EFI\_SIMPLE\_TEXT\_INPUT\_PROTOCOL}：文本输入接口
+    \end{itemize}
+
+  \item \textbf{网络协议}
+    \begin{itemize}
+      \item \texttt{EFI\_MANAGED\_NETWORK\_PROTOCOL}：网络管理
+      \item \texttt{EFI\_IP4\_CONFIG\_PROTOCOL}：IPv4 配置
+      \item \texttt{EFI\_TCP4\_PROTOCOL}：TCP/IP 协议
+    \end{itemize}
+
+  \item \textbf{系统协议}
+    \begin{itemize}
+      \item \texttt{EFI\_LOADED\_IMAGE\_PROTOCOL}：已加载镜像信息
+      \item \texttt{EFI\_DEVICE\_PATH\_PROTOCOL}：设备路径
+      \item \texttt{EFI\_SIMPLE\_NETWORK\_PROTOCOL}：简单网络接口
+    \end{itemize}
+\end{enumerate}
+
+\subsection{UEFI 应用程序开发}
+
+UEFI 应用程序使用 EDK II（EFI Development Kit II）开发：
+
+\begin{lstlisting}[language=C, caption={UEFI 应用程序示例}]
+#include <Uefi.h>
+#include <Library/UefiLib.h>
+#include <Library/UefiBootServicesTableLib.h>
+
+EFI_STATUS
+EFIAPI
+UefiMain (
+  IN EFI_HANDLE        ImageHandle,
+  IN EFI_SYSTEM_TABLE  *SystemTable
+  )
+{
+  EFI_STATUS  Status;
+
+  // 打印信息
+  Print(L"Hello from UEFI Application!\n");
+
+  // 获取系统时间
+  EFI_TIME Time;
+  Status = gRT->GetTime(&Time, NULL);
+  if (!EFI_ERROR(Status)) {
+    Print(L"Current time: %04d-%02d-%02d %02d:%02d:%02d\n",
+          Time.Year, Time.Month, Time.Day,
+          Time.Hour, Time.Minute, Time.Second);
+  }
+
+  // 等待按键
+  Print(L"Press any key to exit...\n");
+  gBS->WaitForEvent(1, &gST->ConIn->WaitForKey, NULL);
+
+  return EFI_SUCCESS;
+}
+\end{lstlisting}
+
+\subsection{UEFI Secure Boot}
+
+\BlockDesc{UEFI Secure Boot}
+
+UEFI Secure Boot 是 UEFI 规范的安全功能，用于防止恶意软件在系统启动时加载。
+
+工作原理：
+\begin{enumerate}
+  \item 使用公钥加密体系
+  \item 固件包含平台密钥（Platform Key, PK）
+  \item 密钥交换密钥（Key Exchange Key, KEK）用于更新签名数据库
+  \item 允许的签名数据库（db）包含受信任的签名
+  \item 禁止的签名数据库（dbx）包含被撤销的签名
+\end{enumerate}
+
+启动验证流程：
+\begin{enumerate}
+  \item 固件验证 Bootloader 的签名
+  \item Bootloader 验证内核的签名
+  \item 内核验证驱动和模块的签名
+  \item 任何验证失败都会阻止加载
+\end{enumerate}
+
+\section{GRUB}
+
+\BlockDesc{GRUB}
+
+GRUB（GRand Unified Bootloader）是 GNU 项目开发的 Bootloader，广泛用于 Linux 系统。
+
+\subsection{GRUB 概述}
+
+GRUB 的特点：
+\begin{itemize}
+  \item 支持多种文件系统（ext2/3/4、FAT、NTFS、XFS 等）
+  \item 支持多种操作系统（Linux、Windows、BSD 等）
+  \item 提供菜单界面和命令行界面
+  \item 支持网络启动
+  \item 支持主题和图形界面
+  \item 支持加密和密码保护
+\end{itemize}
+
+\subsection{GRUB 架构}
+
+GRUB 2 的架构：
+
+\begin{enumerate}
+  \item \textbf{Core Image}
+    \begin{itemize}
+      \item \texttt{core.img}：GRUB 核心镜像
+      \item 包含基本功能：磁盘访问、文件系统驱动
+      \item 通常安装在 MBR 或 GPT 分区
+    \end{itemize}
+
+  \item \textbf{Modules}
+    \begin{itemize}
+      \item 模块化设计，按需加载
+      \item 文件系统模块：\texttt{ext2.mod}、\texttt{fat.mod} 等
+      \item 命令模块：\texttt{linux.mod}、\texttt{chainloader.mod} 等
+      \item 主题和图形模块
+    \end{itemize}
+
+  \item \textbf{Configuration}
+    \begin{itemize}
+      \item \texttt{/boot/grub/grub.cfg}：主配置文件
+      \item 由 \texttt{grub-mkconfig} 生成
+      \item 支持脚本语言
+    \end{itemize}
+\end{enumerate}
+
+\subsection{GRUB 配置}
+
+\subsubsection{配置文件结构}
+
+GRUB 配置文件示例：
+
+\begin{lstlisting}[language=bash, caption={GRUB 配置文件示例}]
+# 全局设置
+set default=0
+set timeout=5
+set gfxmode=1920x1080
+
+# 加载主题
+loadfont unicode
+insmod gfxterm
+insmod gfxmenu
+insmod theme
+set theme=/boot/grub/themes/mytheme/theme.txt
+
+# 菜单项
+menuentry 'Linux 5.10' {
+    set root='hd0,gpt2'
+    linux /vmlinuz-5.10 root=/dev/sda2 ro quiet
+    initrd /initrd.img-5.10
+}
+
+menuentry 'Linux 5.10 (Recovery)' {
+    set root='hd0,gpt2'
+    linux /vmlinuz-5.10 root=/dev/sda2 ro single
+    initrd /initrd.img-5.10
+}
+
+menuentry 'Windows 10' {
+    set root='hd0,gpt1'
+    chainloader /EFI/Microsoft/Boot/bootmgfw.efi
+}
+\end{lstlisting}
+
+\subsubsection{常用配置选项}
+
+\begin{enumerate}
+  \item \textbf{显示设置}
+    \begin{itemize}
+      \item \texttt{set default=N}：默认启动项
+      \item \texttt{set timeout=T}：超时时间（秒）
+      \item \texttt{set gfxmode=WxH}：图形模式分辨率
+    \end{itemize}
+
+  \item \textbf{内核参数}
+    \begin{itemize}
+      \item \texttt{root=}：根文件系统设备
+      \item \texttt{ro/rw}：只读/读写挂载
+      \item \texttt{quiet}：减少启动信息输出
+      \item \texttt{splash}：显示启动画面
+      \item \texttt{init=}：指定 init 程序
+    \end{itemize}
+
+  \item \textbf{模块加载}
+    \begin{itemize}
+      \item \texttt{insmod <module>}：加载模块
+      \item \texttt{set root=}：设置根设备
+    \end{itemize}
+\end{enumerate}
+
+\subsection{GRUB 命令}
+
+GRUB 提供交互式命令行：
+
+\begin{lstlisting}[language=bash, caption={GRUB 命令示例}]
+# 帮助
+help
+help <command>
+
+# 设备操作
+ls                    # 列出所有设备
+ls (hd0,gpt2)/        # 列出分区内容
+set root=(hd0,gpt2)   # 设置根设备
+
+# 文件系统操作
+cat (hd0,gpt2)/etc/fstab  # 查看文件
+insmod ext2          # 加载文件系统模块
+
+# 启动相关
+linux /vmlinuz root=/dev/sda2
+initrd /initrd.img
+boot
+
+# 网络启动
+set net_default_server=192.168.1.1
+linux (tftp)/vmlinuz root=/dev/nfs nfsroot=192.168.1.1:/nfsroot
+initrd (tftp)/initrd.img
+boot
+\end{lstlisting}
+
+\subsection{GRUB 安装和更新}
+
+\subsubsection{安装 GRUB}
+
+\begin{lstlisting}[language=bash, caption={GRUB 安装步骤}]
+# BIOS 系统
+grub-install /dev/sda
+grub-mkconfig -o /boot/grub/grub.cfg
+
+# UEFI 系统
+grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB
+grub-mkconfig -o /boot/grub/grub.cfg
+
+# 指定设备
+grub-install --root-directory=/mnt /dev/sda
+\end{lstlisting}
+
+\subsubsection{修复 GRUB}
+
+当 GRUB 损坏或无法启动时：
+
+\begin{lstlisting}[language=bash, caption={GRUB 修复}]
+# 使用 Live CD/USB 启动
+# 挂载根文件系统
+mount /dev/sda2 /mnt
+mount /dev/sda1 /mnt/boot/efi  # UEFI 系统
+
+# 挂载必要的文件系统
+mount --bind /dev /mnt/dev
+mount --bind /proc /mnt/proc
+mount --bind /sys /mnt/sys
+
+# chroot 到系统
+chroot /mnt
+
+# 重新安装 GRUB
+grub-install /dev/sda
+grub-mkconfig -o /boot/grub/grub.cfg
+\end{lstlisting}
+
+\section{ARM Trusted Firmware}
+
+\BlockDesc{ARM Trusted Firmware}
+
+ARM Trusted Firmware（ATF）是 ARM 官方提供的安全固件参考实现，用于 ARMv8-A 架构系统。
+
+\subsection{ATF 概述}
+
+ATF 提供：
+\begin{itemize}
+  \item 安全世界（Secure World）固件
+  \item 非安全世界（Non-Secure World）引导
+  \item 可信执行环境（TEE）支持
+  \item PSCI（Power State Coordination Interface）实现
+  \item 安全启动支持
+\end{itemize}
+
+\subsection{ATF 启动流程}
+
+ATF 在 EL3 运行，启动流程：
+
+\begin{enumerate}
+  \item \textbf{BL1（Boot Loader Stage 1）}
+    \begin{itemize}
+      \item 在 ROM 或 Trusted Boot ROM 中运行
+      \item 初始化安全世界
+      \item 加载 BL2 到安全 RAM
+    \end{itemize}
+
+  \item \textbf{BL2（Boot Loader Stage 2）}
+    \begin{itemize}
+      \item 在安全 RAM 中运行
+      \item 加载 BL31（EL3 固件）
+      \item 加载 BL32（可选，Secure Payload）
+      \item 加载 BL33（Non-Secure Bootloader，如 U-Boot）
+    \end{itemize}
+
+  \item \textbf{BL31（Runtime Firmware）}
+    \begin{itemize}
+      \item EL3 运行时固件
+      \item 提供安全监控调用（SMC）
+      \item 处理安全世界和非安全世界之间的切换
+    \end{itemize}
+
+  \item \textbf{BL32（Optional Secure Payload）}
+    \begin{itemize}
+      \item 可信执行环境（如 OP-TEE）
+      \item 在安全世界运行
+    \end{itemize}
+
+  \item \textbf{BL33（Non-Secure Firmware）}
+    \begin{itemize}
+      \item 非安全世界的 Bootloader（如 U-Boot）
+      \item 加载和启动操作系统
+    \end{itemize}
+\end{enumerate}
+
+\subsection{ATF 配置和编译}
+
+\begin{lstlisting}[language=bash, caption={ATF 编译示例}]
+# 设置工具链
+export CROSS_COMPILE=aarch64-linux-gnu-
+
+# 配置平台
+make PLAT=rpi4
+
+# 编译
+make all
+
+# 输出文件
+# build/rpi4/release/bl1.bin
+# build/rpi4/release/bl2.bin
+# build/rpi4/release/bl31.bin
+\end{lstlisting}
+
+\section{设备树（Device Tree）}
+
+\BlockDesc{设备树}
+
+设备树（Device Tree）是一种描述硬件的数据结构，用于在 Bootloader 和内核之间传递硬件配置信息。
+
+\subsection{设备树基础}
+
+设备树解决了什么问题：
+\begin{itemize}
+  \item 避免在内核中硬编码硬件信息
+  \item 支持同一内核在不同硬件上运行
+  \item 简化内核移植工作
+  \item 提供标准的硬件描述格式
+\end{itemize}
+
+设备树组成：
+\begin{enumerate}
+  \item \textbf{设备树源文件（.dts）}
+    \begin{itemize}
+      \item 人类可读的设备树描述
+      \item 使用设备树语法编写
+    \end{itemize}
+
+  \item \textbf{设备树头文件（.dtsi）}
+    \begin{itemize}
+      \item 可重用的设备树片段
+      \item 通过 \texttt{\#include} 包含
+    \end{itemize}
+
+  \item \textbf{设备树二进制文件（.dtb）}
+    \begin{itemize}
+      \item 编译后的设备树
+      \item 由 Bootloader 加载并传递给内核
+    \end{itemize}
+\end{enumerate}
+
+\subsection{设备树语法}
+
+\subsubsection{基本结构}
+
+\begin{lstlisting}[language=dts, caption={设备树基本结构}]
+/dts-v1/;
+
+/ {
+    compatible = "mycompany,myboard";
+    model = "My Board";
+    #address-cells = <1>;
+    #size-cells = <1>;
+
+    cpus {
+        #address-cells = <1>;
+        #size-cells = <0>;
+
+        cpu@0 {
+            compatible = "arm,cortex-a53";
+            device_type = "cpu";
+            reg = <0x0>;
+        };
+    };
+
+    memory@80000000 {
+        device_type = "memory";
+        reg = <0x80000000 0x40000000>;
+    };
+
+    uart0: serial@ff000000 {
+        compatible = "ns16550a";
+        reg = <0xff000000 0x1000>;
+        interrupts = <0 10 4>;
+        clock-frequency = <115200>;
+    };
+};
+\end{lstlisting}
+
+\subsubsection{常用属性}
+
+\begin{enumerate}
+  \item \textbf{compatible}
+    \begin{itemize}
+      \item 设备兼容性字符串
+      \item 格式：\texttt{"manufacturer,model"}
+      \item 用于匹配设备驱动
+    \end{itemize}
+
+  \item \textbf{reg}
+    \begin{itemize}
+      \item 设备寄存器地址和大小
+      \item 格式：\texttt{reg = <address size>;}
+      \item 需要配合 \texttt{\#address-cells} 和 \texttt{\#size-cells}
+    \end{itemize}
+
+  \item \textbf{interrupts}
+    \begin{itemize}
+      \item 中断号定义
+      \item 格式：\texttt{interrupts = <irq type level>;}
+    \end{itemize}
+
+  \item \textbf{clocks}
+    \begin{itemize}
+      \item 时钟引用
+      \item 使用 \texttt{\&clock\_ref} 引用时钟节点
+    \end{itemize}
+
+  \item \textbf{status}
+    \begin{itemize}
+      \item 设备状态
+      \item 值：\texttt{"okay"}、\texttt{"disabled"}、\texttt{"reserved"}
+    \end{itemize}
+\end{enumerate}
+
+\subsection{设备树编译}
+
+设备树使用 DTC（Device Tree Compiler）编译：
+
+\begin{lstlisting}[language=bash, caption={设备树编译}]
+# 编译设备树
+dtc -I dts -O dtb -o myboard.dtb myboard.dts
+
+# 反编译设备树
+dtc -I dtb -O dts -o myboard.dts myboard.dtb
+
+# 查看设备树信息
+fdtdump myboard.dtb
+\end{lstlisting}
+
+\subsection{设备树在启动过程中的作用}
+
+\begin{enumerate}
+  \item \textbf{Bootloader 阶段}
+    \begin{itemize}
+      \item U-Boot 可以加载设备树
+      \item 可以在运行时修改设备树
+      \item 设置设备树地址供内核使用
+    \end{itemize}
+
+  \item \textbf{内核阶段}
+    \begin{itemize}
+      \item 内核解析设备树
+      \item 根据设备树信息初始化硬件
+      \item 匹配设备驱动
+    \end{itemize}
+\end{enumerate}
+
+\section{安全启动}
+
+\BlockDesc{安全启动}
+
+安全启动（Secure Boot）是防止恶意软件在系统启动时加载的安全机制。
+
+\subsection{安全启动原理}
+
+安全启动使用公钥加密体系：
+
+\begin{enumerate}
+  \item \textbf{密钥层次}
+    \begin{itemize}
+      \item 平台密钥（Platform Key, PK）：根密钥
+      \item 密钥交换密钥（Key Exchange Key, KEK）：用于更新数据库
+      \item 签名数据库（db）：允许的签名列表
+      \item 禁止数据库（dbx）：被撤销的签名列表
+    \end{itemize}
+
+  \item \textbf{验证流程}
+    \begin{itemize}
+      \item 每个可执行文件都有数字签名
+      \item 启动时验证签名
+      \item 验证失败则拒绝加载
+    \end{itemize}
+
+  \item \textbf{信任链}
+    \begin{itemize}
+      \item 固件验证 Bootloader
+      \item Bootloader 验证内核
+      \item 内核验证模块和驱动
+    \end{itemize}
+\end{enumerate}
+
+\subsection{UEFI Secure Boot}
+
+UEFI Secure Boot 实现：
+
+\begin{enumerate}
+  \item \textbf{密钥管理}
+    \begin{itemize}
+      \item 使用 \texttt{efibootmgr} 管理密钥
+      \item 密钥存储在 NVRAM 中
+      \item 支持自定义密钥
+    \end{itemize}
+
+  \item \textbf{签名工具}
+    \begin{itemize}
+      \item \texttt{sbsign}：签名 EFI 可执行文件
+      \item \texttt{pesign}：PE 文件签名工具
+    \end{itemize}
+
+  \item \textbf{配置}
+    \begin{itemize}
+      \item 在 UEFI 设置中启用 Secure Boot
+      \item 安装平台密钥
+      \item 配置签名数据库
+    \end{itemize}
+\end{enumerate}
+
+\subsection{Verified Boot}
+
+Verified Boot（验证启动）是 Android 系统使用的安全启动机制：
+
+\begin{enumerate}
+  \item \textbf{AVB（Android Verified Boot）}
+    \begin{itemize}
+      \item 使用 dm-verity 验证分区完整性
+      \item 支持 A/B 分区更新
+      \item 使用哈希树验证数据块
+    \end{itemize}
+
+  \item \textbf{实现}
+    \begin{itemize}
+      \item Bootloader 验证 boot 分区
+      \item 内核验证 system 分区
+      \item 使用哈希树和签名
+    \end{itemize}
+\end{enumerate}
+
+\section{Bootloader 开发实践}
+
+\subsection{调试技巧}
+
+\subsubsection{串口调试}
+
+串口是最常用的 Bootloader 调试方法：
+
+\begin{enumerate}
+  \item \textbf{配置串口}
+    \begin{itemize}
+      \item 设置波特率（通常 115200）
+      \item 配置数据位、停止位、校验位
+      \item 使用 \texttt{printf} 输出调试信息
+    \end{itemize}
+
+  \item \textbf{调试工具}
+    \begin{itemize}
+      \item \texttt{minicom}、\texttt{picocom}：串口终端
+      \item \texttt{screen}：简单的串口工具
+      \item \texttt{cu}：连接工具
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{网络调试}
+
+网络调试适用于支持网络的 Bootloader：
+
+\begin{enumerate}
+  \item \textbf{TFTP 调试}
+    \begin{itemize}
+      \item 通过 TFTP 下载文件
+      \item 快速测试新版本
+      \item 无需重新烧录 Flash
+    \end{itemize}
+
+  \item \textbf{网络控制台}
+    \begin{itemize}
+      \item 通过网络发送调试信息
+      \item 使用 UDP 或 TCP
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{JTAG 调试}
+
+JTAG 提供底层调试能力：
+
+\begin{enumerate}
+  \item \textbf{硬件调试器}
+    \begin{itemize}
+      \item J-Link、OpenOCD 等
+      \item 支持断点、单步执行
+      \item 查看和修改寄存器、内存
+    \end{itemize}
+
+  \item \textbf{使用场景}
+    \begin{itemize}
+      \item 早期启动阶段调试
+      \item 硬件初始化问题
+      \item 崩溃分析
+    \end{itemize}
+\end{enumerate}
+
+\subsection{性能优化}
+
+\subsubsection{启动时间优化}
+
+\begin{enumerate}
+  \item \textbf{减少初始化}
+    \begin{itemize}
+      \item 只初始化必要的硬件
+      \item 延迟非关键初始化
+      \item 使用快速启动模式
+    \end{itemize}
+
+  \item \textbf{优化加载}
+    \begin{itemize}
+      \item 使用压缩镜像
+      \item 并行加载多个文件
+      \item 预加载常用数据
+    \end{itemize}
+
+  \item \textbf{减少延迟}
+    \begin{itemize}
+      \item 减少超时时间
+      \item 跳过不必要的检查
+      \item 优化存储访问
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{内存优化}
+
+\begin{enumerate}
+  \item \textbf{代码优化}
+    \begin{itemize}
+      \item 移除未使用的功能
+      \item 使用链接时优化（LTO）
+      \item 优化数据结构大小
+    \end{itemize}
+
+  \item \textbf{运行时优化}
+    \begin{itemize}
+      \item 使用栈而不是堆
+      \item 重用缓冲区
+      \item 及时释放不需要的内存
+    \end{itemize}
+\end{enumerate}
+
+\subsection{常见问题与解决方案}
+
+\subsubsection{启动失败}
+
+\begin{enumerate}
+  \item \textbf{问题诊断}
+    \begin{itemize}
+      \item 检查串口输出
+      \item 查看错误信息
+      \item 使用调试器检查寄存器状态
+    \end{itemize}
+
+  \item \textbf{常见原因}
+    \begin{itemize}
+      \item 内存初始化失败
+      \item 存储设备访问错误
+      \item 设备树配置错误
+      \item 内核镜像损坏
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{环境变量丢失}
+
+\begin{enumerate}
+  \item \textbf{原因}
+    \begin{itemize}
+      \item Flash 擦写错误
+      \item 环境变量区域损坏
+      \item 电源异常
+    \end{itemize}
+
+  \item \textbf{解决}
+    \begin{itemize}
+      \item 使用默认环境变量
+      \item 从备份恢复
+      \item 重新配置环境变量
+    \end{itemize}
+\end{enumerate}
+
+\section{嵌入式系统启动流程}
+
+\subsection{典型嵌入式系统启动}
+
+以 ARM 嵌入式系统为例，完整启动流程：
+
+\begin{enumerate}
+  \item \textbf{ROM Bootloader}
+    \begin{itemize}
+      \item SoC 内置的 BootROM
+      \item 初始化基本硬件
+      \item 从预定义位置加载下一阶段
+    \end{itemize}
+
+  \item \textbf{SPL/U-Boot}
+    \begin{itemize}
+      \item 初始化 DDR 内存
+      \item 初始化存储设备
+      \item 加载主 U-Boot
+    \end{itemize}
+
+  \item \textbf{主 U-Boot}
+    \begin{itemize}
+      \item 完整功能初始化
+      \item 加载设备树
+      \item 加载内核镜像
+      \item 启动内核
+    \end{itemize}
+
+  \item \textbf{Linux 内核}
+    \begin{itemize}
+      \item 解析设备树
+      \item 初始化子系统
+      \item 挂载根文件系统
+      \item 启动 init 进程
+    \end{itemize}
+
+  \item \textbf{用户空间}
+    \begin{itemize}
+      \item init 进程启动
+      \item 执行启动脚本
+      \item 启动应用程序
+    \end{itemize}
+\end{enumerate}
+
+\subsection{存储布局}
+
+典型的嵌入式系统存储布局：
+
+\begin{lstlisting}[language=bash, caption={典型存储布局}]
+# MMC/eMMC 分区布局
+/dev/mmcblk0p1:  Bootloader (U-Boot)      - 1MB
+/dev/mmcblk0p2:  Environment variables    - 128KB
+/dev/mmcblk0p3:  Device Tree              - 64KB
+/dev/mmcblk0p4:  Kernel                    - 10MB
+/dev/mmcblk0p5:  Initramfs                  - 5MB
+/dev/mmcblk0p6:  Root filesystem          - 剩余空间
+\end{lstlisting}
+
+\subsection{多阶段启动}
+
+为了适应不同的存储和内存限制，嵌入式系统通常使用多阶段启动：
+
+\begin{enumerate}
+  \item \textbf{阶段 1：ROM Bootloader}
+    \begin{itemize}
+      \item 在 ROM 中，不可修改
+      \item 最小功能：加载下一阶段
+    \end{itemize}
+
+  \item \textbf{阶段 2：SPL}
+    \begin{itemize}
+      \item 小尺寸（< 64KB）
+      \item 初始化 DDR
+      \item 加载主 Bootloader
+    \end{itemize}
+
+  \item \textbf{阶段 3：主 Bootloader}
+    \begin{itemize}
+      \item 完整功能
+      \item 加载内核和文件系统
+    \end{itemize}
+\end{enumerate}
+
+Bootloader 是系统启动的关键组件，理解其工作原理和实现细节对于嵌入式系统开发至关重要。
+选择合适的 Bootloader、正确配置启动参数、实现安全启动机制，都是确保系统可靠启动的重要环节。
+随着硬件和软件技术的发展，Bootloader 的功能也在不断扩展，包括更好的安全支持、更快的启动速度、更强的硬件兼容性等。

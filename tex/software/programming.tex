@@ -1,20 +1,1885 @@
 \chapter{编程}
 
+编程是嵌入式系统开发的核心技能，涉及从底层汇编到高级语言的多个层次。
+本章系统介绍 ARMv8 和 RISC-V 汇编语言、ELF 程序结构、C 语言编程（硬件层和用户层）、
+软件架构思想，以及 Rust 和 C++ 等现代编程语言。
+
 \section{ARMv8 汇编}
+
+ARMv8 架构是 ARM 公司推出的 64 位架构，广泛应用于移动设备、服务器和嵌入式系统。
+理解 ARMv8 汇编对于底层系统编程、性能优化和调试至关重要。
+
+\subsection{ARMv8 基础}
+
+\BlockDesc{ARMv8 架构}
+
+ARMv8 架构的主要特点：
+\begin{itemize}
+  \item 支持 64 位和 32 位执行状态（AArch64 和 AArch32）
+  \item 31 个 64 位通用寄存器（X0-X30）
+  \item 独立的程序计数器（PC）和栈指针（SP）
+  \item 改进的异常模型和虚拟化支持
+  \item 增强的 SIMD 和浮点支持
+\end{itemize}
+
+\subsubsection{寄存器}
+
+AArch64 寄存器组织：
+
+\begin{enumerate}
+  \item \textbf{通用寄存器}
+    \begin{itemize}
+      \item X0-X30：31 个 64 位通用寄存器
+      \item W0-W30：32 位视图（X 寄存器的低 32 位）
+      \item X0-X7：参数和返回值寄存器
+      \item X8：间接结果位置寄存器
+      \item X9-X15：临时寄存器
+      \item X16-X17：IP0/IP1（内部过程调用）
+      \item X18：平台寄存器
+      \item X19-X28：被调用者保存寄存器
+      \item X29：帧指针（FP）
+      \item X30：链接寄存器（LR）
+    \end{itemize}
+
+  \item \textbf{特殊寄存器}
+    \begin{itemize}
+      \item SP：栈指针（Stack Pointer）
+      \item PC：程序计数器（Program Counter）
+      \item PSTATE：程序状态寄存器
+    \end{itemize}
+
+  \item \textbf{SIMD 和浮点寄存器}
+    \begin{itemize}
+      \item V0-V31：128 位 SIMD/浮点寄存器
+      \item 可以访问为 8 位、16 位、32 位、64 位或 128 位
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{指令格式}
+
+ARMv8 指令的基本格式：
+
+\begin{lstlisting}[language={[ARM]Assembler}]
+  opcode  dest, src1, src2
+\end{lstlisting}
+
+指令特点：
+\begin{itemize}
+  \item 固定长度：所有指令都是 32 位
+  \item 加载-存储架构：只有加载和存储指令访问内存
+  \item 三地址格式：大多数指令有两个源操作数和一个目标操作数
+\end{itemize}
+
+\subsection{数据传送指令}
+
+\BlockDesc{数据传送}
+
+\begin{enumerate}
+  \item \textbf{MOV}
+    \begin{itemize}
+      \item 寄存器间移动数据
+      \item 立即数加载（受限制）
+      \item 语法：\texttt{MOV Xd, Xm} 或 \texttt{MOV Xd, \#imm}
+    \end{itemize}
+
+  \item \textbf{LDR/STR}
+    \begin{itemize}
+      \item 加载/存储寄存器
+      \item 支持多种寻址模式
+      \item 语法：\texttt{LDR Xd, [Xn, \#offset]} 或 \texttt{STR Xd, [Xn, \#offset]}
+    \end{itemize}
+
+  \item \textbf{LDP/STP}
+    \begin{itemize}
+      \item 加载/存储一对寄存器
+      \item 用于函数调用约定
+      \item 语法：\texttt{LDP Xd1, Xd2, [Xn, \#offset]}
+    \end{itemize}
+\end{enumerate}
+
+示例代码：
+\begin{lstlisting}[language={[ARM]Assembler}]
+  /* 加载立即数到寄存器 */
+  mov x0, #42
+
+  /* 从内存加载 */
+  ldr x1, [x2]           /* x1 = *x2 */
+  ldr x1, [x2, #8]       /* x1 = *(x2 + 8) */
+  ldr x1, [x2, x3]       /* x1 = *(x2 + x3) */
+  ldr x1, [x2, x3, lsl #3] /* x1 = *(x2 + (x3 << 3)) */
+
+  /* 存储到内存 */
+  str x0, [x1]           /* *x1 = x0 */
+  str x0, [x1, #-8]!     /* *(--x1) = x0 (预索引) */
+  str x0, [x1], #8      /* *(x1++) = x0 (后索引) */
+\end{lstlisting}
+
+\subsection{算术和逻辑指令}
+
+\BlockDesc{算术运算}
+
+\begin{enumerate}
+  \item \textbf{ADD/SUB}
+    \begin{itemize}
+      \item 加法和减法
+      \item 支持扩展操作数（移位、扩展）
+      \item 语法：\texttt{ADD Xd, Xn, Xm} 或 \texttt{ADD Xd, Xn, \#imm}
+    \end{itemize}
+
+  \item \textbf{AND/ORR/EOR}
+    \begin{itemize}
+      \item 按位与、或、异或
+      \item 语法：\texttt{AND Xd, Xn, Xm}
+    \end{itemize}
+
+  \item \textbf{MUL/UMULH/SMULH}
+    \begin{itemize}
+      \item 乘法（低 64 位）
+      \item 无符号/有符号乘法（高 64 位）
+    \end{itemize}
+
+  \item \textbf{SDIV/UDIV}
+    \begin{itemize}
+      \item 有符号/无符号除法
+    \end{itemize}
+\end{enumerate}
+
+示例代码：
+\begin{lstlisting}[language={[ARM]Assembler}]
+  /* 加法 */
+  add x0, x1, x2         /* x0 = x1 + x2 */
+  add x0, x1, #100      /* x0 = x1 + 100 */
+  add x0, x1, x2, lsl #2 /* x0 = x1 + (x2 << 2) */
+
+  /* 减法 */
+  sub x0, x1, x2        /* x0 = x1 - x2 */
+
+  /* 逻辑运算 */
+  and x0, x1, x2        /* x0 = x1 & x2 */
+  orr x0, x1, x2        /* x0 = x1 | x2 */
+  eor x0, x1, x2        /* x0 = x1 ^ x2 */
+
+  /* 乘法 */
+  mul x0, x1, x2        /* x0 = x1 * x2 (低64位) */
+\end{lstlisting}
+
+\subsection{控制流指令}
+
+\BlockDesc{分支和跳转}
+
+\begin{enumerate}
+  \item \textbf{B/BL}
+    \begin{itemize}
+      \item B：无条件分支
+      \item BL：带链接的分支（函数调用）
+      \item 语法：\texttt{B label} 或 \texttt{BL label}
+    \end{itemize}
+
+  \item \textbf{条件分支}
+    \begin{itemize}
+      \item B.EQ：相等时分支
+      \item B.NE：不等时分支
+      \item B.GT：大于时分支
+      \item B.LT：小于时分支
+      \item 等等
+    \end{itemize}
+
+  \item \textbf{BR/BLR/RET}
+    \begin{itemize}
+      \item BR：寄存器间接分支
+      \item BLR：带链接的寄存器间接分支
+      \item RET：从函数返回
+    \end{itemize}
+\end{enumerate}
+
+示例代码：
+\begin{lstlisting}[language={[ARM]Assembler}]
+  /* 无条件跳转 */
+  b label
+
+  /* 条件分支 */
+  cmp x0, x1
+  b.eq equal          /* if (x0 == x1) goto equal */
+  b.gt greater        /* if (x0 > x1) goto greater */
+
+  /* 函数调用 */
+  bl function         /* 调用函数，LR 保存返回地址 */
+
+  /* 函数返回 */
+  ret                 /* 返回到 LR 指向的地址 */
+\end{lstlisting}
+
+\subsection{比较和条件执行}
+
+\BlockDesc{条件码}
+
+条件码标志位（NZCV）：
+\begin{itemize}
+  \item N：负数标志
+  \item Z：零标志
+  \item C：进位标志
+  \item V：溢出标志
+\end{itemize}
+
+比较指令：
+\begin{lstlisting}[language={[ARM]Assembler}]
+  cmp x0, x1          /* 比较 x0 和 x1，设置标志位 */
+  cmn x0, x1          /* 比较 x0 和 -x1 */
+  tst x0, x1          /* 测试 x0 & x1 */
+\end{lstlisting}
+
+条件选择指令（CSEL）：
+\begin{lstlisting}[language={[ARM]Assembler}]
+  csel x0, x1, x2, eq /* if (Z==1) x0=x1 else x0=x2 */
+\end{lstlisting}
+
+\subsection{函数调用约定}
+
+\BlockDesc{ARMv8 ABI}
+
+ARMv8 函数调用约定（AAPCS64）：
+
+\begin{enumerate}
+  \item \textbf{参数传递}
+    \begin{itemize}
+      \item X0-X7：整数参数
+      \item V0-V7：浮点/SIMD 参数
+      \item 更多参数通过栈传递
+    \end{itemize}
+
+  \item \textbf{返回值}
+    \begin{itemize}
+      \item X0：整数返回值
+      \item V0：浮点返回值
+      \item 大结构通过 X8 间接返回
+    \end{itemize}
+
+  \item \textbf{被调用者保存寄存器}
+    \begin{itemize}
+      \item X19-X28：必须由被调用者保存
+      \item V8-V15：SIMD/浮点寄存器
+    \end{itemize}
+
+  \item \textbf{调用者保存寄存器}
+    \begin{itemize}
+      \item X0-X7, X9-X15：调用者负责保存
+      \item V0-V7：SIMD/浮点寄存器
+    \end{itemize}
+\end{enumerate}
+
+函数调用示例：
+\begin{lstlisting}[language={[ARM]Assembler}]
+  /* 函数调用 */
+  function:
+    /* 保存被调用者保存寄存器 */
+    stp x29, x30, [sp, #-16]!  /* 保存 FP 和 LR */
+    mov x29, sp                 /* 设置帧指针 */
+
+    /* 函数体 */
+    add x0, x0, x1
+
+    /* 恢复并返回 */
+    ldp x29, x30, [sp], #16     /* 恢复 FP 和 LR */
+    ret
+\end{lstlisting}
 
 \section{RISC-V 汇编}
 
+RISC-V 是一个开源的指令集架构（ISA），设计简洁、模块化，适合从嵌入式系统到超级计算机的各种应用。
+
+\subsection{RISC-V 基础}
+
+\BlockDesc{RISC-V 架构}
+
+RISC-V 的主要特点：
+\begin{itemize}
+  \item 开源：BSD 许可证，可自由使用
+  \item 模块化：基础指令集 + 可选扩展
+  \item 简洁：指令数量少，易于实现
+  \item 可扩展：支持自定义指令
+  \item 支持 32 位、64 位和 128 位架构
+\end{itemize}
+
+\subsubsection{寄存器}
+
+RISC-V 寄存器组织（RV64）：
+
+\begin{enumerate}
+  \item \textbf{通用寄存器}
+    \begin{itemize}
+      \item x0：零寄存器（始终为 0）
+      \item x1：返回地址（RA）
+      \item x2：栈指针（SP）
+      \item x3：全局指针（GP）
+      \item x4：线程指针（TP）
+      \item x5-x7：临时寄存器（t0-t2）
+      \item x8：帧指针（FP/S0）
+      \item x9：保存寄存器（S1）
+      \item x10-x11：参数/返回值（a0-a1）
+      \item x12-x17：参数寄存器（a2-a7）
+      \item x18-x27：保存寄存器（s2-s11）
+      \item x28-x31：临时寄存器（t3-t6）
+    \end{itemize}
+
+  \item \textbf{程序计数器（PC）}
+    \begin{itemize}
+      \item 独立的 PC 寄存器
+      \item 不能直接访问，通过指令间接操作
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{指令格式}
+
+RISC-V 指令格式：
+
+\begin{enumerate}
+  \item \textbf{R 类型}：寄存器-寄存器操作
+    \begin{itemize}
+      \item 格式：\texttt{opcode rd, rs1, rs2}
+      \item 示例：\texttt{ADD x1, x2, x3}
+    \end{itemize}
+
+  \item \textbf{I 类型}：立即数操作
+    \begin{itemize}
+      \item 格式：\texttt{opcode rd, rs1, imm}
+      \item 示例：\texttt{ADDI x1, x2, 100}
+    \end{itemize}
+
+  \item \textbf{S 类型}：存储指令
+    \begin{itemize}
+      \item 格式：\texttt{opcode rs2, imm(rs1)}
+      \item 示例：\texttt{SW x1, 8(x2)}
+    \end{itemize}
+
+  \item \textbf{B 类型}：条件分支
+    \begin{itemize}
+      \item 格式：\texttt{opcode rs1, rs2, offset}
+      \item 示例：\texttt{BEQ x1, x2, label}
+    \end{itemize}
+
+  \item \textbf{U 类型}：高位立即数
+    \begin{itemize}
+      \item 格式：\texttt{opcode rd, imm}
+      \item 示例：\texttt{LUI x1, 0x12345}
+    \end{itemize}
+
+  \item \textbf{J 类型}：无条件跳转
+    \begin{itemize}
+      \item 格式：\texttt{opcode rd, offset}
+      \item 示例：\texttt{JAL x1, label}
+    \end{itemize}
+\end{enumerate}
+
+\subsection{数据传送指令}
+
+\BlockDesc{加载和存储}
+
+\begin{enumerate}
+  \item \textbf{加载指令}
+    \begin{itemize}
+      \item LB：加载字节（有符号扩展）
+      \item LH：加载半字（有符号扩展）
+      \item LW：加载字（有符号扩展）
+      \item LD：加载双字（RV64）
+      \item LBU/LHU/LWU：无符号加载
+    \end{itemize}
+
+  \item \textbf{存储指令}
+    \begin{itemize}
+      \item SB：存储字节
+      \item SH：存储半字
+      \item SW：存储字
+      \item SD：存储双字（RV64）
+    \end{itemize}
+\end{enumerate}
+
+示例代码：
+\begin{lstlisting}[language={[RISC-V]Assembler}]
+  /* 加载 */
+  lb  x1, 0(x2)        /* x1 = *(int8_t*)(x2 + 0) */
+  lw  x1, 4(x2)        /* x1 = *(int32_t*)(x2 + 4) */
+  ld  x1, 8(x2)        /* x1 = *(int64_t*)(x2 + 8) */
+
+  /* 存储 */
+  sb  x1, 0(x2)        /* *(int8_t*)(x2 + 0) = x1 */
+  sw  x1, 4(x2)        /* *(int32_t*)(x2 + 4) = x1 */
+  sd  x1, 8(x2)        /* *(int64_t*)(x2 + 8) = x1 */
+\end{lstlisting}
+
+\subsection{算术和逻辑指令}
+
+\BlockDesc{算术运算}
+
+\begin{enumerate}
+  \item \textbf{加法}
+    \begin{itemize}
+      \item ADD：寄存器加法
+      \item ADDI：立即数加法
+      \item SUB：减法
+    \end{itemize}
+
+  \item \textbf{逻辑运算}
+    \begin{itemize}
+      \item AND/OR/XOR：按位与/或/异或
+      \item ANDI/ORI/XORI：立即数逻辑运算
+    \end{itemize}
+
+  \item \textbf{移位}
+    \begin{itemize}
+      \item SLL/SRL/SRA：逻辑左移/右移、算术右移
+      \item SLLI/SRLI/SRAI：立即数移位
+    \end{itemize}
+
+  \item \textbf{比较}
+    \begin{itemize}
+      \item SLT：设置小于（有符号）
+      \item SLTU：设置小于（无符号）
+      \item SLTI/SLTIU：立即数比较
+    \end{itemize}
+\end{enumerate}
+
+示例代码：
+\begin{lstlisting}[language={[RISC-V]Assembler}]
+  /* 算术运算 */
+  add  x1, x2, x3      /* x1 = x2 + x3 */
+  addi x1, x2, 100     /* x1 = x2 + 100 */
+  sub  x1, x2, x3      /* x1 = x2 - x3 */
+
+  /* 逻辑运算 */
+  and  x1, x2, x3      /* x1 = x2 & x3 */
+  or   x1, x2, x3      /* x1 = x2 | x3 */
+  xor  x1, x2, x3      /* x1 = x2 ^ x3 */
+
+  /* 移位 */
+  sll  x1, x2, x3      /* x1 = x2 << x3 */
+  srl  x1, x2, x3      /* x1 = x2 >> x3 (逻辑) */
+  sra  x1, x2, x3      /* x1 = x2 >> x3 (算术) */
+\end{lstlisting}
+
+\subsection{控制流指令}
+
+\BlockDesc{分支和跳转}
+
+\begin{enumerate}
+  \item \textbf{无条件跳转}
+    \begin{itemize}
+      \item JAL：跳转并链接（函数调用）
+      \item JALR：寄存器间接跳转并链接
+    \end{itemize}
+
+  \item \textbf{条件分支}
+    \begin{itemize}
+      \item BEQ：相等时分支
+      \item BNE：不等时分支
+      \item BLT：小于时分支（有符号）
+      \item BGE：大于等于时分支（有符号）
+      \item BLTU：小于时分支（无符号）
+      \item BGEU：大于等于时分支（无符号）
+    \end{itemize}
+\end{enumerate}
+
+示例代码：
+\begin{lstlisting}[language={[RISC-V]Assembler}]
+  /* 无条件跳转 */
+  jal x1, label        /* 跳转到 label，返回地址存入 x1 */
+
+  /* 条件分支 */
+  beq x1, x2, label    /* if (x1 == x2) goto label */
+  bne x1, x2, label    /* if (x1 != x2) goto label */
+  blt x1, x2, label    /* if (x1 < x2) goto label */
+  bge x1, x2, label    /* if (x1 >= x2) goto label */
+
+  /* 函数返回 */
+  jalr x0, 0(x1)       /* 返回到 x1 指向的地址 */
+\end{lstlisting}
+
+\subsection{函数调用约定}
+
+\BlockDesc{RISC-V ABI}
+
+RISC-V 函数调用约定：
+
+\begin{enumerate}
+  \item \textbf{参数传递}
+    \begin{itemize}
+      \item a0-a7（x10-x17）：整数参数
+      \item fa0-fa7（f10-f17）：浮点参数
+      \item 更多参数通过栈传递
+    \end{itemize}
+
+  \item \textbf{返回值}
+    \begin{itemize}
+      \item a0（x10）：整数返回值
+      \item fa0（f10）：浮点返回值
+    \end{itemize}
+
+  \item \textbf{被调用者保存寄存器}
+    \begin{itemize}
+      \item s0-s11（x8-x9, x18-x27）：必须保存
+      \item fs0-fs11（f8-f9, f18-f27）：浮点寄存器
+    \end{itemize}
+
+  \item \textbf{调用者保存寄存器}
+    \begin{itemize}
+      \item t0-t6（x5-x7, x28-x31）：临时寄存器
+      \item ft0-ft11（f0-f7, f28-f31）：浮点临时寄存器
+    \end{itemize}
+\end{enumerate}
+
+函数调用示例：
+\begin{lstlisting}[language={[RISC-V]Assembler}]
+  /* 函数调用 */
+  function:
+    /* 保存被调用者保存寄存器 */
+    addi sp, sp, -16
+    sd   ra, 8(sp)      /* 保存返回地址 */
+    sd   s0, 0(sp)      /* 保存帧指针 */
+    addi s0, sp, 16     /* 设置帧指针 */
+
+    /* 函数体 */
+    add  a0, a0, a1
+
+    /* 恢复并返回 */
+    ld   s0, 0(sp)
+    ld   ra, 8(sp)
+    addi sp, sp, 16
+    jalr x0, 0(ra)      /* 返回 */
+\end{lstlisting}
+
 \section{ELF 程序结构}
 
+ELF（Executable and Linkable Format）是 Unix/Linux 系统上标准的可执行文件和目标文件格式。
+理解 ELF 格式对于程序链接、加载、调试和逆向工程至关重要。
+
+\subsection{ELF 概述}
+
+\BlockDesc{ELF 文件格式}
+
+ELF 文件类型：
+\begin{itemize}
+  \item \textbf{可重定位文件（Relocatable）}：.o 文件，包含代码和数据，可链接成可执行文件或共享库
+  \item \textbf{可执行文件（Executable）}：可直接运行的程序
+  \item \textbf{共享目标文件（Shared Object）}：.so 文件，动态链接库
+  \item \textbf{核心转储文件（Core Dump）}：程序崩溃时的内存映像
+\end{itemize}
+
+ELF 文件结构：
+\begin{itemize}
+  \item \textbf{ELF 头部}：文件的基本信息
+  \item \textbf{程序头表}：可执行文件使用，描述段（Segment）
+  \item \textbf{节头表}：描述节（Section）
+  \item \textbf{节数据}：实际的代码和数据
+\end{itemize}
+
+\subsection{ELF 头部}
+
+\BlockDesc{ELF Header}
+
+ELF 头部结构（64 位）：
+\begin{lstlisting}[language=C]
+typedef struct {
+    unsigned char e_ident[16];  // ELF 标识
+    uint16_t      e_type;       // 文件类型
+    uint16_t      e_machine;    // 目标架构
+    uint32_t      e_version;    // 版本
+    uint64_t      e_entry;      // 入口点地址
+    uint64_t      e_phoff;      // 程序头表偏移
+    uint64_t      e_shoff;      // 节头表偏移
+    uint32_t      e_flags;      // 处理器特定标志
+    uint16_t      e_ehsize;     // ELF 头部大小
+    uint16_t      e_phentsize;  // 程序头表项大小
+    uint16_t      e_phnum;      // 程序头表项数量
+    uint16_t      e_shentsize;  // 节头表项大小
+    uint16_t      e_shnum;      // 节头表项数量
+    uint16_t      e_shstrndx;   // 节名字符串表索引
+} Elf64_Ehdr;
+\end{lstlisting}
+
+\lstinline!e_ident! 字段（ELF 魔数）：
+\begin{itemize}
+  \item [0x00-0x03]：\texttt{0x7F, 'E', 'L', 'F'}
+  \item [0x04]：类别（1=32位, 2=64位）
+  \item [0x05]：字节序（1=小端, 2=大端）
+  \item [0x06]：ELF 版本
+  \item [0x07-0x0F]：填充字节
+\end{itemize}
+
+\subsection{程序头表}
+
+\BlockDesc{Program Header}
+
+程序头表描述段（Segment），用于程序加载。
+
+程序头结构：
+\begin{lstlisting}[language=C]
+typedef struct {
+    uint32_t p_type;    // 段类型
+    uint32_t p_flags;    // 段标志
+    uint64_t p_offset;   // 文件偏移
+    uint64_t p_vaddr;    // 虚拟地址
+    uint64_t p_paddr;    // 物理地址
+    uint64_t p_filesz;   // 文件大小
+    uint64_t p_memsz;    // 内存大小
+    uint64_t p_align;    // 对齐
+} Elf64_Phdr;
+\end{lstlisting}
+
+段类型（\lstinline!p_type!）：
+\begin{itemize}
+  \item \texttt{PT\_LOAD}：可加载段（代码和数据）
+  \item \texttt{PT\_DYNAMIC}：动态链接信息
+  \item \texttt{PT\_INTERP}：解释器路径（如 /lib/ld-linux.so）
+  \item \texttt{PT\_NOTE}：注释信息
+  \item \texttt{PT\_GNU\_STACK}：栈权限
+\end{itemize}
+
+段标志（\lstinline!p_flags!）：
+\begin{itemize}
+  \item \texttt{PF\_X}：可执行
+  \item \texttt{PF\_W}：可写
+  \item \texttt{PF\_R}：可读
+\end{itemize}
+
+\subsection{节头表}
+
+\BlockDesc{Section Header}
+
+节头表描述节（Section），用于链接和调试。
+
+节头结构：
+\begin{lstlisting}[language=C]
+typedef struct {
+    uint32_t sh_name;      // 节名索引
+    uint32_t sh_type;      // 节类型
+    uint64_t sh_flags;     // 节标志
+    uint64_t sh_addr;      // 虚拟地址
+    uint64_t sh_offset;    // 文件偏移
+    uint64_t sh_size;      // 节大小
+    uint32_t sh_link;      // 链接到其他节
+    uint32_t sh_info;      // 附加信息
+    uint64_t sh_addralign; // 对齐
+    uint64_t sh_entsize;   // 表项大小（如果有）
+} Elf64_Shdr;
+\end{lstlisting}
+
+重要节：
+\begin{itemize}
+  \item \texttt{.text}：代码段
+  \item \texttt{.data}：已初始化数据
+  \item \texttt{.bss}：未初始化数据
+  \item \texttt{.rodata}：只读数据
+  \item \texttt{.symtab}：符号表
+  \item \texttt{.strtab}：字符串表
+  \item \texttt{.rela.xxx}：重定位表
+  \item \texttt{.dynamic}：动态链接信息
+  \item \texttt{.got}：全局偏移表
+  \item \texttt{.plt}：过程链接表
+\end{itemize}
+
+\subsection{符号表}
+
+\BlockDesc{Symbol Table}
+
+符号表用于存储函数和变量的信息。
+
+符号结构：
+\begin{lstlisting}[language=C]
+typedef struct {
+    uint32_t st_name;   // 符号名索引
+    unsigned char st_info; // 类型和绑定
+    unsigned char st_other;
+    uint16_t st_shndx;  // 节索引
+    uint64_t st_value;  // 符号值
+    uint64_t st_size;   // 符号大小
+} Elf64_Sym;
+\end{lstlisting}
+
+符号类型（\lstinline!st_info!）：
+\begin{itemize}
+  \item \texttt{STT\_NOTYPE}：未指定类型
+  \item \texttt{STT\_OBJECT}：数据对象
+  \item \texttt{STT\_FUNC}：函数
+  \item \texttt{STT\_SECTION}：节
+  \item \texttt{STT\_FILE}：源文件名
+\end{itemize}
+
+符号绑定（\lstinline!st_info!）：
+\begin{itemize}
+  \item \texttt{STB\_LOCAL}：局部符号
+  \item \texttt{STB\_GLOBAL}：全局符号
+  \item \texttt{STB\_WEAK}：弱符号
+\end{itemize}
+
+\subsection{重定位}
+
+\BlockDesc{Relocation}
+
+重定位用于在链接时修正地址引用。
+
+重定位项结构：
+\begin{lstlisting}[language=C]
+typedef struct {
+    uint64_t r_offset;  // 重定位位置
+    uint64_t r_info;    // 类型和符号索引
+    int64_t  r_addend;  // 加数
+} Elf64_Rela;
+\end{lstlisting}
+
+重定位类型（常见）：
+\begin{itemize}
+  \item \texttt{R\_X86\_64\_64}：64 位绝对地址
+  \item \texttt{R\_X86\_64\_PC32}：32 位 PC 相对地址
+  \item \texttt{R\_X86\_64\_GOTPCREL}：GOT 相对地址
+  \item \texttt{R\_AARCH64\_ABS64}：ARM64 64 位绝对地址
+  \item \texttt{R\_AARCH64\_CALL26}：ARM64 26 位调用地址
+\end{itemize}
+
+\subsection{动态链接}
+
+\BlockDesc{Dynamic Linking}
+
+动态链接允许程序在运行时加载共享库。
+
+动态段（.dynamic）：
+\begin{lstlisting}[language=C]
+typedef struct {
+    int64_t d_tag;   // 标签类型
+    uint64_t d_val;   // 值或指针
+} Elf64_Dyn;
+\end{lstlisting}
+
+重要标签：
+\begin{itemize}
+  \item \texttt{DT\_NEEDED}：需要的共享库
+  \item \texttt{DT\_SYMTAB}：动态符号表
+  \item \texttt{DT\_STRTAB}：动态字符串表
+  \item \texttt{DT\_INIT}：初始化函数
+  \item \texttt{DT\_FINI}：终止函数
+  \item \texttt{DT\_GOT}：全局偏移表
+  \item \texttt{DT\_PLT}：过程链接表
+\end{itemize}
+
+全局偏移表（GOT）：
+\begin{itemize}
+  \item 存储外部符号的地址
+  \item 在程序加载时由动态链接器填充
+  \item 支持位置无关代码（PIC）
+\end{itemize}
+
+过程链接表（PLT）：
+\begin{itemize}
+  \item 用于延迟绑定（lazy binding）
+  \item 第一次调用时解析符号地址
+  \item 后续调用直接跳转
+\end{itemize}
+
 \section{硬件层 C 编程}
+
+硬件层 C 编程涉及直接操作硬件寄存器、中断处理、内存映射等底层操作。
+这在嵌入式系统开发中至关重要。
+
 \subsection{基础}
-\subsection{MCU 与RTOS}
+
+\BlockDesc{硬件层编程特点}
+
+硬件层 C 编程的特点：
+\begin{itemize}
+  \item 直接访问硬件寄存器
+  \item 无操作系统支持（或最小支持）
+  \item 对内存和时序要求严格
+  \item 需要理解硬件架构
+  \item 代码可移植性较低
+\end{itemize}
+
+\subsubsection{寄存器操作}
+
+\BlockDesc{寄存器访问}
+
+在 C 语言中访问硬件寄存器：
+
+\begin{enumerate}
+  \item \textbf{使用指针}
+    \begin{lstlisting}[language=C]
+      // 定义寄存器地址
+      #define UART_BASE 0x10000000
+
+      // 定义寄存器结构
+      typedef struct {
+          volatile uint32_t DR;      // 数据寄存器
+          volatile uint32_t SR;      // 状态寄存器
+          volatile uint32_t BRR;     // 波特率寄存器
+      } uart_regs_t;
+
+      // 映射到地址
+      uart_regs_t *uart = (uart_regs_t *)UART_BASE;
+
+      // 访问寄存器
+      uart->BRR = 0x68;              // 设置波特率
+      while (!(uart->SR & 0x80));    // 等待发送就绪
+      uart->DR = 'A';                // 发送字符
+    \end{lstlisting}
+
+  \item \textbf{使用 volatile}
+    \begin{itemize}
+      \item \texttt{volatile} 关键字防止编译器优化
+      \item 确保每次访问都实际读取/写入寄存器
+      \item 对硬件寄存器访问至关重要
+    \end{itemize}
+
+  \item \textbf{内存屏障}
+    \begin{lstlisting}[language=C]
+      // 内存屏障确保内存访问顺序
+      __sync_synchronize();          // GCC 内置函数
+      __dsb();                       // ARM 数据同步屏障
+      __dmb();                       // ARM 数据内存屏障
+    \end{lstlisting}
+\end{enumerate}
+
+\subsubsection{位操作}
+
+\BlockDesc{位操作}
+
+硬件编程中经常需要操作寄存器的特定位：
+
+\begin{lstlisting}[language=C]
+// 设置位
+#define SET_BIT(reg, bit)    ((reg) |= (1 << (bit)))
+#define CLEAR_BIT(reg, bit)  ((reg) &= ~(1 << (bit)))
+#define TOGGLE_BIT(reg, bit) ((reg) ^= (1 << (bit)))
+#define READ_BIT(reg, bit)   (((reg) >> (bit)) & 1)
+
+// 设置位域
+#define SET_FIELD(reg, field, val) \
+    ((reg) = ((reg) & ~(field##_MASK)) | ((val) << (field##_SHIFT)))
+
+// 示例
+SET_BIT(GPIO->ODR, 5);              // 设置 GPIO5
+CLEAR_BIT(GPIO->ODR, 5);            // 清除 GPIO5
+\end{lstlisting}
+
+\subsubsection{中断处理}
+
+\BlockDesc{中断处理}
+
+中断处理函数的特点：
+\begin{itemize}
+  \item 执行时间短
+  \item 不能阻塞
+  \item 通常使用中断标志位通知主程序
+\end{itemize}
+
+中断处理示例：
+\begin{lstlisting}[language=C]
+// 中断服务例程
+void __attribute__((interrupt)) UART_IRQHandler(void)
+{
+    if (UART->ISR & UART_ISR_RXNE) {
+        // 接收数据
+        uint8_t data = UART->RDR;
+        rx_buffer[rx_index++] = data;
+    }
+
+    if (UART->ISR & UART_ISR_TXE) {
+        // 发送数据
+        if (tx_index < tx_length) {
+            UART->TDR = tx_buffer[tx_index++];
+        } else {
+            UART->CR1 &= ~UART_CR1_TXEIE; // 禁用发送中断
+        }
+    }
+}
+
+// 启用中断
+void uart_init(void)
+{
+    // 配置 UART
+    // ...
+
+    // 启用接收中断
+    UART->CR1 |= UART_CR1_RXNEIE;
+
+    // 在 NVIC 中启用中断
+    NVIC_EnableIRQ(UART_IRQn);
+}
+\end{lstlisting}
+
+\subsubsection{内存映射}
+
+\BlockDesc{内存映射}
+
+硬件资源通常映射到特定的内存地址：
+
+\begin{lstlisting}[language=C]
+// 内存映射 I/O 地址
+#define PERIPH_BASE    0x40000000UL
+#define APB1PERIPH_BASE (PERIPH_BASE + 0x00000000UL)
+#define APB2PERIPH_BASE (PERIPH_BASE + 0x00010000UL)
+
+// 外设基地址
+#define GPIOA_BASE     (APB2PERIPH_BASE + 0x00000800UL)
+#define GPIOB_BASE     (APB2PERIPH_BASE + 0x00000C00UL)
+#define UART1_BASE     (APB2PERIPH_BASE + 0x00003800UL)
+
+// 寄存器结构
+typedef struct {
+    volatile uint32_t CRL;
+    volatile uint32_t CRH;
+    volatile uint32_t IDR;
+    volatile uint32_t ODR;
+    volatile uint32_t BSRR;
+    volatile uint32_t BRR;
+    volatile uint32_t LCKR;
+} GPIO_TypeDef;
+
+// 外设指针
+#define GPIOA ((GPIO_TypeDef *)GPIOA_BASE)
+#define GPIOB ((GPIO_TypeDef *)GPIOB_BASE)
+\end{lstlisting}
+
+\subsection{MCU 与 RTOS}
+
+微控制器（MCU）通常资源有限，实时操作系统（RTOS）提供了任务调度、同步和通信机制。
+
+\subsubsection{MCU 编程特点}
+
+\BlockDesc{MCU 编程}
+
+MCU 编程的特点：
+\begin{itemize}
+  \item 资源受限：有限的 RAM 和 Flash
+  \item 低功耗：需要优化功耗
+  \item 实时性：需要快速响应
+  \item 单线程：通常只有一个 CPU 核心
+\end{itemize}
+
+\subsubsection{RTOS 基础}
+
+\BlockDesc{实时操作系统}
+
+RTOS 提供的基本功能：
+\begin{itemize}
+  \item 任务调度：多任务并发执行
+  \item 同步机制：信号量、互斥锁、消息队列
+  \item 时间管理：延时、定时器
+  \item 内存管理：动态内存分配
+\end{itemize}
+
+\subsubsection{FreeRTOS 示例}
+
+FreeRTOS 是流行的开源 RTOS：
+
+\begin{lstlisting}[language=C]
+#include "FreeRTOS.h"
+#include "task.h"
+#include "queue.h"
+#include "semphr.h"
+
+// 任务函数
+void vTask1(void *pvParameters)
+{
+    for (;;) {
+        // 任务代码
+        vTaskDelay(pdMS_TO_TICKS(1000)); // 延时 1 秒
+    }
+}
+
+void vTask2(void *pvParameters)
+{
+    for (;;) {
+        // 任务代码
+        vTaskDelay(pdMS_TO_TICKS(500)); // 延时 500ms
+    }
+}
+
+// 创建任务
+int main(void)
+{
+    // 硬件初始化
+    // ...
+
+    // 创建任务
+    xTaskCreate(vTask1, "Task1", configMINIMAL_STACK_SIZE,
+                NULL, 1, NULL);
+    xTaskCreate(vTask2, "Task2", configMINIMAL_STACK_SIZE,
+                NULL, 1, NULL);
+
+    // 启动调度器
+    vTaskStartScheduler();
+
+    // 不会执行到这里
+    return 0;
+}
+\end{lstlisting}
+
+\subsubsection{任务同步}
+
+使用信号量和队列进行任务同步：
+
+\begin{lstlisting}[language=C]
+// 创建信号量
+SemaphoreHandle_t xSemaphore = xSemaphoreCreateBinary();
+
+// 创建队列
+QueueHandle_t xQueue = xQueueCreate(10, sizeof(int));
+
+// 任务 1：发送数据
+void vSenderTask(void *pvParameters)
+{
+    int value = 0;
+    for (;;) {
+        xQueueSend(xQueue, &value, portMAX_DELAY);
+        value++;
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+}
+
+// 任务 2：接收数据
+void vReceiverTask(void *pvParameters)
+{
+    int received;
+    for (;;) {
+        if (xQueueReceive(xQueue, &received, portMAX_DELAY)) {
+            // 处理接收到的数据
+        }
+    }
+}
+\end{lstlisting}
 
 \section{软件架构思想}
 
+良好的软件架构是构建可维护、可扩展、可靠软件系统的关键。
+本节介绍重要的软件架构原则和模式。
+
+\subsection{设计原则}
+
+\BlockDesc{SOLID 原则}
+
+SOLID 是面向对象设计的五个基本原则：
+
+\begin{enumerate}
+  \item \textbf{单一职责原则（SRP）}
+    \begin{itemize}
+      \item 一个类应该只有一个改变的理由
+      \item 每个类只负责一个功能
+      \item 提高内聚性，降低耦合
+    \end{itemize}
+
+  \item \textbf{开闭原则（OCP）}
+    \begin{itemize}
+      \item 对扩展开放，对修改关闭
+      \item 通过接口和抽象类实现扩展
+      \item 减少对现有代码的修改
+    \end{itemize}
+
+  \item \textbf{里氏替换原则（LSP）}
+    \begin{itemize}
+      \item 子类应该能够替换父类
+      \item 子类不应该改变父类的行为
+      \item 保证多态的正确性
+    \end{itemize}
+
+  \item \textbf{接口隔离原则（ISP）}
+    \begin{itemize}
+      \item 客户端不应该依赖它不需要的接口
+      \item 接口应该小而专一
+      \item 避免接口污染
+    \end{itemize}
+
+  \item \textbf{依赖倒置原则（DIP）}
+    \begin{itemize}
+      \item 高层模块不应该依赖低层模块
+      \item 两者都应该依赖抽象
+      \item 降低模块间的耦合
+    \end{itemize}
+\end{enumerate}
+
+\subsection{设计模式}
+
+\BlockDesc{常用设计模式}
+
+\begin{enumerate}
+  \item \textbf{单例模式（Singleton）}
+    \begin{itemize}
+      \item 确保一个类只有一个实例
+      \item 提供全局访问点
+      \item 适用于配置管理、日志等
+    \end{itemize}
+
+  \item \textbf{工厂模式（Factory）}
+    \begin{itemize}
+      \item 创建对象而不指定具体类
+      \item 封装对象创建逻辑
+      \item 支持多态和扩展
+    \end{itemize}
+
+  \item \textbf{观察者模式（Observer）}
+    \begin{itemize}
+      \item 定义对象间一对多的依赖关系
+      \item 当一个对象状态改变时，所有依赖者都得到通知
+      \item 适用于事件驱动系统
+    \end{itemize}
+
+  \item \textbf{策略模式（Strategy）}
+    \begin{itemize}
+      \item 定义一系列算法，封装它们
+      \item 使它们可以互换
+      \item 算法独立于使用它的客户端
+    \end{itemize}
+
+  \item \textbf{适配器模式（Adapter）}
+    \begin{itemize}
+      \item 将一个类的接口转换成客户希望的接口
+      \item 使原本不兼容的类可以一起工作
+      \item 适用于系统集成
+    \end{itemize}
+\end{enumerate}
+
+\subsection{分层架构}
+
+\BlockDesc{分层架构}
+
+分层架构将系统划分为多个层次：
+
+\begin{enumerate}
+  \item \textbf{表示层}
+    \begin{itemize}
+      \item 用户界面
+      \item 处理用户输入和输出
+    \end{itemize}
+
+  \item \textbf{业务逻辑层}
+    \begin{itemize}
+      \item 核心业务规则
+      \item 处理业务逻辑
+    \end{itemize}
+
+  \item \textbf{数据访问层}
+    \begin{itemize}
+      \item 数据库访问
+      \item 数据持久化
+    \end{itemize}
+
+  \item \textbf{硬件抽象层（HAL）}
+    \begin{itemize}
+      \item 硬件接口抽象
+      \item 便于移植和测试
+    \end{itemize}
+\end{enumerate}
+
+\subsection{模块化设计}
+
+\BlockDesc{模块化}
+
+模块化设计的原则：
+\begin{itemize}
+  \item 高内聚：模块内部元素紧密相关
+  \item 低耦合：模块间依赖最小化
+  \item 接口清晰：定义明确的接口
+  \item 可测试：模块可以独立测试
+\end{itemize}
+
 \section{用户层 C 编程}
+
+用户层 C 编程是在操作系统之上进行的应用开发，可以利用操作系统提供的丰富功能。
+
+\subsection{系统编程基础}
+
+\BlockDesc{系统调用}
+
+系统调用是用户程序请求操作系统服务的接口：
+
+\begin{lstlisting}[language=C]
+#include <unistd.h>
+#include <sys/types.h>
+#include <fcntl.h>
+
+// 文件操作
+int fd = open("file.txt", O_RDONLY);
+read(fd, buffer, size);
+write(fd, buffer, size);
+close(fd);
+
+// 进程操作
+pid_t pid = fork();
+if (pid == 0) {
+    // 子进程
+    execve("/bin/ls", argv, envp);
+} else {
+    // 父进程
+    wait(NULL);
+}
+\end{lstlisting}
+
 \subsection{动态链接}
+
+\BlockDesc{动态链接}
+
+动态链接允许程序在运行时加载共享库，而不是在编译时静态链接。
+
+\subsubsection{动态链接的优势}
+
+\begin{itemize}
+  \item 节省内存：多个程序共享同一库代码
+  \item 便于更新：更新库无需重新编译程序
+  \item 减少可执行文件大小
+  \item 支持插件机制
+\end{itemize}
+
+\subsubsection{动态链接过程}
+
+\begin{enumerate}
+  \item \textbf{程序启动}
+    \begin{itemize}
+      \item 动态链接器（ld.so）加载程序
+      \item 解析依赖的共享库
+      \item 加载共享库到内存
+    \end{itemize}
+
+  \item \textbf{符号解析}
+    \begin{itemize}
+      \item 解析未定义的符号
+      \item 在共享库中查找符号
+      \item 建立符号到地址的映射
+    \end{itemize}
+
+  \item \textbf{重定位}
+    \begin{itemize}
+      \item 修正代码中的地址引用
+      \item 更新 GOT（全局偏移表）
+      \item 设置 PLT（过程链接表）
+    \end{itemize}
+
+  \item \textbf{延迟绑定}
+    \begin{itemize}
+      \item 第一次调用时解析符号
+      \item 后续调用直接跳转
+      \item 提高启动速度
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{动态链接 API}
+
+\begin{lstlisting}[language=C]
+#include <dlfcn.h>
+
+// 打开共享库
+void *handle = dlopen("libexample.so", RTLD_LAZY);
+if (!handle) {
+    fprintf(stderr, "Error: %s\n", dlerror());
+    return 1;
+}
+
+// 获取符号地址
+void (*func)(int) = (void (*)(int))dlsym(handle, "function_name");
+if (!func) {
+    fprintf(stderr, "Error: %s\n", dlerror());
+    dlclose(handle);
+    return 1;
+}
+
+// 调用函数
+func(42);
+
+// 关闭共享库
+dlclose(handle);
+\end{lstlisting}
+
+\subsubsection{共享库创建}
+
+\begin{lstlisting}[language=C]
+// example.c
+#include <stdio.h>
+
+void hello(void)
+{
+    printf("Hello from shared library!\n");
+}
+
+int add(int a, int b)
+{
+    return a + b;
+}
+\end{lstlisting}
+
+编译共享库：
+\begin{lstlisting}[language=bash]
+# 编译为位置无关代码（PIC）
+gcc -fPIC -shared -o libexample.so example.c
+
+# 链接时使用
+gcc -o program program.c -L. -lexample
+\end{lstlisting}
+
+\subsection{内存管理}
+
+\BlockDesc{用户空间内存管理}
+
+用户空间内存管理的特点：
+\begin{itemize}
+  \item 使用虚拟内存
+  \item 由操作系统管理
+  \item 可以使用 malloc/free
+  \item 支持内存映射文件
+\end{itemize}
+
+\subsubsection{动态内存分配}
+
+\begin{lstlisting}[language=C]
+#include <stdlib.h>
+
+// 分配内存
+void *ptr = malloc(1024);
+if (ptr == NULL) {
+    // 处理错误
+}
+
+// 重新分配
+ptr = realloc(ptr, 2048);
+
+// 释放内存
+free(ptr);
+ptr = NULL; // 防止悬空指针
+\end{lstlisting}
+
+\subsubsection{内存映射}
+
+\begin{lstlisting}[language=C]
+#include <sys/mman.h>
+#include <fcntl.h>
+#include <unistd.h>
+
+// 打开文件
+int fd = open("file.dat", O_RDWR);
+
+// 映射到内存
+void *addr = mmap(NULL, file_size, PROT_READ | PROT_WRITE,
+                   MAP_SHARED, fd, 0);
+if (addr == MAP_FAILED) {
+    // 处理错误
+}
+
+// 使用映射的内存
+// ...
+
+// 取消映射
+munmap(addr, file_size);
+close(fd);
+\end{lstlisting}
 
 \section{Rust 编程}
 
-\section{Cpp 编程}
+Rust 是一种系统编程语言，专注于安全性、并发性和性能。
+它通过所有权系统在编译时防止内存安全问题。
+
+\subsection{Rust 基础}
+
+\BlockDesc{Rust 语言特点}
+
+Rust 的主要特点：
+\begin{itemize}
+  \item 内存安全：编译时检查，无需垃圾回收
+  \item 零成本抽象：高级特性不带来运行时开销
+  \item 并发安全：防止数据竞争
+  \item 模式匹配：强大的模式匹配系统
+  \item 类型系统：强大的类型系统和类型推断
+\end{itemize}
+
+\subsubsection{所有权系统}
+
+\BlockDesc{所有权}
+
+Rust 的所有权规则：
+\begin{enumerate}
+  \item 每个值都有一个所有者
+  \item 同一时间只能有一个所有者
+  \item 当所有者离开作用域时，值被丢弃
+\end{enumerate}
+
+示例：
+\begin{lstlisting}[language=Rust]
+fn main() {
+    let s = String::from("hello");  // s 拥有字符串
+    takes_ownership(s);              // s 的所有权被移动
+    // println!("{}", s);            // 错误！s 不再有效
+
+    let x = 5;                        // x 是 i32，实现了 Copy
+    makes_copy(x);                    // x 被复制
+    println!("{}", x);               // x 仍然有效
+}
+
+fn takes_ownership(some_string: String) {
+    println!("{}", some_string);
+} // some_string 离开作用域，内存被释放
+
+fn makes_copy(some_integer: i32) {
+    println!("{}", some_integer);
+} // some_integer 离开作用域，但 i32 是 Copy 类型
+\end{lstlisting}
+
+\subsubsection{借用}
+
+\BlockDesc{借用}
+
+借用允许使用值而不获取所有权：
+
+\begin{lstlisting}[language=Rust]
+fn main() {
+    let s1 = String::from("hello");
+    let len = calculate_length(&s1);  // 借用 s1
+    println!("The length of '{}' is {}.", s1, len);  // s1 仍然有效
+}
+
+fn calculate_length(s: &String) -> usize {
+    s.len()
+} // s 离开作用域，但因为它没有所有权，所以不会释放内存
+\end{lstlisting}
+
+借用规则：
+\begin{itemize}
+  \item 同一时间可以有多个不可变引用
+  \item 同一时间只能有一个可变引用
+  \item 引用必须始终有效
+\end{itemize}
+
+\subsubsection{错误处理}
+
+\BlockDesc{Result 类型}
+
+Rust 使用 Result 类型处理错误：
+
+\begin{lstlisting}[language=Rust]
+use std::fs::File;
+use std::io::ErrorKind;
+
+fn main() {
+    let f = File::open("hello.txt");
+
+    let f = match f {
+        Ok(file) => file,
+        Err(error) => match error.kind() {
+            ErrorKind::NotFound => match File::create("hello.txt") {
+                Ok(fc) => fc,
+                Err(e) => panic!("Problem creating the file: {:?}", e),
+            },
+            other_error => {
+                panic!("Problem opening the file: {:?}", other_error)
+            }
+        },
+    };
+}
+\end{lstlisting}
+
+使用 ? 操作符简化错误处理：
+
+\begin{lstlisting}[language=Rust]
+use std::fs::File;
+use std::io;
+use std::io::Read;
+
+fn read_username_from_file() -> Result<String, io::Error> {
+    let mut f = File::open("hello.txt")?;
+    let mut s = String::new();
+    f.read_to_string(&mut s)?;
+    Ok(s)
+}
+\end{lstlisting}
+
+\subsection{并发编程}
+
+\BlockDesc{并发}
+
+Rust 的并发模型：
+
+\begin{lstlisting}[language=Rust]
+use std::thread;
+use std::sync::mpsc;
+
+fn main() {
+    let (tx, rx) = mpsc::channel();
+
+    thread::spawn(move || {
+        let val = String::from("hi");
+        tx.send(val).unwrap();
+    });
+
+    let received = rx.recv().unwrap();
+    println!("Got: {}", received);
+}
+\end{lstlisting}
+
+使用 Mutex 保护共享数据：
+
+\begin{lstlisting}[language=Rust]
+use std::sync::{Arc, Mutex};
+use std::thread;
+
+fn main() {
+    let counter = Arc::new(Mutex::new(0));
+    let mut handles = vec![];
+
+    for _ in 0..10 {
+        let counter = Arc::clone(&counter);
+        let handle = thread::spawn(move || {
+            let mut num = counter.lock().unwrap();
+            *num += 1;
+        });
+        handles.push(handle);
+    }
+
+    for handle in handles {
+        handle.join().unwrap();
+    }
+
+    println!("Result: {}", *counter.lock().unwrap());
+}
+\end{lstlisting}
+
+\section{C++ 编程}
+
+C++ 是一种多范式编程语言，支持面向对象、泛型和函数式编程。
+它是系统编程和性能关键应用的重要语言。
+
+\subsection{C++ 基础}
+
+\BlockDesc{C++ 语言特点}
+
+C++ 的主要特点：
+\begin{itemize}
+  \item 多范式：支持多种编程风格
+  \item 零成本抽象：高级特性不带来运行时开销
+  \item 直接内存控制：可以精确控制内存
+  \item 丰富的标准库：STL 提供强大的数据结构和算法
+  \item 模板元编程：编译时计算和代码生成
+\end{itemize}
+
+\subsubsection{现代 C++ 特性}
+
+\BlockDesc{C++11/14/17/20}
+
+现代 C++ 的重要特性：
+
+\begin{enumerate}
+  \item \textbf{自动类型推断}
+    \begin{lstlisting}[language=C++]
+      auto x = 42;                    // int
+      auto y = 3.14;                  // double
+      auto z = std::make_shared<int>(10);
+    \end{lstlisting}
+
+  \item \textbf{范围 for 循环}
+    \begin{lstlisting}[language=C++]
+      std::vector<int> vec = {1, 2, 3, 4, 5};
+      for (auto& item : vec) {
+          std::cout << item << std::endl;
+      }
+    \end{lstlisting}
+
+  \item \textbf{智能指针}
+    \begin{lstlisting}[language=C++]
+      // 自动内存管理
+      std::unique_ptr<int> ptr1 = std::make_unique<int>(42);
+      std::shared_ptr<int> ptr2 = std::make_shared<int>(42);
+      std::weak_ptr<int> ptr3 = ptr2;
+    \end{lstlisting}
+
+  \item \textbf{Lambda 表达式}
+    \begin{lstlisting}[language=C++]
+      auto add = [](int a, int b) { return a + b; };
+      int result = add(3, 4);
+
+      // 捕获变量
+      int x = 10;
+      auto lambda = [x](int y) { return x + y; };
+    \end{lstlisting}
+
+  \item \textbf{移动语义}
+    \begin{lstlisting}[language=C++]
+      std::vector<int> vec1 = {1, 2, 3};
+      std::vector<int> vec2 = std::move(vec1);  // 移动，不复制
+    \end{lstlisting}
+\end{enumerate}
+
+\subsubsection{面向对象编程}
+
+\BlockDesc{类和对象}
+
+\begin{lstlisting}[language=C++]
+class Rectangle {
+private:
+    double width;
+    double height;
+
+public:
+    // 构造函数
+    Rectangle(double w, double h) : width(w), height(h) {}
+
+    // 析构函数
+    ~Rectangle() = default;
+
+    // 拷贝构造函数
+    Rectangle(const Rectangle& other) = default;
+
+    // 移动构造函数
+    Rectangle(Rectangle&& other) noexcept = default;
+
+    // 成员函数
+    double area() const {
+        return width * height;
+    }
+
+    // 操作符重载
+    Rectangle& operator=(const Rectangle& other) = default;
+};
+
+// 使用
+Rectangle rect(10.0, 5.0);
+double a = rect.area();
+\end{lstlisting}
+
+\subsubsection{模板编程}
+
+\BlockDesc{模板}
+
+函数模板：
+\begin{lstlisting}[language=C++]
+template<typename T>
+T max(T a, T b) {
+    return (a > b) ? a : b;
+}
+
+// 使用
+int m1 = max(3, 5);
+double m2 = max(3.14, 2.71);
+\end{lstlisting}
+
+类模板：
+\begin{lstlisting}[language=C++]
+template<typename T>
+class Stack {
+private:
+    std::vector<T> elements;
+
+public:
+    void push(const T& item) {
+        elements.push_back(item);
+    }
+
+    void pop() {
+        if (!elements.empty()) {
+            elements.pop_back();
+        }
+    }
+
+    T top() const {
+        return elements.back();
+    }
+};
+
+// 使用
+Stack<int> intStack;
+intStack.push(42);
+\end{lstlisting}
+
+\subsubsection{STL 容器和算法}
+
+\BlockDesc{STL}
+
+常用容器：
+\begin{lstlisting}[language=C++]
+#include <vector>
+#include <list>
+#include <map>
+#include <unordered_map>
+#include <set>
+
+// 向量
+std::vector<int> vec = {1, 2, 3, 4, 5};
+
+// 列表
+std::list<int> lst = {1, 2, 3};
+
+// 映射
+std::map<std::string, int> map;
+map["one"] = 1;
+map["two"] = 2;
+
+// 无序映射（哈希表）
+std::unordered_map<std::string, int> umap;
+umap["one"] = 1;
+\end{lstlisting}
+
+STL 算法：
+\begin{lstlisting}[language=C++]
+#include <algorithm>
+#include <numeric>
+
+std::vector<int> vec = {3, 1, 4, 1, 5, 9, 2, 6};
+
+// 排序
+std::sort(vec.begin(), vec.end());
+
+// 查找
+auto it = std::find(vec.begin(), vec.end(), 5);
+
+// 计数
+int count = std::count(vec.begin(), vec.end(), 1);
+
+// 累加
+int sum = std::accumulate(vec.begin(), vec.end(), 0);
+
+// 变换
+std::transform(vec.begin(), vec.end(), vec.begin(),
+               [](int x) { return x * 2; });
+\end{lstlisting}
+
+\subsubsection{并发编程}
+
+\BlockDesc{多线程}
+
+C++11 标准库提供线程支持：
+
+\begin{lstlisting}[language=C++]
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+#include <future>
+
+// 创建线程
+std::thread t([]() {
+    std::cout << "Hello from thread!" << std::endl;
+});
+t.join();
+
+// 互斥锁
+std::mutex mtx;
+std::lock_guard<std::mutex> lock(mtx);
+// 临界区代码
+
+// 条件变量
+std::condition_variable cv;
+cv.wait(lock, []() { return condition; });
+cv.notify_one();
+
+// 异步执行
+auto future = std::async(std::launch::async, []() {
+    return compute();
+});
+int result = future.get();
+\end{lstlisting}
+
+\subsection{RAII 和智能指针}
+
+\BlockDesc{RAII}
+
+RAII（Resource Acquisition Is Initialization）是 C++ 的重要编程范式：
+
+\begin{lstlisting}[language=C++]
+class File {
+private:
+    FILE* file;
+
+public:
+    File(const char* filename) {
+        file = fopen(filename, "r");
+        if (!file) {
+            throw std::runtime_error("Failed to open file");
+        }
+    }
+
+    ~File() {
+        if (file) {
+            fclose(file);
+        }
+    }
+
+    // 禁用拷贝
+    File(const File&) = delete;
+    File& operator=(const File&) = delete;
+
+    // 允许移动
+    File(File&& other) noexcept : file(other.file) {
+        other.file = nullptr;
+    }
+};
+
+// 使用
+{
+    File f("data.txt");
+    // 使用文件
+} // 文件自动关闭
+\end{lstlisting}
+
+智能指针自动管理内存：
+\begin{lstlisting}[language=C++]
+#include <memory>
+
+// unique_ptr：独占所有权
+std::unique_ptr<int> ptr1 = std::make_unique<int>(42);
+
+// shared_ptr：共享所有权
+std::shared_ptr<int> ptr2 = std::make_shared<int>(42);
+std::shared_ptr<int> ptr3 = ptr2;  // 引用计数 = 2
+
+// weak_ptr：不增加引用计数
+std::weak_ptr<int> ptr4 = ptr2;
+\end{lstlisting}
+
+\subsection{异常处理}
+
+\BlockDesc{异常}
+
+C++ 异常处理：
+
+\begin{lstlisting}[language=C++]
+#include <stdexcept>
+
+void function() {
+    throw std::runtime_error("Something went wrong");
+}
+
+int main() {
+    try {
+        function();
+    } catch (const std::runtime_error& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+    } catch (...) {
+        std::cerr << "Unknown error" << std::endl;
+    }
+    return 0;
+}
+\end{lstlisting}
+
+\subsection{性能优化}
+
+\BlockDesc{性能优化}
+
+C++ 性能优化技巧：
+
+\begin{enumerate}
+  \item \textbf{避免不必要的拷贝}
+    \begin{itemize}
+      \item 使用引用传递
+      \item 使用移动语义
+      \item 返回值优化（RVO）
+    \end{itemize}
+
+  \item \textbf{内联函数}
+    \begin{lstlisting}[language=C++]
+      inline int add(int a, int b) {
+          return a + b;
+      }
+    \end{lstlisting}
+
+  \item \textbf{预分配内存}
+    \begin{lstlisting}[language=C++]
+      std::vector<int> vec;
+      vec.reserve(1000);  // 预分配容量
+    \end{lstlisting}
+
+  \item \textbf{使用 constexpr}
+    \begin{lstlisting}[language=C++]
+      constexpr int factorial(int n) {
+          return (n <= 1) ? 1 : n * factorial(n - 1);
+      }
+    \end{lstlisting}
+\end{enumerate}

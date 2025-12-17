@@ -1,1 +1,847 @@
-\chapter{功放及反馈系统}
+\chapter{运算放大器及反馈系统}
+
+运算放大器（Operational Amplifier，Op-Amp）是模拟电路中最重要、应用最广泛的集成电路之一。运算放大器具有高增益、高输入阻抗、低输出阻抗等特点，配合反馈网络可以实现各种信号处理功能，如放大、滤波、积分、微分、比较等。本章将系统介绍运算放大器的工作原理、反馈理论、基本电路和应用技巧。
+
+\section{运算放大器}
+
+\subsection{运算放大器的基本概念}
+
+运算放大器是一种高增益的差分放大器，通常具有两个输入端（同相输入端和反相输入端）和一个输出端。理想运算放大器具有以下特性：
+
+\begin{itemize}
+  \item 开环电压增益 $A_{OL} \to \infty$
+  \item 输入阻抗 $R_{in} \to \infty$
+  \item 输出阻抗 $R_{out} \to 0$
+  \item 带宽 $BW \to \infty$
+  \item 共模抑制比 $CMRR \to \infty$
+  \item 输入失调电压 $V_{OS} = 0$
+  \item 输入失调电流 $I_{OS} = 0$
+  \item 输入偏置电流 $I_B = 0$
+\end{itemize}
+
+\subsection{运算放大器的符号与端子}
+
+运算放大器的电路符号如图~\ref{fig:opamp-symbol} 所示。
+
+\begin{figure}[H]
+  \centering
+  \begin{circuitikz}[american,scale=1.0]
+    \draw
+    (0,0) node[op amp] (opamp) {}
+    (opamp.+) node[left] {$V_+$}
+    (opamp.-) node[left] {$V_-$}
+    (opamp.out) node[right] {$V_{out}$}
+    (opamp.up) node[above=0.5cm] {$V_{CC+}$}
+    (opamp.down) node[below=0.5cm] {$V_{CC-}$};
+
+    \node[left=1cm,above=1.2cm] at (opamp.+) {同相输入端};
+    \node[left=1cm,below=1.2cm] at (opamp.-) {反相输入端};
+    \node[right=1cm] at (opamp.out) {输出端};
+  \end{circuitikz}
+  \caption{运算放大器电路符号}\label{fig:opamp-symbol}
+\end{figure}
+
+主要端子包括：
+\begin{itemize}
+  \item \textbf{同相输入端（$V_+$）}：输入信号与输出信号同相
+  \item \textbf{反相输入端（$V_-$）}：输入信号与输出信号反相
+  \item \textbf{输出端（$V_{out}$）}：输出信号
+  \item \textbf{正电源（$V_{CC+}$）}：正电源电压
+  \item \textbf{负电源（$V_{CC-}$）}：负电源电压（或地）
+\end{itemize}
+
+\subsection{理想运算放大器的特性}
+
+理想运算放大器遵循两个基本规则：
+
+\subsubsection{虚短（Virtual Short）}
+
+由于开环增益无穷大，当运算放大器工作在线性区时，两个输入端之间的电压差为零：
+
+\begin{equation}
+V_+ - V_- = 0 \quad \text{或} \quad V_+ = V_- \label{eq:virtual-short}
+\end{equation}
+
+这称为"虚短"，意味着两个输入端可以视为短路，但实际上没有电流流过。
+
+\subsubsection{虚断（Virtual Open）}
+
+由于输入阻抗无穷大，流入两个输入端的电流为零：
+
+\begin{equation}
+I_+ = I_- = 0 \label{eq:virtual-open}
+\end{equation}
+
+这称为"虚断"，意味着两个输入端可以视为开路，但实际上有电压存在。
+
+\subsection{实际运算放大器的特性}
+
+实际运算放大器与理想模型存在差异，主要参数包括：
+
+\subsubsection{开环增益}
+
+实际运算放大器的开环增益 $A_{OL}$ 是有限的，典型值在 $10^4$--$10^6$（80--120 dB）之间。开环增益通常随频率下降，可以用单极点模型近似：
+
+\begin{equation}
+A_{OL}(s) = \frac{A_{OL0}}{1 + s/\omega_p} \label{eq:opamp-open-loop-gain}
+\end{equation}
+
+其中 $A_{OL0}$ 是直流开环增益，$\omega_p$ 是主极点频率。
+
+\subsubsection{输入阻抗}
+
+实际运算放大器的输入阻抗是有限的：
+\begin{itemize}
+  \item 双极型输入：输入阻抗较低，典型值 $10^6$--$10^9$ $\Omega$
+  \item CMOS 输入：输入阻抗很高，典型值 $10^{12}$--$10^{15}$ $\Omega$
+\end{itemize}
+
+\subsubsection{输出阻抗}
+
+实际运算放大器的输出阻抗不为零，典型值在 10--1000 $\Omega$ 之间。在负反馈作用下，输出阻抗会显著降低。
+
+\subsubsection{输入失调电压}
+
+输入失调电压 $V_{OS}$ 是指使输出电压为零时，需要在输入端施加的电压差。典型值在 0.1--10 mV 之间。失调电压会随温度漂移，温度系数通常为 1--10 $\mu$V/$^\circ$C。
+
+\subsubsection{输入偏置电流和失调电流}
+
+输入偏置电流 $I_B$ 是流入两个输入端的平均电流，典型值在 1 pA--1 $\mu$A 之间。
+
+输入失调电流 $I_{OS}$ 是两个输入端偏置电流的差值：
+
+\begin{equation}
+I_{OS} = |I_{B+} - I_{B-}| \label{eq:input-offset-current}
+\end{equation}
+
+\subsubsection{共模抑制比}
+
+共模抑制比（Common-Mode Rejection Ratio，CMRR）定义为：
+
+\begin{equation}
+CMRR = \frac{A_{DM}}{A_{CM}} = 20\log\left(\frac{A_{DM}}{A_{CM}}\right) \text{ dB} \label{eq:cmrr}
+\end{equation}
+
+其中 $A_{DM}$ 是差模增益，$A_{CM}$ 是共模增益。CMRR 典型值在 60--120 dB 之间。
+
+\subsubsection{电源抑制比}
+
+电源抑制比（Power Supply Rejection Ratio，PSRR）定义为：
+
+\begin{equation}
+PSRR = 20\log\left(\frac{A_{OL}}{\Delta V_{out}/\Delta V_{supply}}\right) \text{ dB} \label{eq:psrr}
+\end{equation}
+
+PSRR 表示运算放大器对电源电压变化的抑制能力，典型值在 60--100 dB 之间。
+
+\subsubsection{带宽和压摆率}
+
+\paragraph{单位增益带宽（Unity Gain Bandwidth，$f_{unity}$）}
+
+单位增益带宽是开环增益降为 1（0 dB）时的频率。对于单极点模型：
+
+\begin{equation}
+f_{unity} = A_{OL0} \cdot f_p \label{eq:unity-gain-bandwidth}
+\end{equation}
+
+\paragraph{增益带宽积（Gain-Bandwidth Product，GBP）}
+
+增益带宽积是增益与带宽的乘积，对于单极点模型，GBP 为常数：
+
+\begin{equation}
+GBP = A_{OL} \cdot f_{-3dB} = \text{常数} \label{eq:gain-bandwidth-product}
+\end{equation}
+
+\paragraph{压摆率（Slew Rate，SR）}
+
+压摆率是输出电压的最大变化速率：
+
+\begin{equation}
+SR = \max\left|\frac{dV_{out}}{dt}\right| \label{eq:slew-rate}
+\end{equation}
+
+压摆率限制了运算放大器处理大信号的能力，典型值在 0.1--1000 V/$\mu$s 之间。
+
+\subsubsection{输入电压范围}
+
+输入电压范围是指运算放大器正常工作时的输入电压范围：
+\begin{itemize}
+  \item \textbf{轨到轨输入（Rail-to-Rail Input）}：输入电压可以接近电源电压
+  \item \textbf{非轨到轨输入}：输入电压范围受限，通常比电源电压小 1--3 V
+\end{itemize}
+
+\subsubsection{输出电压范围}
+
+输出电压范围是指运算放大器能够输出的电压范围：
+\begin{itemize}
+  \item \textbf{轨到轨输出（Rail-to-Rail Output）}：输出电压可以接近电源电压
+  \item \textbf{非轨到轨输出}：输出电压范围受限，通常比电源电压小 1--3 V
+\end{itemize}
+
+\subsection{运算放大器的内部结构}
+
+运算放大器通常由以下部分组成：
+
+\begin{enumerate}
+  \item \textbf{输入级}：差分放大器，提供高输入阻抗和共模抑制
+  \item \textbf{中间级}：高增益放大器，提供主要的电压放大
+  \item \textbf{输出级}：功率放大器，提供低输出阻抗和足够的驱动能力
+  \item \textbf{偏置电路}：为各级提供稳定的偏置电流
+\end{enumerate}
+
+\section{反馈系统}
+
+反馈是运算放大器应用的基础。通过引入反馈，可以控制放大器的增益、带宽、输入输出阻抗等特性，并提高稳定性。
+
+\subsection{反馈的基本概念}
+
+反馈是指将输出信号的一部分或全部返回到输入端，与输入信号进行比较的过程。
+
+\subsubsection{反馈的分类}
+
+根据反馈信号与输入信号的关系，反馈分为：
+
+\begin{enumerate}
+  \item \textbf{负反馈（Negative Feedback）}
+    \begin{itemize}
+      \item 反馈信号与输入信号反相
+      \item 减小增益，提高稳定性
+      \item 扩展带宽，减小失真
+      \item 改变输入输出阻抗
+    \end{itemize}
+
+  \item \textbf{正反馈（Positive Feedback）}
+    \begin{itemize}
+      \item 反馈信号与输入信号同相
+      \item 增大增益，可能引起振荡
+      \item 用于振荡器和比较器
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{反馈的采样方式}
+
+根据反馈信号的采样方式，分为：
+
+\begin{enumerate}
+  \item \textbf{电压反馈（Voltage Feedback）}：反馈信号采样输出电压
+  \item \textbf{电流反馈（Current Feedback）}：反馈信号采样输出电流
+\end{enumerate}
+
+\subsubsection{反馈的混合方式}
+
+根据反馈信号与输入信号的混合方式，分为：
+
+\begin{enumerate}
+  \item \textbf{串联反馈（Series Feedback）}：反馈信号与输入信号串联（电压叠加）
+  \item \textbf{并联反馈（Shunt Feedback）}：反馈信号与输入信号并联（电流叠加）
+\end{enumerate}
+
+\subsection{负反馈的基本理论}
+
+\subsubsection{反馈系统的框图}
+
+负反馈系统的基本框图如图~\ref{fig:feedback-block} 所示。
+
+\begin{figure}[H]
+  \centering
+  \begin{circuitikz}[american,scale=1.0]
+    % Styles
+    \tikzstyle{block} = [draw, rectangle, minimum height=3em, minimum width=3em]
+    \tikzstyle{sum} = [draw, circle, node distance=1cm]
+    \tikzstyle{input} = [coordinate]
+    \tikzstyle{output} = [coordinate]
+    \tikzstyle{pinstyle} = [pin edge={to-,thin,black}]
+
+    % Nodes
+    \node [input, name=input] {};
+    \node [sum, right of=input] (sum) {};
+    \node [block, right of=sum] (system) {$A$};
+    \node [output, right of=system] (output) {};
+    \node [block, below of=system] (feedback) {$\beta$};
+
+    % Connections
+    \draw [->] (input) -- node {$V_{in}$} node[pos=0.9] {$+$} (sum);
+    \draw [->] (sum) -- node {$V_e$} (system);
+    \draw [->] (system) -- node [name=y] {$V_{out}$}(output);
+    \draw [->] (y) |- (feedback);
+    \draw [->] (feedback) -| node[pos=0.99] {$-$} node [near end] {$V_f$} (sum);
+  \end{circuitikz}
+  \caption{负反馈系统框图}\label{fig:feedback-block}
+\end{figure}
+
+其中：
+\begin{itemize}
+  \item $A$：前向增益（开环增益）
+  \item $\beta$：反馈系数
+  \item $V_{in}$：输入信号
+  \item $V_{out}$：输出信号
+  \item $V_f = \beta V_{out}$：反馈信号
+  \item $V_e = V_{in} - V_f$：误差信号
+\end{itemize}
+
+\subsubsection{闭环增益}
+
+闭环增益 $A_{CL}$ 为：
+
+\begin{equation}
+A_{CL} = \frac{V_{out}}{V_{in}} = \frac{A}{1 + A\beta} \label{eq:closed-loop-gain}
+\end{equation}
+
+当 $A\beta \gg 1$ 时（深度负反馈）：
+
+\begin{equation}
+A_{CL} \approx \frac{1}{\beta} \label{eq:closed-loop-gain-approx}
+\end{equation}
+
+这表明在深度负反馈条件下，闭环增益主要由反馈网络决定，与开环增益 $A$ 无关。
+
+\subsubsection{反馈深度}
+
+反馈深度 $1 + A\beta$ 是衡量反馈强度的指标：
+\begin{itemize}
+  \item 反馈深度越大，负反馈作用越强
+  \item 当 $A\beta \gg 1$ 时，称为深度负反馈
+\end{itemize}
+
+\subsubsection{环路增益}
+
+环路增益 $T = A\beta$ 是反馈系统的重要参数，决定了系统的稳定性和性能。
+
+\subsection{负反馈对放大器性能的影响}
+
+\subsubsection{增益稳定性}
+
+负反馈提高了增益的稳定性。增益的相对变化为：
+
+\begin{equation}
+\frac{dA_{CL}}{A_{CL}} = \frac{1}{1 + A\beta} \cdot \frac{dA}{A} \label{eq:gain-stability}
+\end{equation}
+
+可见，增益的相对变化减小了 $1 + A\beta$ 倍。
+
+\subsubsection{带宽扩展}
+
+负反馈扩展了放大器的带宽。对于单极点系统，闭环带宽为：
+
+\begin{equation}
+f_{CL} = f_{OL} \cdot (1 + A\beta) \label{eq:bandwidth-extension}
+\end{equation}
+
+其中 $f_{OL}$ 是开环带宽。
+
+\subsubsection{输入阻抗的变化}
+
+\begin{itemize}
+  \item \textbf{串联反馈}：输入阻抗增加 $1 + A\beta$ 倍
+  \item \textbf{并联反馈}：输入阻抗减小 $1 + A\beta$ 倍
+\end{itemize}
+
+\subsubsection{输出阻抗的变化}
+
+\begin{itemize}
+  \item \textbf{电压反馈}：输出阻抗减小 $1 + A\beta$ 倍
+  \item \textbf{电流反馈}：输出阻抗增加 $1 + A\beta$ 倍
+\end{itemize}
+
+\subsubsection{非线性失真的减小}
+
+负反馈可以减小非线性失真，失真减小 $1 + A\beta$ 倍。
+
+\subsubsection{噪声的影响}
+
+负反馈不能减小输入信号中的噪声，但可以减小放大器内部产生的噪声。
+
+\subsection{反馈的稳定性}
+
+\subsubsection{稳定性判据}
+
+反馈系统稳定的条件是：当环路增益 $T(s) = A(s)\beta(s)$ 的相位为 $-180^\circ$ 时，其幅度必须小于 1。
+
+用数学表达：
+
+\begin{equation}
+|T(j\omega_{180})| < 1 \label{eq:stability-criterion}
+\end{equation}
+
+其中 $\omega_{180}$ 是相位为 $-180^\circ$ 时的频率。
+
+\subsubsection{相位裕度}
+
+相位裕度（Phase Margin，PM）定义为：
+
+\begin{equation}
+PM = 180^\circ + \angle T(j\omega_0) \label{eq:phase-margin}
+\end{equation}
+
+其中 $\omega_0$ 是 $|T(j\omega)| = 1$ 时的频率（增益穿越频率）。
+
+相位裕度越大，系统越稳定。通常要求 $PM > 45^\circ$，最好 $PM > 60^\circ$。
+
+\subsubsection{增益裕度}
+
+增益裕度（Gain Margin，GM）定义为：
+
+\begin{equation}
+GM = -20\log|T(j\omega_{180})| \text{ dB} \label{eq:gain-margin}
+\end{equation}
+
+增益裕度越大，系统越稳定。通常要求 $GM > 10$ dB。
+
+\subsubsection{补偿技术}
+
+当反馈系统不稳定时，需要进行补偿：
+
+\begin{enumerate}
+  \item \textbf{主极点补偿}：在反馈网络中引入主极点，降低高频增益
+  \item \textbf{零点补偿}：引入零点，改善相位特性
+  \item \textbf{米勒补偿}：利用米勒效应进行补偿
+\end{enumerate}
+
+\section{运算放大器的性能指标与选型}
+
+\subsection{主要性能指标}
+
+选择运算放大器时，需要考虑以下主要指标：
+
+\begin{enumerate}
+  \item \textbf{输入特性}
+    \begin{itemize}
+      \item 输入失调电压 $V_{OS}$ 及其温度系数
+      \item 输入偏置电流 $I_B$ 和失调电流 $I_{OS}$
+      \item 输入阻抗 $R_{in}$
+      \item 输入电压范围
+      \item 共模抑制比 CMRR
+    \end{itemize}
+
+  \item \textbf{输出特性}
+    \begin{itemize}
+      \item 输出电压范围
+      \item 输出电流能力
+      \item 输出阻抗
+    \end{itemize}
+
+  \item \textbf{动态特性}
+    \begin{itemize}
+      \item 开环增益 $A_{OL}$
+      \item 单位增益带宽 $f_{unity}$
+      \item 压摆率 SR
+      \item 建立时间（Settling Time）
+    \end{itemize}
+
+  \item \textbf{电源特性}
+    \begin{itemize}
+      \item 电源电压范围
+      \item 静态电流 $I_Q$
+      \item 电源抑制比 PSRR
+    \end{itemize}
+
+  \item \textbf{环境特性}
+    \begin{itemize}
+      \item 工作温度范围
+      \item 温度漂移
+    \end{itemize}
+\end{enumerate}
+
+\subsection{运算放大器的分类}
+
+根据应用需求，运算放大器可分为：
+
+\subsubsection{通用型运算放大器}
+
+适用于一般应用，性能平衡，价格低廉。典型型号：LM358、LM324、TL072 等。
+
+\subsubsection{精密运算放大器}
+
+具有低失调电压、低漂移、高精度等特点。典型型号：OP07、OP27、AD8628 等。
+
+\subsubsection{高速运算放大器}
+
+具有高带宽、高压摆率等特点。典型型号：AD811、LM6171 等。
+
+\subsubsection{低功耗运算放大器}
+
+静态电流很小，适用于电池供电应用。典型型号：LMC6482、MCP6002 等。
+
+\subsubsection{轨到轨运算放大器}
+
+输入和/或输出可以接近电源电压。典型型号：LMV358、MCP6002 等。
+
+\subsubsection{高电压运算放大器}
+
+可以工作在较高的电源电压下。典型型号：OPA445、PA85 等。
+
+\subsubsection{电流反馈运算放大器}
+
+采用电流反馈结构，具有高带宽、高压摆率等特点。典型型号：AD811、AD8001 等。
+
+\subsection{选型指南}
+
+选择运算放大器时，应遵循以下步骤：
+
+\begin{enumerate}
+  \item \textbf{确定应用需求}
+    \begin{itemize}
+      \item 信号类型（直流、交流、频率范围）
+      \item 精度要求
+      \item 速度要求
+      \item 功耗限制
+      \item 电源电压
+      \item 成本限制
+    \end{itemize}
+
+  \item \textbf{初步筛选}
+    \begin{itemize}
+      \item 根据应用类型选择运算放大器类别
+      \item 检查电源电压范围
+      \item 检查输入输出范围
+    \end{itemize}
+
+  \item \textbf{详细评估}
+    \begin{itemize}
+      \item 检查关键性能指标是否满足要求
+      \item 考虑温度影响
+      \item 评估成本
+    \end{itemize}
+
+  \item \textbf{验证}
+    \begin{itemize}
+      \item 查阅数据手册
+      \item 进行仿真验证
+      \item 制作样机测试
+    \end{itemize}
+\end{enumerate}
+
+\section{运算放大器的基本电路}
+
+\subsection{同相放大器}
+
+同相放大器（Non-Inverting Amplifier）的电路如图~\ref{fig:non-inverting-amp} 所示。
+
+\begin{figure}[H]
+  \centering
+  \begin{circuitikz}[american,scale=1.0]
+    \draw
+    (0,0) node[op amp] (opamp) {}
+    (opamp.+) to[short] ++(-1,0) to[short, -o] ++(-0.5,0) node[left] {$V_{in}$}
+    (opamp.out) to[short, *-o] ++(1,0) node[right] {$V_{out}$}
+    (opamp.out) to[R=$R_2$] ++(0,-2) coordinate (fb)
+    (fb) to[R=$R_1$] ++(-2,0) coordinate (gnd_node) node[ground] {}
+    (opamp.-) to[short] (opamp.- |- fb) to[short] (fb);
+    \draw (fb) to[short, *-] (fb); % Ensure dot at feedback connection
+  \end{circuitikz}
+  \caption{同相放大器}\label{fig:non-inverting-amp}
+\end{figure}
+
+根据虚短和虚断，可以推导出：
+
+\begin{equation}
+V_{out} = \left(1 + \frac{R_2}{R_1}\right) V_{in} \label{eq:non-inverting-gain}
+\end{equation}
+
+闭环增益为：
+
+\begin{equation}
+A_{CL} = 1 + \frac{R_2}{R_1} \label{eq:non-inverting-closed-loop}
+\end{equation}
+
+特点：
+\begin{itemize}
+  \item 输入阻抗高（接近运算放大器的输入阻抗）
+  \item 输出阻抗低
+  \item 输入与输出同相
+  \item 增益总是大于等于 1
+\end{itemize}
+
+\subsection{反相放大器}
+
+反相放大器（Inverting Amplifier）的电路如图~\ref{fig:inverting-amp} 所示。
+
+\begin{figure}[H]
+  \centering
+  \begin{circuitikz}[american,scale=1.0]
+    \draw
+    (0,0) node[op amp] (opamp) {}
+    (opamp.+) node[ground] {}
+    (opamp.-) to[short] ++(-0.5,0) coordinate (in_node)
+    (in_node) to[R=$R_1$, -o] ++(-2,0) node[left] {$V_{in}$}
+    (in_node) to[short, *-] ++(0,1) coordinate (fb_node)
+    (opamp.out) to[short, *-o] ++(1,0) node[right] {$V_{out}$}
+    (opamp.out) to[short] ++(0,1) coordinate (out_fb)
+    (out_fb) to[R=$R_2$] (fb_node);
+  \end{circuitikz}
+  \caption{反相放大器}\label{fig:inverting-amp}
+\end{figure}
+
+根据虚短和虚断，可以推导出：
+
+\begin{equation}
+V_{out} = -\frac{R_2}{R_1} V_{in} \label{eq:inverting-gain}
+\end{equation}
+
+闭环增益为：
+
+\begin{equation}
+A_{CL} = -\frac{R_2}{R_1} \label{eq:inverting-closed-loop}
+\end{equation}
+
+特点：
+\begin{itemize}
+  \item 输入阻抗等于 $R_1$（相对较低）
+  \item 输出阻抗低
+  \item 输入与输出反相
+  \item 增益可以小于 1
+\end{itemize}
+
+\subsection{差分放大器}
+
+差分放大器（Differential Amplifier）的电路如图~\ref{fig:differential-amp} 所示。
+
+\begin{figure}[H]
+  \centering
+  \begin{circuitikz}[american,scale=1.0]
+    \draw
+    (0,0) node[op amp] (opamp) {}
+    (opamp.+) to[short] ++(-0.5,0) coordinate (p_node)
+    (p_node) to[R=$R_3$, -o] ++(-2,0) node[left] {$V_+$}
+    (p_node) to[R=$R_4$, *-] ++(0,-2) node[ground] {}
+    (opamp.-) to[short] ++(-0.5,0) coordinate (n_node)
+    (n_node) to[R=$R_1$, -o] ++(-2,0) node[left] {$V_-$}
+    (n_node) to[short, *-] ++(0,1) coordinate (fb_node)
+    (opamp.out) to[short, *-o] ++(1,0) node[right] {$V_{out}$}
+    (opamp.out) to[short] ++(0,1) coordinate (out_fb)
+    (out_fb) to[R=$R_2$] (fb_node);
+  \end{circuitikz}
+  \caption{差分放大器}\label{fig:differential-amp}
+\end{figure}
+
+当 $R_1 = R_3$ 且 $R_2 = R_4$ 时，输出电压为：
+
+\begin{equation}
+V_{out} = \frac{R_2}{R_1} (V_+ - V_-) \label{eq:differential-gain}
+\end{equation}
+
+差分放大器可以放大两个输入信号的差值，抑制共模信号。
+
+\subsection{求和放大器}
+
+求和放大器（Summing Amplifier）的电路如图~\ref{fig:summing-amp} 所示。
+
+\begin{figure}[H]
+  \centering
+  \begin{circuitikz}[american,scale=1.0]
+    \draw
+    (0,0) node[op amp] (opamp) {}
+    (opamp.+) node[ground] {}
+    (opamp.-) to[short] ++(-0.5,0) coordinate (sum_node)
+    (sum_node) to[short, *-] ++(0,1) coordinate (fb_node)
+    (sum_node) to[R=$R_1$, -o] ++(-2,0) node[left] {$V_1$}
+    (sum_node) to[short] ++(0,-1) coordinate (in2_node)
+    (in2_node) to[R=$R_2$, -o] ++(-2,0) node[left] {$V_2$}
+    (sum_node) to[short] (in2_node)
+    (opamp.out) to[short, *-o] ++(1,0) node[right] {$V_{out}$}
+    (opamp.out) to[short] ++(0,1) coordinate (out_fb)
+    (out_fb) to[R=$R_f$] (fb_node);
+  \end{circuitikz}
+  \caption{求和放大器}\label{fig:summing-amp}
+\end{figure}
+
+当所有输入电阻相等（$R_1 = R_2 = \cdots = R_n$）时：
+
+\begin{equation}
+V_{out} = -\frac{R_f}{R_1} (V_1 + V_2 + \cdots + V_n) \label{eq:summing-gain}
+\end{equation}
+
+\subsection{积分器}
+
+积分器（Integrator）的电路如图~\ref{fig:integrator} 所示。
+
+\begin{figure}[H]
+  \centering
+  \begin{circuitikz}[american,scale=1.0]
+    \draw
+    (0,0) node[op amp] (opamp) {}
+    (opamp.+) node[ground] {}
+    (opamp.-) to[short] ++(-0.5,0) coordinate (in_node)
+    (in_node) to[C=$C$, -o] ++(-2,0) node[left] {$V_{in}$}
+    (in_node) to[short, *-] ++(0,1) coordinate (fb_node)
+    (opamp.out) to[short, *-o] ++(1,0) node[right] {$V_{out}$}
+    (opamp.out) to[short] ++(0,1) coordinate (out_fb)
+    (out_fb) to[R=$R$] (fb_node);
+  \end{circuitikz}
+  \caption{积分器}\label{fig:integrator}
+\end{figure}
+
+输出电压为：
+
+\begin{equation}
+V_{out}(t) = -\frac{1}{RC} \int_0^t V_{in}(\tau) d\tau + V_{out}(0) \label{eq:integrator}
+\end{equation}
+
+在频域中，传递函数为：
+
+\begin{equation}
+H(s) = -\frac{1}{RCs} \label{eq:integrator-transfer}
+\end{equation}
+
+积分器常用于：
+\begin{itemize}
+  \item 波形变换（如方波变三角波）
+  \item 低通滤波
+  \item 相位补偿
+\end{itemize}
+
+\subsection{微分器}
+
+微分器（Differentiator）的电路如图~\ref{fig:differentiator} 所示。
+
+\begin{figure}[H]
+  \centering
+  \begin{circuitikz}[american,scale=1.0]
+    \draw
+    (0,0) node[op amp] (opamp) {}
+    (opamp.+) node[ground] {}
+    (opamp.-) to[short] ++(-0.5,0) coordinate (in_node)
+    (in_node) to[R=$R$, -o] ++(-2,0) node[left] {$V_{in}$}
+    (in_node) to[short, *-] ++(0,1) coordinate (fb_node)
+    (opamp.out) to[short, *-o] ++(1,0) node[right] {$V_{out}$}
+    (opamp.out) to[short] ++(0,1) coordinate (out_fb)
+    (out_fb) to[C=$C$] (fb_node);
+  \end{circuitikz}
+  \caption{微分器}\label{fig:differentiator}
+\end{figure}
+
+输出电压为：
+
+\begin{equation}
+V_{out}(t) = -RC \frac{dV_{in}(t)}{dt} \label{eq:differentiator}
+\end{equation}
+
+在频域中，传递函数为：
+
+\begin{equation}
+H(s) = -RCs \label{eq:differentiator-transfer}
+\end{equation}
+
+微分器对高频噪声敏感，实际应用中通常需要添加限制电阻。
+
+\subsection{比较器}
+
+比较器（Comparator）用于比较两个电压的大小。虽然可以使用运算放大器作为比较器，但专用的比较器具有更好的性能。
+
+比较器的输出：
+\begin{itemize}
+  \item 当 $V_+ > V_-$ 时，输出高电平
+  \item 当 $V_+ < V_-$ 时，输出低电平
+\end{itemize}
+
+\subsection{仪表放大器}
+
+仪表放大器（Instrumentation Amplifier）由三个运算放大器组成，具有高输入阻抗、高共模抑制比等特点，常用于信号调理。
+
+\section{运算放大器的应用技巧}
+
+\subsection{失调电压的补偿}
+
+\subsubsection{外部调零}
+
+对于具有调零端子的运算放大器，可以通过外部电位器进行调零。
+
+\subsubsection{输入失调补偿}
+
+在同相输入端添加补偿电压，抵消失调电压的影响。
+
+\subsection{输入偏置电流的补偿}
+
+为了减小输入偏置电流的影响，在同相输入端和地之间连接一个电阻，其值等于反相输入端看到的等效电阻。
+
+\subsection{单电源应用}
+
+\subsubsection{偏置设置}
+
+单电源应用时，需要将输入和输出偏置到电源电压的中点（$V_{CC}/2$）。
+
+\subsubsection{交流耦合}
+
+使用电容进行交流耦合，隔离直流偏置。
+
+\subsection{去耦和旁路}
+
+\subsubsection{电源去耦}
+
+在运算放大器的电源引脚附近添加去耦电容（通常 0.1 $\mu$F 陶瓷电容 + 10 $\mu$F 电解电容），减小电源噪声。
+
+\subsubsection{旁路电容}
+
+在反馈网络中适当位置添加旁路电容，改善频率响应。
+
+\subsection{保护电路}
+
+\subsubsection{输入保护}
+
+使用限流电阻和箝位二极管保护运算放大器的输入端，防止过压。
+
+\subsubsection{输出保护}
+
+使用限流电阻保护输出端，防止短路损坏。
+
+\subsection{PCB 布局注意事项}
+
+\begin{enumerate}
+  \item 缩短输入引线，减小寄生电容和电感
+  \item 将去耦电容尽量靠近运算放大器
+  \item 使用地平面，减小地线阻抗
+  \item 避免数字信号和模拟信号交叉
+  \item 注意热设计，避免温度梯度
+\end{enumerate}
+
+\section{运算放大器的测试方法}
+
+\subsection{直流参数测试}
+
+\subsubsection{输入失调电压测试}
+
+将两个输入端短接并接地，测量输出电压 $V_{out}$，则：
+
+\begin{equation}
+V_{OS} = \frac{V_{out}}{A_{CL}} \label{eq:test-vos}
+\end{equation}
+
+\subsubsection{输入偏置电流测试}
+
+分别测量两个输入端的电压，计算偏置电流。
+
+\subsubsection{开环增益测试}
+
+使用大环路增益的反馈网络，测量开环增益。
+
+\subsection{交流参数测试}
+
+\subsubsection{频率响应测试}
+
+使用网络分析仪或信号发生器 + 示波器，测量不同频率下的增益和相位。
+
+\subsubsection{压摆率测试}
+
+输入大幅值方波，测量输出电压的上升时间，计算压摆率。
+
+\subsubsection{建立时间测试}
+
+输入阶跃信号，测量输出电压达到稳定值所需的时间。
+
+\subsection{噪声测试}
+
+使用频谱分析仪或低噪声放大器，测量运算放大器的噪声特性。
+
+\subsection{稳定性测试}
+
+\subsubsection{阶跃响应测试}
+
+观察阶跃响应是否有振荡，判断稳定性。
+
+\subsubsection{频率响应分析}
+
+测量相位裕度和增益裕度，评估稳定性。
+
+\subsection{环境测试}
+
+在不同温度下测试运算放大器的性能，评估温度特性。

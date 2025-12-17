@@ -1,6 +1,1469 @@
 \chapter{电路设计}
-\section{原理图}
-\section{PCB}
 
-\chapter{高速 PCB 设计}
+电路设计是电子系统开发的核心环节，包括从概念设计到最终产品的完整流程。本章将系统介绍原理图设计、PCB 设计、信号完整性、电源完整性、电磁兼容性等关键内容，帮助读者掌握专业的电路设计方法和技巧。
 
+\section{原理图设计}
+
+原理图（Schematic）是电路设计的起点，用图形符号表示电路的功能和连接关系。良好的原理图设计是成功 PCB 设计的基础。
+
+\subsection{原理图设计基础}
+
+\subsubsection{原理图的作用}
+
+原理图的主要作用包括：
+\begin{itemize}
+  \item 表达电路功能和连接关系
+  \item 作为 PCB 布局的依据
+  \item 用于电路分析和仿真
+  \item 作为技术文档和沟通工具
+  \item 用于生成物料清单（BOM）
+\end{itemize}
+
+\subsubsection{原理图设计原则}
+
+\begin{enumerate}
+  \item \textbf{清晰性}
+    \begin{itemize}
+      \item 信号流向明确（通常从左到右，从上到下）
+      \item 相关元件靠近放置
+      \item 避免交叉线过多
+      \item 使用总线（Bus）简化连接
+    \end{itemize}
+
+  \item \textbf{层次化}
+    \begin{itemize}
+      \item 复杂电路采用层次化设计
+      \item 功能模块化
+      \item 便于理解和维护
+    \end{itemize}
+
+  \item \textbf{规范性}
+    \begin{itemize}
+      \item 使用标准符号
+      \item 统一的命名规则
+      \item 完整的标注和说明
+    \end{itemize}
+
+  \item \textbf{完整性}
+    \begin{itemize}
+      \item 所有连接都有明确的网络名称
+      \item 电源和地网络清晰标注
+      \item 关键信号添加说明
+    \end{itemize}
+\end{enumerate}
+
+\subsection{元件符号库}
+
+\subsubsection{符号库的建立}
+
+\begin{itemize}
+  \item 使用标准符号（如 IEEE、IEC 标准）
+  \item 保持符号的一致性
+  \item 包含必要的引脚信息
+  \item 添加封装信息
+\end{itemize}
+
+\subsubsection{常用元件符号}
+
+\begin{enumerate}
+  \item \textbf{无源元件}
+    \begin{itemize}
+      \item 电阻、电容、电感
+      \item 变压器
+    \end{itemize}
+
+  \item \textbf{半导体元件}
+    \begin{itemize}
+      \item 二极管、晶体管
+      \item 运算放大器、比较器
+      \item 逻辑门
+    \end{itemize}
+
+  \item \textbf{连接器}
+    \begin{itemize}
+      \item 接插件
+      \item 测试点
+    \end{itemize}
+\end{enumerate}
+
+\subsection{网络和连接}
+
+\subsubsection{网络命名}
+
+\begin{itemize}
+  \item 使用有意义的网络名称
+  \item 电源网络：$V_{CC}$、$V_{DD}$、$V_{SS}$、GND 等
+  \item 信号网络：功能描述性名称
+  \item 差分信号：使用 +、- 后缀
+\end{itemize}
+
+\subsubsection{总线设计}
+
+对于多位总线，使用总线符号可以简化原理图：
+
+\begin{itemize}
+  \item 数据总线：D[0:7]、AD[0:15] 等
+  \item 地址总线：A[0:19] 等
+  \item 控制总线：使用总线连接多个信号
+\end{itemize}
+
+\subsection{层次化设计}
+
+\subsubsection{层次化结构}
+
+复杂电路应采用层次化设计：
+
+\begin{enumerate}
+  \item \textbf{顶层}：系统级连接
+  \item \textbf{子图}：功能模块
+  \item \textbf{底层}：具体电路实现
+\end{enumerate}
+
+\subsubsection{层次化设计的优点}
+
+\begin{itemize}
+  \item 提高可读性
+  \item 便于团队协作
+  \item 支持模块复用
+  \item 简化修改和维护
+\end{itemize}
+
+\subsection{设计规则检查（DRC）}
+
+原理图设计完成后，应进行设计规则检查：
+
+\begin{enumerate}
+  \item \textbf{电气规则检查（ERC）}
+    \begin{itemize}
+      \item 未连接的引脚
+      \item 电源冲突
+      \item 输入悬空
+    \end{itemize}
+
+  \item \textbf{连接性检查}
+    \begin{itemize}
+      \item 所有网络是否连接
+      \item 网络名称是否一致
+    \end{itemize}
+
+  \item \textbf{完整性检查}
+    \begin{itemize}
+      \item 元件参数是否完整
+      \item 封装是否指定
+    \end{itemize}
+\end{enumerate}
+
+\section{PCB 基础}
+
+\subsection{PCB 的发展历史}
+
+印刷电路板（Printed Circuit Board，PCB）的发展历程：
+
+\begin{enumerate}
+  \item \textbf{1940 年代}：单面板，手工制作
+  \item \textbf{1950 年代}：双面板，蚀刻工艺
+  \item \textbf{1960 年代}：多层板技术
+  \item \textbf{1970--1980 年代}：表面贴装技术（SMT）
+  \item \textbf{1990 年代至今}：高密度互连（HDI）、埋盲孔、微孔技术
+\end{enumerate}
+
+\subsection{PCB 的分类}
+
+\subsubsection{按层数分类}
+
+\begin{enumerate}
+  \item \textbf{单面板（Single Layer）}
+    \begin{itemize}
+      \item 只有一面有铜箔
+      \item 成本最低
+      \item 适用于简单电路
+    \end{itemize}
+
+  \item \textbf{双面板（Double Layer）}
+    \begin{itemize}
+      \item 两面都有铜箔
+      \item 通过过孔连接
+      \item 最常用的类型
+    \end{itemize}
+
+  \item \textbf{多层板（Multi-Layer）}
+    \begin{itemize}
+      \item 4 层、6 层、8 层或更多
+      \item 有内层电源和地平面
+      \item 适用于复杂电路和高速设计
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{按基材分类}
+
+\begin{enumerate}
+  \item \textbf{FR-4}
+    \begin{itemize}
+      \item 最常用的基材
+      \item 玻璃纤维增强环氧树脂
+      \item 介电常数 $\epsilon_r \approx 4.4$
+      \item 适用于大多数应用
+    \end{itemize}
+
+  \item \textbf{高频基材}
+    \begin{itemize}
+      \item Rogers、Taconic 等
+      \item 低介电常数和损耗
+      \item 用于射频和高速应用
+    \end{itemize}
+
+  \item \textbf{柔性 PCB（FPC）}
+    \begin{itemize}
+      \item 聚酰亚胺基材
+      \item 可弯曲
+      \item 用于特殊应用
+    \end{itemize}
+
+  \item \textbf{刚柔结合板}
+    \begin{itemize}
+      \item 结合刚性板和柔性板
+      \item 用于复杂的三维连接
+    \end{itemize}
+\end{enumerate}
+
+\subsection{PCB 制造工艺}
+
+\subsubsection{基本工艺流程}
+
+\begin{enumerate}
+  \item \textbf{基材准备}
+    \begin{itemize}
+      \item 选择基材和铜箔厚度
+      \item 清洗和预处理
+    \end{itemize}
+
+  \item \textbf{图形转移}
+    \begin{itemize}
+      \item 光刻胶涂覆
+      \item 曝光（使用底片或直接成像）
+      \item 显影
+    \end{itemize}
+
+  \item \textbf{蚀刻}
+    \begin{itemize}
+      \item 去除不需要的铜
+      \item 化学蚀刻或等离子蚀刻
+    \end{itemize}
+
+  \item \textbf{钻孔}
+    \begin{itemize}
+      \item 机械钻孔或激光钻孔
+      \item 过孔、通孔、盲孔、埋孔
+    \end{itemize}
+
+  \item \textbf{孔金属化}
+    \begin{itemize}
+      \item 化学镀铜
+      \item 电镀加厚
+    \end{itemize}
+
+  \item \textbf{阻焊层}
+    \begin{itemize}
+      \item 涂覆阻焊油墨
+      \item 保护走线，防止短路
+    \end{itemize}
+
+  \item \textbf{丝印}
+    \begin{itemize}
+      \item 印刷元件标识和说明
+    \end{itemize}
+
+  \item \textbf{表面处理}
+    \begin{itemize}
+      \item HASL（热风整平）
+      \item OSP（有机可焊性保护膜）
+      \item ENIG（化学镀镍浸金）
+      \item 沉银、沉锡等
+    \end{itemize}
+
+  \item \textbf{测试}
+    \begin{itemize}
+      \item 电气测试
+      \item 外观检查
+    \end{itemize}
+\end{enumerate}
+
+\subsection{PCB 材料参数}
+
+\subsubsection{介电常数（$\epsilon_r$）}
+
+介电常数影响信号传播速度和特性阻抗：
+
+\begin{equation}
+v = \frac{c}{\sqrt{\epsilon_r}} \label{eq:signal-velocity}
+\end{equation}
+
+其中 $c$ 是光速。
+
+\subsubsection{损耗角正切（$\tan \delta$）}
+
+损耗角正切表示介质的损耗特性，影响信号衰减：
+
+\begin{equation}
+\alpha = \frac{\omega}{2c} \sqrt{\epsilon_r} \tan \delta \label{eq:attenuation}
+\end{equation}
+
+\subsubsection{铜箔厚度}
+
+常用铜箔厚度：
+\begin{itemize}
+  \item 0.5 oz（17.5 $\mu$m）：内层常用
+  \item 1 oz（35 $\mu$m）：标准厚度
+  \item 2 oz（70 $\mu$m）：大电流应用
+\end{itemize}
+
+\section{PCB 布局设计}
+
+\subsection{布局的基本原则}
+
+\subsubsection{功能分区}
+
+\begin{enumerate}
+  \item \textbf{模拟和数字分离}
+    \begin{itemize}
+      \item 物理隔离
+      \item 独立的电源和地
+      \item 避免数字噪声影响模拟电路
+    \end{itemize}
+
+  \item \textbf{高速和低速分离}
+    \begin{itemize}
+      \item 高速信号远离低速信号
+      \item 减少串扰
+    \end{itemize}
+
+  \item \textbf{电源分区}
+    \begin{itemize}
+      \item 不同电压等级分开
+      \item 大功率和小功率分开
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{元件放置原则}
+
+\begin{enumerate}
+  \item \textbf{关键元件优先}
+    \begin{itemize}
+      \item 先放置核心 IC（如 MCU、FPGA）
+      \item 再放置外围元件
+    \end{itemize}
+
+  \item \textbf{信号流向}
+    \begin{itemize}
+      \item 按照信号流向放置元件
+      \item 缩短关键信号路径
+    \end{itemize}
+
+  \item \textbf{热考虑}
+    \begin{itemize}
+      \item 发热元件分散放置
+      \item 远离温度敏感元件
+      \item 考虑散热路径
+    \end{itemize}
+
+  \item \textbf{机械考虑}
+    \begin{itemize}
+      \item 接插件放在边缘
+      \item 考虑安装和维修
+      \item 符合机械约束
+    \end{itemize}
+\end{enumerate}
+
+\subsection{层叠设计}
+
+\subsubsection{层叠设计原则}
+
+\begin{enumerate}
+  \item \textbf{对称性}
+    \begin{itemize}
+      \item 层叠结构对称
+      \item 减少翘曲
+    \end{itemize}
+
+  \item \textbf{信号层和地平面相邻}
+    \begin{itemize}
+      \item 提供返回路径
+      \item 控制特性阻抗
+    \end{itemize}
+
+  \item \textbf{电源平面分割}
+    \begin{itemize}
+      \item 不同电源分开
+      \item 保持完整性
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{常见层叠结构}
+
+\paragraph{4 层板}
+
+典型结构：
+\begin{itemize}
+  \item 顶层（信号）
+  \item 内层 1（地平面）
+  \item 内层 2（电源平面）
+  \item 底层（信号）
+\end{itemize}
+
+\paragraph{6 层板}
+
+典型结构：
+\begin{itemize}
+  \item 顶层（信号）
+  \item 内层 1（地平面）
+  \item 内层 2（信号）
+  \item 内层 3（信号）
+  \item 内层 4（电源平面）
+  \item 底层（信号）
+\end{itemize}
+
+\paragraph{8 层板}
+
+典型结构：
+\begin{itemize}
+  \item 顶层（信号）
+  \item 内层 1（地平面）
+  \item 内层 2（信号）
+  \item 内层 3（地平面）
+  \item 内层 4（电源平面）
+  \item 内层 5（信号）
+  \item 内层 6（地平面）
+  \item 底层（信号）
+\end{itemize}
+
+\subsection{走线设计}
+
+\subsubsection{走线宽度}
+
+走线宽度影响：
+\begin{itemize}
+  \item 载流能力
+  \item 特性阻抗
+  \item 可制造性
+\end{itemize}
+
+载流能力估算（基于 IPC-2221）：
+
+\begin{equation}
+I = k \Delta T^{0.44} A^{0.725} \label{eq:trace-current}
+\end{equation}
+
+其中：
+\begin{itemize}
+  \item $I$：电流（A）
+  \item $k$：常数（外层 0.048，内层 0.024）
+  \item $\Delta T$：温升（$^\circ$C）
+  \item $A$：横截面积（mil$^2$）
+\end{itemize}
+
+\subsubsection{走线间距}
+
+走线间距影响：
+\begin{itemize}
+  \item 串扰
+  \item 可制造性
+  \item 成本
+\end{itemize}
+
+最小间距通常为：
+\begin{itemize}
+  \item 信号线：3--4 mil（0.075--0.1 mm）
+  \item 电源线：根据电压等级确定
+  \item 差分对：根据阻抗要求确定
+\end{itemize}
+
+\subsubsection{过孔设计}
+
+\paragraph{过孔类型}
+
+\begin{enumerate}
+  \item \textbf{通孔（Through Via）}
+    \begin{itemize}
+      \item 贯穿所有层
+      \item 成本低，但占用空间大
+    \end{itemize}
+
+  \item \textbf{盲孔（Blind Via）}
+    \begin{itemize}
+      \item 从表面到内层
+      \item 节省空间
+    \end{itemize}
+
+  \item \textbf{埋孔（Buried Via）}
+    \begin{itemize}
+      \item 完全在内层
+      \item 最节省空间
+    \end{itemize}
+
+  \item \textbf{微孔（Microvia）}
+    \begin{itemize}
+      \item 直径 < 150 $\mu$m
+      \item 用于 HDI 设计
+    \end{itemize}
+\end{enumerate}
+
+\paragraph{过孔参数}
+
+\begin{itemize}
+  \item 过孔直径：影响成本和可制造性
+  \item 焊盘直径：通常为过孔直径 + 8--12 mil
+  \item 反焊盘（Antipad）：过孔与平面之间的间隙
+\end{itemize}
+
+\subsubsection{走线规则}
+
+\begin{enumerate}
+  \item \textbf{避免锐角}
+    \begin{itemize}
+      \item 使用 45$^\circ$ 或圆弧
+      \item 减少反射和制造问题
+    \end{itemize}
+
+  \item \textbf{避免长距离平行走线}
+    \begin{itemize}
+      \item 减少串扰
+      \item 必要时增加间距或使用地线隔离
+    \end{itemize}
+
+  \item \textbf{关键信号优先}
+    \begin{itemize}
+      \item 时钟、复位等关键信号
+      \item 最短路径
+      \item 远离干扰源
+    \end{itemize}
+
+  \item \textbf{差分对}
+    \begin{itemize}
+      \item 等长走线
+      \item 等间距
+      \item 对称布局
+    \end{itemize}
+\end{enumerate}
+
+\section{信号完整性}
+
+信号完整性（Signal Integrity，SI）是高速 PCB 设计的核心，涉及信号在传输过程中的完整性和质量。
+
+\subsection{传输线理论}
+
+\subsubsection{传输线的基本概念}
+
+当信号上升时间 $t_r$ 满足以下条件时，需要考虑传输线效应：
+
+\begin{equation}
+t_r < 2 \cdot t_{pd} \cdot l \label{eq:transmission-line-condition}
+\end{equation}
+
+其中 $t_{pd}$ 是单位长度的传播延迟，$l$ 是走线长度。
+
+\subsubsection{特性阻抗}
+
+特性阻抗 $Z_0$ 是传输线的重要参数，对于微带线：
+
+\begin{equation}
+Z_0 = \frac{87}{\sqrt{\epsilon_r + 1.41}} \ln\left(\frac{5.98h}{0.8w + t}\right) \label{eq:microstrip-impedance}
+\end{equation}
+
+对于带状线：
+
+\begin{equation}
+Z_0 = \frac{60}{\sqrt{\epsilon_r}} \ln\left(\frac{4h}{0.67\pi(0.8w + t)}\right) \label{eq:stripline-impedance}
+\end{equation}
+
+其中：
+\begin{itemize}
+  \item $w$：走线宽度
+  \item $t$：走线厚度
+  \item $h$：介质厚度
+  \item $\epsilon_r$：介电常数
+\end{itemize}
+
+\subsubsection{传播延迟}
+
+传播延迟 $t_{pd}$ 为：
+
+\begin{equation}
+t_{pd} = \frac{\sqrt{\epsilon_r}}{c} \label{eq:propagation-delay}
+\end{equation}
+
+对于 FR-4 基材（$\epsilon_r \approx 4.4$），$t_{pd} \approx 150$ ps/inch。
+
+\subsection{反射}
+
+\subsubsection{反射系数}
+
+当传输线阻抗不匹配时，会发生反射。反射系数为：
+
+\begin{equation}
+\Gamma = \frac{Z_L - Z_0}{Z_L + Z_0} \label{eq:reflection-coefficient}
+\end{equation}
+
+其中 $Z_L$ 是负载阻抗，$Z_0$ 是特性阻抗。
+
+\subsubsection{反射的影响}
+
+反射会导致：
+\begin{itemize}
+  \item 信号过冲和下冲
+  \item 振铃（Ringing）
+  \item 时序问题
+  \item 信号完整性下降
+\end{itemize}
+
+\subsubsection{阻抗匹配}
+
+\paragraph{源端匹配}
+
+在信号源端串联电阻，使源阻抗等于传输线阻抗：
+
+\begin{equation}
+R_s = Z_0 - R_{out} \label{eq:source-termination}
+\end{equation}
+
+\paragraph{端接匹配}
+
+在负载端并联电阻，使负载阻抗等于传输线阻抗：
+
+\begin{equation}
+R_t = Z_0 \label{eq:termination-resistor}
+\end{equation}
+
+\paragraph{差分阻抗}
+
+差分阻抗 $Z_{diff}$ 为：
+
+\begin{equation}
+Z_{diff} = 2 Z_0 (1 - k) \label{eq:differential-impedance}
+\end{equation}
+
+其中 $k$ 是耦合系数。
+
+\subsection{串扰}
+
+\subsubsection{串扰的机理}
+
+串扰（Crosstalk）是相邻走线之间的相互干扰，包括：
+\begin{itemize}
+  \item 容性耦合
+  \item 感性耦合
+\end{itemize}
+
+\subsubsection{串扰的减小}
+
+\begin{enumerate}
+  \item \textbf{增加间距}
+    \begin{itemize}
+      \item 3W 规则：间距至少为走线宽度的 3 倍
+    \end{itemize}
+
+  \item \textbf{缩短平行长度}
+    \begin{itemize}
+      \item 减少耦合长度
+    \end{itemize}
+
+  \item \textbf{使用地线隔离}
+    \begin{itemize}
+      \item 在敏感信号之间走地线
+    \end{itemize}
+
+  \item \textbf{使用差分信号}
+    \begin{itemize}
+      \item 差分信号抗干扰能力强
+    \end{itemize}
+
+  \item \textbf{层间隔离}
+    \begin{itemize}
+      \item 使用地平面隔离不同层
+    \end{itemize}
+\end{enumerate}
+
+\subsection{时序}
+
+\subsubsection{建立时间和保持时间}
+
+数字信号必须满足建立时间（Setup Time）和保持时间（Hold Time）要求：
+
+\begin{align}
+t_{setup} &< t_{clk} - t_{delay} - t_{skew} \label{eq:setup-time} \\
+t_{hold} &< t_{delay} - t_{skew} \label{eq:hold-time}
+\end{align}
+
+\subsubsection{时钟抖动}
+
+时钟抖动（Jitter）会影响时序裕量，需要：
+\begin{itemize}
+  \item 使用低抖动时钟源
+  \item 良好的时钟分配网络
+  \item 减少干扰
+\end{itemize}
+
+\subsubsection{等长走线}
+
+对于并行总线，需要等长走线以保证时序：
+
+\begin{itemize}
+  \item 数据线和地址线等长
+  \item 时钟和数据等长或固定延迟
+  \item 使用蛇形走线（Serpentine）调整长度
+\end{itemize}
+
+\section{电源完整性}
+
+电源完整性（Power Integrity，PI）确保电源分配网络（PDN）能够为所有元件提供稳定、干净的电源。
+
+\subsection{电源分配网络（PDN）}
+
+\subsubsection{PDN 的组成}
+
+PDN 包括：
+\begin{itemize}
+  \item 电源平面
+  \item 地平面
+  \item 去耦电容
+  \item 过孔
+  \item 走线
+\end{itemize}
+
+\subsubsection{目标阻抗}
+
+PDN 的目标阻抗 $Z_{target}$ 为：
+
+\begin{equation}
+Z_{target} = \frac{V_{DD} \cdot \text{容差}}{I_{max}} \label{eq:target-impedance}
+\end{equation}
+
+例如，对于 3.3 V 电源，5\% 容差，1 A 最大电流：
+
+\begin{equation}
+Z_{target} = \frac{3.3 \times 0.05}{1} = 165 \text{ m}\Omega
+\end{equation}
+
+\subsection{去耦电容}
+
+\subsubsection{去耦电容的作用}
+
+\begin{enumerate}
+  \item \textbf{提供瞬态电流}
+    \begin{itemize}
+      \item 响应快速的电流需求
+    \end{itemize}
+
+  \item \textbf{减小电源噪声}
+    \begin{itemize}
+      \item 滤除高频噪声
+    \end{itemize}
+
+  \item \textbf{降低 PDN 阻抗}
+    \begin{itemize}
+      \item 在特定频率范围内
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{去耦电容的选择}
+
+\begin{enumerate}
+  \item \textbf{大容量电容（Bulk Capacitor）}
+    \begin{itemize}
+      \item 10--100 $\mu$F
+      \item 提供低频去耦
+      \item 通常放在电源入口
+    \end{itemize}
+
+  \item \textbf{中容量电容}
+    \begin{itemize}
+      \item 0.1--1 $\mu$F
+      \item 提供中频去耦
+      \item 通常放在 IC 附近
+    \end{itemize}
+
+  \item \textbf{小容量电容}
+    \begin{itemize}
+      \item 1--100 nF
+      \item 提供高频去耦
+      \item 紧贴 IC 电源引脚
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{去耦电容的布局}
+
+\begin{enumerate}
+  \item \textbf{靠近 IC}
+    \begin{itemize}
+      \item 减小回路电感
+      \item 提高去耦效果
+    \end{itemize}
+
+  \item \textbf{多电容并联}
+    \begin{itemize}
+      \item 覆盖不同频率范围
+      \item 降低总阻抗
+    \end{itemize}
+
+  \item \textbf{过孔位置}
+    \begin{itemize}
+      \item 过孔靠近电容和 IC
+      \item 减小回路面积
+    \end{itemize}
+\end{enumerate}
+
+\subsection{地平面设计}
+
+\subsubsection{地平面的作用}
+
+\begin{itemize}
+  \item 提供低阻抗返回路径
+  \item 减小环路面积
+  \item 屏蔽和隔离
+  \item 散热
+\end{itemize}
+
+\subsubsection{地平面设计原则}
+
+\begin{enumerate}
+  \item \textbf{完整性}
+    \begin{itemize}
+      \item 尽量保持地平面完整
+      \item 避免分割
+    \end{itemize}
+
+  \item \textbf{多点接地}
+    \begin{itemize}
+      \item 数字地和模拟地分开，单点连接
+      \item 或使用统一地平面，但分区
+    \end{itemize}
+
+  \item \textbf{过孔}
+    \begin{itemize}
+      \item 地过孔靠近信号过孔
+      \item 提供返回路径
+    \end{itemize}
+\end{enumerate}
+
+\subsection{电源平面分割}
+
+\subsubsection{分割原则}
+
+\begin{enumerate}
+  \item \textbf{不同电压分开}
+    \begin{itemize}
+      \item 不同电压等级使用不同平面或区域
+    \end{itemize}
+
+  \item \textbf{保持完整性}
+    \begin{itemize}
+      \item 避免过度分割
+      \item 考虑电流路径
+    \end{itemize}
+
+  \item \textbf{跨分割}
+    \begin{itemize}
+      \item 避免信号跨电源平面分割
+      \item 使用去耦电容桥接
+    \end{itemize}
+\end{enumerate}
+
+\section{电磁兼容性（EMC）}
+
+电磁兼容性（Electromagnetic Compatibility，EMC）包括：
+\begin{itemize}
+  \item 电磁干扰（EMI）：设备产生的干扰
+  \item 电磁敏感性（EMS）：设备对外界干扰的抵抗能力
+\end{itemize}
+
+\subsection{EMI 的产生机理}
+
+\subsubsection{差模和共模}
+
+\begin{enumerate}
+  \item \textbf{差模（Differential Mode）}
+    \begin{itemize}
+      \item 信号线和返回路径之间的电流
+      \item 主要产生近场干扰
+    \end{itemize}
+
+  \item \textbf{共模（Common Mode）}
+    \begin{itemize}
+      \item 信号线和地之间的共模电流
+      \item 主要产生远场辐射
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{辐射路径}
+
+\begin{itemize}
+  \item 走线作为天线
+  \item 环路辐射
+  \item 共模电流
+\end{itemize}
+
+\subsection{EMC 设计方法}
+
+\subsubsection{减小环路面积}
+
+\begin{itemize}
+  \item 信号和返回路径靠近
+  \item 使用地平面
+  \item 缩短走线长度
+\end{itemize}
+
+\subsubsection{滤波}
+
+\begin{itemize}
+  \item 电源滤波
+  \item 信号滤波
+  \item 使用磁珠、共模扼流圈
+\end{itemize}
+
+\subsubsection{屏蔽}
+
+\begin{itemize}
+  \item 使用屏蔽层
+  \item 屏蔽罩
+  \item 屏蔽走线
+\end{itemize}
+
+\subsubsection{布局和走线}
+
+\begin{itemize}
+  \item 敏感电路远离干扰源
+  \item 时钟电路特殊处理
+  \item 使用地线隔离
+\end{itemize}
+
+\section{热设计}
+
+\subsection{热设计的重要性}
+
+电子元件在工作时会产生热量，如果散热不当，会导致：
+\begin{itemize}
+  \item 元件温度过高，性能下降
+  \item 可靠性降低
+  \item 寿命缩短
+\end{itemize}
+
+\subsection{热阻}
+
+\subsubsection{热阻的定义}
+
+热阻 $R_{\theta}$ 定义为：
+
+\begin{equation}
+R_{\theta} = \frac{\Delta T}{P} \label{eq:thermal-resistance}
+\end{equation}
+
+其中 $\Delta T$ 是温差，$P$ 是功耗。
+
+\subsubsection{热阻网络}
+
+总热阻为各热阻之和：
+
+\begin{equation}
+R_{\theta,total} = R_{\theta,JC} + R_{\theta,CS} + R_{\theta,SA} \label{eq:total-thermal-resistance}
+\end{equation}
+
+其中：
+\begin{itemize}
+  \item $R_{\theta,JC}$：结到外壳热阻
+  \item $R_{\theta,CS}$：外壳到散热器热阻
+  \item $R_{\theta,SA}$：散热器到环境热阻
+\end{itemize}
+
+\subsection{散热方法}
+
+\subsubsection{自然对流}
+
+\begin{itemize}
+  \item 利用空气自然流动
+  \item 适用于低功耗应用
+  \item 需要足够的空间和通风
+\end{itemize}
+
+\subsubsection{强制对流}
+
+\begin{itemize}
+  \item 使用风扇
+  \item 提高散热效率
+  \item 适用于高功耗应用
+\end{itemize}
+
+\subsubsection{热设计措施}
+
+\begin{enumerate}
+  \item \textbf{PCB 设计}
+    \begin{itemize}
+      \item 使用大面积铜箔
+      \item 热过孔（Thermal Via）
+      \item 发热元件分散放置
+    \end{itemize}
+
+  \item \textbf{元件选择}
+    \begin{itemize}
+      \item 选择低功耗元件
+      \item 选择热阻小的封装
+    \end{itemize}
+
+  \item \textbf{散热器}
+    \begin{itemize}
+      \item 选择合适的散热器
+      \item 良好的热接触
+    \end{itemize}
+\end{enumerate}
+
+\section{高速 PCB 设计}
+
+高速 PCB 设计需要考虑信号完整性、电源完整性、EMC 等多个方面。
+
+\subsection{高速信号的定义}
+
+当信号上升时间满足以下条件时，需要考虑高速设计：
+
+\begin{equation}
+t_r < \frac{1}{6 f_{max}} \label{eq:high-speed-condition}
+\end{equation}
+
+或走线长度满足：
+
+\begin{equation}
+l > \frac{t_r \cdot v}{6} \label{eq:high-speed-length}
+\end{equation}
+
+\subsection{差分信号}
+
+\subsubsection{差分信号的优势}
+
+\begin{itemize}
+  \item 抗共模干扰
+  \item 减小 EMI
+  \item 提高信号质量
+  \item 降低电压摆幅
+\end{itemize}
+
+\subsubsection{差分对设计}
+
+\begin{enumerate}
+  \item \textbf{等长}
+    \begin{itemize}
+      \item 长度差 < 5 mil（0.127 mm）
+    \end{itemize}
+
+  \item \textbf{等间距}
+    \begin{itemize}
+      \item 保持一致的间距
+      \item 控制差分阻抗
+    \end{itemize}
+
+  \item \textbf{对称}
+    \begin{itemize}
+      \item 对称布局
+      \item 对称过孔
+    \end{itemize}
+
+  \item \textbf{参考平面}
+    \begin{itemize}
+      \item 完整的参考平面
+      \item 避免跨分割
+    \end{itemize}
+\end{enumerate}
+
+\subsection{时钟设计}
+
+\subsubsection{时钟分配}
+
+\begin{enumerate}
+  \item \textbf{时钟树}
+    \begin{itemize}
+      \item 使用时钟树分配
+      \item 等长分支
+    \end{itemize}
+
+  \item \textbf{时钟缓冲器}
+    \begin{itemize}
+      \item 使用专用时钟缓冲器
+      \item 低抖动
+    \end{itemize}
+
+  \item \textbf{时钟走线}
+    \begin{itemize}
+      \item 最短路径
+      \item 远离干扰源
+      \item 使用地线保护
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{时钟抖动}
+
+时钟抖动会影响时序，需要：
+\begin{itemize}
+  \item 使用低抖动时钟源
+  \item 良好的电源去耦
+  \item 减少干扰
+\end{itemize}
+
+\subsection{高速接口设计}
+
+\subsubsection{常见高速接口}
+
+\begin{enumerate}
+  \item \textbf{PCIe}
+    \begin{itemize}
+      \item 差分阻抗：85 $\Omega$
+      \item 等长要求严格
+    \end{itemize}
+
+  \item \textbf{USB}
+    \begin{itemize}
+      \item USB 2.0：差分阻抗 90 $\Omega$
+      \item USB 3.0：更严格的要求
+    \end{itemize}
+
+  \item \textbf{SATA}
+    \begin{itemize}
+      \item 差分阻抗：100 $\Omega$
+      \item 高速串行接口
+    \end{itemize}
+
+  \item \textbf{DDR}
+    \begin{itemize}
+      \item 单端阻抗：50 $\Omega$
+      \item 严格的等长要求
+      \item 拓扑结构重要
+    \end{itemize}
+
+  \item \textbf{HDMI}
+    \begin{itemize}
+      \item 差分阻抗：100 $\Omega$
+      \item 高速视频接口
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{接口设计要点}
+
+\begin{enumerate}
+  \item \textbf{阻抗控制}
+    \begin{itemize}
+      \item 严格按照规范设计阻抗
+      \item 使用阻抗计算工具
+      \item 与 PCB 厂商确认
+    \end{itemize}
+
+  \item \textbf{等长}
+    \begin{itemize}
+      \item 数据线等长
+      \item 时钟和数据等长或固定延迟
+    \end{itemize}
+
+  \item \textbf{去耦}
+    \begin{itemize}
+      \item 充分的去耦电容
+      \item 靠近接口芯片
+    \end{itemize}
+
+  \item \textbf{ESD 保护}
+    \begin{itemize}
+      \item 接口处添加 ESD 保护器件
+    \end{itemize}
+\end{enumerate}
+
+\subsection{背板设计}
+
+背板（Backplane）用于连接多个板卡，设计要点：
+
+\begin{enumerate}
+  \item \textbf{连接器}
+    \begin{itemize}
+      \item 选择高速连接器
+      \item 考虑机械可靠性
+    \end{itemize}
+
+  \item \textbf{走线}
+    \begin{itemize}
+      \item 严格控制阻抗
+      \item 等长走线
+    \end{itemize}
+
+  \item \textbf{层叠}
+    \begin{itemize}
+      \item 通常需要更多层
+      \item 专用信号层
+    \end{itemize}
+\end{enumerate}
+
+\section{射频 PCB 设计}
+
+射频（RF）PCB 设计有特殊的要求和考虑。
+
+\subsection{射频设计特点}
+
+\begin{enumerate}
+  \item \textbf{频率高}
+    \begin{itemize}
+      \item 通常 > 100 MHz
+      \item 需要考虑分布参数
+    \end{itemize}
+
+  \item \textbf{阻抗匹配}
+    \begin{itemize}
+      \item 50 $\Omega$ 或 75 $\Omega$ 系统阻抗
+      \item 严格的阻抗控制
+    \end{itemize}
+
+  \item \textbf{损耗敏感}
+    \begin{itemize}
+      \item 使用低损耗基材
+      \item 减小走线损耗
+    \end{itemize}
+\end{enumerate}
+
+\subsection{射频布局}
+
+\begin{enumerate}
+  \item \textbf{分区}
+    \begin{itemize}
+      \item RF 电路单独分区
+      \item 物理隔离
+    \end{itemize}
+
+  \item \textbf{走线}
+    \begin{itemize}
+      \item 最短路径
+      \item 避免直角
+      \item 使用圆弧或切角
+    \end{itemize}
+
+  \item \textbf{过孔}
+    \begin{itemize}
+      \item 尽量减少过孔
+      \item 过孔会增加寄生参数
+    \end{itemize}
+\end{enumerate}
+
+\subsection{射频基材}
+
+\begin{itemize}
+  \item Rogers 系列：RO4003、RO4350 等
+  \item Taconic 系列
+  \item 低介电常数和损耗
+  \item 温度稳定性好
+\end{itemize}
+
+\section{可制造性设计（DFM）}
+
+可制造性设计（Design for Manufacturing，DFM）确保设计能够顺利制造。
+
+\subsection{DFM 原则}
+
+\begin{enumerate}
+  \item \textbf{最小线宽和间距}
+    \begin{itemize}
+      \item 符合制造能力
+      \item 留有余量
+    \end{itemize}
+
+  \item \textbf{过孔设计}
+    \begin{itemize}
+      \item 过孔尺寸合理
+      \item 过孔密度适中
+    \end{itemize}
+
+  \item \textbf{阻焊设计}
+    \begin{itemize}
+      \item 阻焊开窗合适
+      \item 避免阻焊桥
+    \end{itemize}
+
+  \item \textbf{丝印}
+    \begin{itemize}
+      \item 清晰可读
+      \item 不覆盖焊盘
+    \end{itemize}
+
+  \item \textbf{测试点}
+    \begin{itemize}
+      \item 关键信号添加测试点
+      \item 便于调试和测试
+    \end{itemize}
+\end{enumerate}
+
+\subsection{拼板设计}
+
+对于小尺寸 PCB，通常需要拼板：
+
+\begin{itemize}
+  \item 提高制造效率
+  \item 降低成本
+  \item 添加工艺边
+  \item 使用 V-cut 或邮票孔
+\end{itemize}
+
+\section{测试和调试}
+
+\subsection{测试方法}
+
+\begin{enumerate}
+  \item \textbf{电气测试}
+    \begin{itemize}
+      \item 飞针测试
+      \item 针床测试
+      \item 边界扫描（JTAG）
+    \end{itemize}
+
+  \item \textbf{功能测试}
+    \begin{itemize}
+      \item 上电测试
+      \item 功能验证
+    \end{itemize}
+
+  \item \textbf{信号完整性测试}
+    \begin{itemize}
+      \item 使用示波器
+      \item TDR（时域反射计）
+      \item 网络分析仪
+    \end{itemize}
+\end{enumerate}
+
+\subsection{调试技巧}
+
+\begin{enumerate}
+  \item \textbf{测试点}
+    \begin{itemize}
+      \item 关键信号预留测试点
+      \item 便于测量
+    \end{itemize}
+
+  \item \textbf{跳线}
+    \begin{itemize}
+      \item 预留跳线位置
+      \item 便于修改
+    \end{itemize}
+
+  \item \textbf{指示灯}
+    \begin{itemize}
+      \item 电源指示
+      \item 状态指示
+    \end{itemize}
+
+  \item \textbf{调试接口}
+    \begin{itemize}
+      \item JTAG 接口
+      \item UART 接口
+      \item 便于调试
+    \end{itemize}
+\end{enumerate}
+
+\section{设计工具和流程}
+
+\subsection{常用设计工具}
+
+\begin{enumerate}
+  \item \textbf{原理图工具}
+    \begin{itemize}
+      \item Altium Designer
+      \item Cadence OrCAD
+      \item KiCad（开源）
+    \end{itemize}
+
+  \item \textbf{PCB 布局工具}
+    \begin{itemize}
+      \item Altium Designer
+      \item Cadence Allegro
+      \item Mentor PADS
+      \item KiCad（开源）
+    \end{itemize}
+
+  \item \textbf{仿真工具}
+    \begin{itemize}
+      \item SPICE 仿真
+      \item SI/PI 仿真工具
+      \item 3D EM 仿真
+    \end{itemize}
+\end{enumerate}
+
+\subsection{设计流程}
+
+\begin{enumerate}
+  \item \textbf{需求分析}
+    \begin{itemize}
+      \item 功能需求
+      \item 性能指标
+      \item 约束条件
+    \end{itemize}
+
+  \item \textbf{原理图设计}
+    \begin{itemize}
+      \item 电路设计
+      \item 元件选型
+      \item 仿真验证
+    \end{itemize}
+
+  \item \textbf{PCB 布局}
+    \begin{itemize}
+      \item 元件布局
+      \item 走线设计
+      \item 层叠设计
+    \end{itemize}
+
+  \item \textbf{仿真验证}
+    \begin{itemize}
+      \item SI 仿真
+      \item PI 仿真
+      \item EMC 仿真
+    \end{itemize}
+
+  \item \textbf{设计评审}
+    \begin{itemize}
+      \item DRC 检查
+      \item 设计评审
+      \item 修改完善
+    \end{itemize}
+
+  \item \textbf{制造文件}
+    \begin{itemize}
+      \item Gerber 文件
+      \item 钻孔文件
+      \item 装配图
+      \item BOM
+    \end{itemize}
+
+  \item \textbf{制造和测试}
+    \begin{itemize}
+      \item PCB 制造
+      \item 元件贴装
+      \item 测试验证
+    \end{itemize}
+\end{enumerate}
+
+\section{设计检查清单}
+
+\subsection{原理图检查}
+
+\begin{enumerate}
+  \item 所有网络连接正确
+  \item 电源和地网络完整
+  \item 元件参数正确
+  \item 封装指定正确
+  \item 设计规则检查通过
+\end{enumerate}
+
+\subsection{PCB 检查}
+
+\begin{enumerate}
+  \item DRC 检查通过
+  \item 阻抗控制正确
+  \item 等长走线满足要求
+  \item 去耦电容充分
+  \item 地平面完整
+  \item 电源分配合理
+  \item 热设计考虑
+  \item EMC 考虑
+  \item DFM 检查通过
+  \item 测试点充分
+\end{enumerate}
+
+\section{总结}
+
+PCB 设计是一个复杂的系统工程，需要综合考虑电气性能、机械结构、热设计、EMC、可制造性等多个方面。随着电子系统向高速、高密度、多功能方向发展，PCB 设计的挑战也在不断增加。掌握系统化的设计方法和工具，遵循设计规范和最佳实践，是成功完成 PCB 设计的关键。

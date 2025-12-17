@@ -1,29 +1,2385 @@
 \chapter{数据结构与算法}
 
+数据结构与算法是计算机科学的核心基础，也是嵌入式系统开发中不可或缺的知识。
+本章系统介绍各种数据结构的实现原理、应用场景和性能特征，以及常用算法的设计思想、实现方法和复杂度分析。
+掌握这些知识对于编写高效、可靠的嵌入式软件至关重要。
+
+\section{算法复杂度分析}
+
+在讨论具体的数据结构和算法之前，我们需要建立评估算法性能的标准。
+算法复杂度分析帮助我们理解算法在不同输入规模下的性能表现，是选择合适算法的重要依据。
+
+\subsection{时间复杂度}
+
+\BlockDesc{时间复杂度}
+
+时间复杂度（Time Complexity）描述算法执行时间随输入规模增长的趋势。
+我们使用大 O 记号（Big-O notation）来表示时间复杂度，它描述了算法在最坏情况下的渐近行为。
+
+常见的时间复杂度：
+
+\begin{enumerate}
+  \item \textbf{O(1) - 常数时间}
+    \begin{itemize}
+      \item 无论输入规模多大，执行时间都是常数
+      \item 例如：数组索引访问、哈希表查找（平均情况）
+    \end{itemize}
+
+  \item \textbf{O(log n) - 对数时间}
+    \begin{itemize}
+      \item 执行时间随输入规模的对数增长
+      \item 例如：二分查找、平衡二叉树的查找
+    \end{itemize}
+
+  \item \textbf{O(n) - 线性时间}
+    \begin{itemize}
+      \item 执行时间与输入规模成正比
+      \item 例如：遍历数组、链表查找
+    \end{itemize}
+
+  \item \textbf{O(n log n) - 线性对数时间}
+    \begin{itemize}
+      \item 执行时间介于线性和平方之间
+      \item 例如：归并排序、快速排序（平均情况）、堆排序
+    \end{itemize}
+
+  \item \textbf{O(n²) - 平方时间}
+    \begin{itemize}
+      \item 执行时间与输入规模的平方成正比
+      \item 例如：冒泡排序、选择排序、插入排序、嵌套循环
+    \end{itemize}
+
+  \item \textbf{O(2ⁿ) - 指数时间}
+    \begin{itemize}
+      \item 执行时间随输入规模指数增长
+      \item 例如：递归计算斐波那契数列（朴素实现）、穷举搜索
+    \end{itemize}
+
+  \item \textbf{O(n!) - 阶乘时间}
+    \begin{itemize}
+      \item 执行时间随输入规模阶乘增长
+      \item 例如：生成所有排列、旅行商问题的暴力解法
+    \end{itemize}
+\end{enumerate}
+
+\subsection{空间复杂度}
+
+\BlockDesc{空间复杂度}
+
+空间复杂度（Space Complexity）描述算法所需内存空间随输入规模增长的趋势。
+同样使用大 O 记号表示。
+
+空间复杂度包括：
+\begin{itemize}
+  \item \textbf{输入空间}：存储输入数据所需的空间
+  \item \textbf{辅助空间}：算法执行过程中额外使用的空间
+  \item 通常我们关注的是辅助空间复杂度
+\end{itemize}
+
+示例：
+\begin{enumerate}
+  \item \textbf{O(1)}：原地排序算法（如快速排序的某些实现）
+  \item \textbf{O(n)}：需要额外数组的归并排序
+  \item \textbf{O(log n)}：递归调用栈的深度（如快速排序的递归实现）
+\end{enumerate}
+
+\subsection{复杂度分析技巧}
+
+\begin{enumerate}
+  \item \textbf{最坏情况分析}
+    \begin{itemize}
+      \item 分析算法在最坏输入下的性能
+      \item 保证算法在任何情况下都不会超过这个界限
+    \end{itemize}
+
+  \item \textbf{平均情况分析}
+    \begin{itemize}
+      \item 分析算法在随机输入下的期望性能
+      \item 需要知道输入数据的概率分布
+    \end{itemize}
+
+  \item \textbf{最好情况分析}
+    \begin{itemize}
+      \item 分析算法在最优输入下的性能
+      \item 通常用于理解算法的下界
+    \end{itemize}
+
+  \item \textbf{摊还分析}
+    \begin{itemize}
+      \item 分析一系列操作的平均成本
+      \item 适用于动态数组扩容、哈希表重哈希等场景
+    \end{itemize}
+\end{enumerate}
+
 \section{数据结构}
 
-\subsection{堆栈}
+数据结构是组织和存储数据的方式，不同的数据结构适用于不同的应用场景。
+选择合适的数据结构可以显著提高程序的效率和可维护性。
+
+\subsection{数组}
+
+\BlockDesc{数组}
+
+数组（Array）是最基本的数据结构，是一组连续内存空间存储的相同类型元素的集合。
+
+特点：
+\begin{itemize}
+  \item 支持随机访问，时间复杂度 O(1)
+  \item 插入和删除操作需要移动元素，时间复杂度 O(n)
+  \item 内存连续，缓存友好
+  \item 大小固定（静态数组）或可动态调整（动态数组）
+\end{itemize}
+
+动态数组实现要点：
+\begin{enumerate}
+  \item 初始分配一定大小的内存空间
+  \item 当空间不足时，分配更大的空间（通常是原来的 2 倍）
+  \item 将原有数据复制到新空间
+  \item 释放旧空间
+  \item 摊还分析：单次插入操作的平均时间复杂度为 O(1)
+\end{enumerate}
+
+C 语言实现示例：
+
+\begin{lstlisting}[language=C, caption={动态数组实现}]
+typedef struct {
+    int *data;
+    size_t size;
+    size_t capacity;
+} DynamicArray;
+
+DynamicArray* da_create(size_t initial_capacity) {
+    DynamicArray *da = malloc(sizeof(DynamicArray));
+    da->data = malloc(initial_capacity * sizeof(int));
+    da->size = 0;
+    da->capacity = initial_capacity;
+    return da;
+}
+
+void da_push(DynamicArray *da, int value) {
+    if (da->size >= da->capacity) {
+        da->capacity *= 2;
+        da->data = realloc(da->data, da->capacity * sizeof(int));
+    }
+    da->data[da->size++] = value;
+}
+
+int da_get(DynamicArray *da, size_t index) {
+    if (index >= da->size) return -1; // 错误处理
+    return da->data[index];
+}
+\end{lstlisting}
 
 \subsection{链表}
 
+\BlockDesc{链表}
+
+链表（Linked List）是一种动态数据结构，通过指针将节点连接起来。
+每个节点包含数据和指向下一个节点的指针。
+
+特点：
+\begin{itemize}
+  \item 动态大小，无需预先分配内存
+  \item 插入和删除操作时间复杂度 O(1)（已知节点位置）
+  \item 不支持随机访问，查找需要 O(n)
+  \item 内存不连续，缓存性能较差
+\end{itemize}
+
+\subsubsection{单向链表}
+
+单向链表（Singly Linked List）的每个节点只有一个指向下一个节点的指针。
+
+\begin{lstlisting}[language=C, caption={单向链表实现}]
+typedef struct Node {
+    int data;
+    struct Node *next;
+} Node;
+
+typedef struct {
+    Node *head;
+    size_t size;
+} LinkedList;
+
+LinkedList* list_create() {
+    LinkedList *list = malloc(sizeof(LinkedList));
+    list->head = NULL;
+    list->size = 0;
+    return list;
+}
+
+void list_insert(LinkedList *list, int value) {
+    Node *new_node = malloc(sizeof(Node));
+    new_node->data = value;
+    new_node->next = list->head;
+    list->head = new_node;
+    list->size++;
+}
+
+Node* list_find(LinkedList *list, int value) {
+    Node *current = list->head;
+    while (current != NULL) {
+        if (current->data == value) {
+            return current;
+        }
+        current = current->next;
+    }
+    return NULL;
+}
+
+void list_delete(LinkedList *list, int value) {
+    if (list->head == NULL) return;
+
+    if (list->head->data == value) {
+        Node *temp = list->head;
+        list->head = list->head->next;
+        free(temp);
+        list->size--;
+        return;
+    }
+
+    Node *current = list->head;
+    while (current->next != NULL) {
+        if (current->next->data == value) {
+            Node *temp = current->next;
+            current->next = current->next->next;
+            free(temp);
+            list->size--;
+            return;
+        }
+        current = current->next;
+    }
+}
+\end{lstlisting}
+
+\subsubsection{双向链表}
+
+双向链表（Doubly Linked List）的每个节点有两个指针，分别指向前一个和后一个节点。
+
+优势：
+\begin{itemize}
+  \item 可以从两个方向遍历
+  \item 删除节点时不需要前驱节点
+  \item 支持 O(1) 时间复杂度的前向和后向遍历
+\end{itemize}
+
+\subsubsection{循环链表}
+
+循环链表（Circular Linked List）的尾节点指向头节点，形成一个环。
+
+应用场景：
+\begin{itemize}
+  \item 轮询调度算法
+  \item 实现队列（使用循环链表可以避免头尾指针的边界处理）
+  \item 约瑟夫问题
+\end{itemize}
+
+\subsection{栈}
+
+\BlockDesc{栈}
+
+栈（Stack）是一种后进先出（LIFO, Last In First Out）的数据结构。
+只允许在栈顶进行插入和删除操作。
+
+操作：
+\begin{itemize}
+  \item \texttt{push}：将元素压入栈顶，O(1)
+  \item \texttt{pop}：弹出栈顶元素，O(1)
+  \item \texttt{top/peek}：查看栈顶元素，O(1)
+  \item \texttt{empty}：判断栈是否为空，O(1)
+\end{itemize}
+
+应用场景：
+\begin{enumerate}
+  \item \textbf{函数调用栈}
+    \begin{itemize}
+      \item 保存函数调用的返回地址和局部变量
+      \item 支持递归调用
+    \end{itemize}
+
+  \item \textbf{表达式求值}
+    \begin{itemize}
+      \item 中缀表达式转后缀表达式
+      \item 后缀表达式求值
+      \item 括号匹配检查
+    \end{itemize}
+
+  \item \textbf{回溯算法}
+    \begin{itemize}
+      \item 深度优先搜索（DFS）
+      \item 迷宫求解
+    \end{itemize}
+
+  \item \textbf{撤销操作}
+    \begin{itemize}
+      \item 文本编辑器的撤销功能
+      \item 浏览器的后退功能
+    \end{itemize}
+\end{enumerate}
+
+实现方式：
+\begin{enumerate}
+  \item \textbf{数组实现}
+    \begin{itemize}
+      \item 使用数组和栈顶指针
+      \item 需要处理数组扩容问题
+    \end{itemize}
+
+  \item \textbf{链表实现}
+    \begin{itemize}
+      \item 使用链表头作为栈顶
+      \item 动态大小，无需扩容
+    \end{itemize}
+\end{enumerate}
+
+\begin{lstlisting}[language=C, caption={栈的数组实现}]
+typedef struct {
+    int *data;
+    size_t top;
+    size_t capacity;
+} Stack;
+
+Stack* stack_create(size_t capacity) {
+    Stack *s = malloc(sizeof(Stack));
+    s->data = malloc(capacity * sizeof(int));
+    s->top = 0;
+    s->capacity = capacity;
+    return s;
+}
+
+void stack_push(Stack *s, int value) {
+    if (s->top >= s->capacity) {
+        // 扩容处理
+        s->capacity *= 2;
+        s->data = realloc(s->data, s->capacity * sizeof(int));
+    }
+    s->data[s->top++] = value;
+}
+
+int stack_pop(Stack *s) {
+    if (s->top == 0) {
+        return -1; // 栈空
+    }
+    return s->data[--s->top];
+}
+
+int stack_top(Stack *s) {
+    if (s->top == 0) {
+        return -1;
+    }
+    return s->data[s->top - 1];
+}
+\end{lstlisting}
+
+\subsection{队列}
+
+\BlockDesc{队列}
+
+队列（Queue）是一种先进先出（FIFO, First In First Out）的数据结构。
+元素从队尾入队，从队头出队。
+
+操作：
+\begin{itemize}
+  \item \texttt{enqueue}：将元素加入队尾，O(1)
+  \item \texttt{dequeue}：从队头移除元素，O(1)
+  \item \texttt{front}：查看队头元素，O(1)
+  \item \texttt{empty}：判断队列是否为空，O(1)
+\end{itemize}
+
+应用场景：
+\begin{enumerate}
+  \item \textbf{任务调度}
+    \begin{itemize}
+      \item 操作系统的进程调度
+      \item 打印队列
+    \end{itemize}
+
+  \item \textbf{广度优先搜索（BFS）}
+    \begin{itemize}
+      \item 图的遍历
+      \item 最短路径问题
+    \end{itemize}
+
+  \item \textbf{消息队列}
+    \begin{itemize}
+      \item 生产者-消费者模型
+      \item 异步任务处理
+    \end{itemize}
+
+  \item \textbf{缓冲区}
+    \begin{itemize}
+      \item 网络数据包缓冲
+      \item I/O 缓冲区
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{循环队列}
+
+循环队列（Circular Queue）使用固定大小的数组，通过模运算实现循环使用。
+
+优势：
+\begin{itemize}
+  \item 避免数组实现的假溢出问题
+  \item 充分利用数组空间
+  \item 实现简单高效
+\end{itemize}
+
+实现要点：
+\begin{itemize}
+  \item 使用 \texttt{(front + 1) \% capacity} 计算下一个位置
+  \item 区分队列满和队列空的状态（使用计数器或预留一个空位）
+\end{itemize}
+
+\begin{lstlisting}[language=C, caption={循环队列实现}]
+typedef struct {
+    int *data;
+    size_t front;
+    size_t rear;
+    size_t size;
+    size_t capacity;
+} CircularQueue;
+
+CircularQueue* queue_create(size_t capacity) {
+    CircularQueue *q = malloc(sizeof(CircularQueue));
+    q->data = malloc(capacity * sizeof(int));
+    q->front = 0;
+    q->rear = 0;
+    q->size = 0;
+    q->capacity = capacity;
+    return q;
+}
+
+void queue_enqueue(CircularQueue *q, int value) {
+    if (q->size >= q->capacity) {
+        return; // 队列满
+    }
+    q->data[q->rear] = value;
+    q->rear = (q->rear + 1) % q->capacity;
+    q->size++;
+}
+
+int queue_dequeue(CircularQueue *q) {
+    if (q->size == 0) {
+        return -1; // 队列空
+    }
+    int value = q->data[q->front];
+    q->front = (q->front + 1) % q->capacity;
+    q->size--;
+    return value;
+}
+\end{lstlisting}
+
+\subsubsection{双端队列}
+
+双端队列（Deque, Double-Ended Queue）允许在两端进行插入和删除操作。
+
+操作：
+\begin{itemize}
+  \item \texttt{push\_front}：在队头插入
+  \item \texttt{push\_back}：在队尾插入
+  \item \texttt{pop\_front}：从队头删除
+  \item \texttt{pop\_back}：从队尾删除
+\end{itemize}
+
 \subsection{树}
 
-\subsection{Hash}
+\BlockDesc{树}
 
-\subsection{Bitmaps}
+树（Tree）是一种层次化的数据结构，由节点和边组成。
+每个节点有零个或多个子节点，除了根节点外，每个节点都有一个父节点。
+
+术语：
+\begin{itemize}
+  \item \textbf{节点（Node）}：树的基本单元
+  \item \textbf{根节点（Root）}：没有父节点的节点
+  \item \textbf{叶子节点（Leaf）}：没有子节点的节点
+  \item \textbf{内部节点（Internal Node）}：有子节点的节点
+  \item \textbf{深度（Depth）}：从根到节点的路径长度
+  \item \textbf{高度（Height）}：从节点到最远叶子节点的路径长度
+  \item \textbf{度（Degree）}：节点的子节点数量
+  \item \textbf{层（Level）}：根节点为第 0 层，每向下一层加 1
+\end{itemize}
+
+\subsubsection{二叉树}
+
+二叉树（Binary Tree）是每个节点最多有两个子节点的树结构。
+
+性质：
+\begin{itemize}
+  \item 第 $i$ 层最多有 $2^i$ 个节点
+  \item 深度为 $k$ 的二叉树最多有 $2^{k+1} - 1$ 个节点
+  \item 对于有 $n$ 个节点的二叉树，最小高度为 $\lfloor \log_2 n \rfloor$
+\end{itemize}
+
+遍历方式：
+\begin{enumerate}
+  \item \textbf{前序遍历（Pre-order）}
+    \begin{itemize}
+      \item 访问顺序：根 → 左子树 → 右子树
+      \item 应用：复制树、前缀表达式
+    \end{itemize}
+
+  \item \textbf{中序遍历（In-order）}
+    \begin{itemize}
+      \item 访问顺序：左子树 → 根 → 右子树
+      \item 应用：二叉搜索树的有序输出
+    \end{itemize}
+
+  \item \textbf{后序遍历（Post-order）}
+    \begin{itemize}
+      \item 访问顺序：左子树 → 右子树 → 根
+      \item 应用：删除树、后缀表达式
+    \end{itemize}
+
+  \item \textbf{层序遍历（Level-order）}
+    \begin{itemize}
+      \item 按层从上到下、从左到右访问
+      \item 使用队列实现
+    \end{itemize}
+\end{enumerate}
+
+\begin{lstlisting}[language=C, caption={二叉树节点定义和遍历}]
+typedef struct TreeNode {
+    int data;
+    struct TreeNode *left;
+    struct TreeNode *right;
+} TreeNode;
+
+// 前序遍历
+void preorder_traverse(TreeNode *root) {
+    if (root == NULL) return;
+    printf("%d ", root->data);
+    preorder_traverse(root->left);
+    preorder_traverse(root->right);
+}
+
+// 中序遍历
+void inorder_traverse(TreeNode *root) {
+    if (root == NULL) return;
+    inorder_traverse(root->left);
+    printf("%d ", root->data);
+    inorder_traverse(root->right);
+}
+
+// 后序遍历
+void postorder_traverse(TreeNode *root) {
+    if (root == NULL) return;
+    postorder_traverse(root->left);
+    postorder_traverse(root->right);
+    printf("%d ", root->data);
+}
+
+// 层序遍历
+void levelorder_traverse(TreeNode *root) {
+    if (root == NULL) return;
+
+    CircularQueue *q = queue_create(100);
+    queue_enqueue(q, (int)root);
+
+    while (q->size > 0) {
+        TreeNode *node = (TreeNode*)queue_dequeue(q);
+        printf("%d ", node->data);
+
+        if (node->left != NULL) {
+            queue_enqueue(q, (int)node->left);
+        }
+        if (node->right != NULL) {
+            queue_enqueue(q, (int)node->right);
+        }
+    }
+}
+\end{lstlisting}
+
+\subsubsection{二叉搜索树}
+
+二叉搜索树（Binary Search Tree, BST）是一种特殊的二叉树，满足：
+\begin{itemize}
+  \item 左子树所有节点的值小于根节点的值
+  \item 右子树所有节点的值大于根节点的值
+  \item 左右子树也都是二叉搜索树
+\end{itemize}
+
+操作复杂度：
+\begin{itemize}
+  \item 查找：O(h)，h 为树的高度
+  \item 插入：O(h)
+  \item 删除：O(h)
+  \item 最坏情况（退化为链表）：O(n)
+  \item 最好情况（平衡树）：O(log n)
+\end{itemize}
+
+\begin{lstlisting}[language=C, caption={二叉搜索树操作}]
+TreeNode* bst_search(TreeNode *root, int key) {
+    if (root == NULL || root->data == key) {
+        return root;
+    }
+    if (key < root->data) {
+        return bst_search(root->left, key);
+    } else {
+        return bst_search(root->right, key);
+    }
+}
+
+TreeNode* bst_insert(TreeNode *root, int key) {
+    if (root == NULL) {
+        TreeNode *node = malloc(sizeof(TreeNode));
+        node->data = key;
+        node->left = node->right = NULL;
+        return node;
+    }
+
+    if (key < root->data) {
+        root->left = bst_insert(root->left, key);
+    } else if (key > root->data) {
+        root->right = bst_insert(root->right, key);
+    }
+    return root;
+}
+
+TreeNode* bst_delete(TreeNode *root, int key) {
+    if (root == NULL) return root;
+
+    if (key < root->data) {
+        root->left = bst_delete(root->left, key);
+    } else if (key > root->data) {
+        root->right = bst_delete(root->right, key);
+    } else {
+        // 找到要删除的节点
+        if (root->left == NULL) {
+            TreeNode *temp = root->right;
+            free(root);
+            return temp;
+        } else if (root->right == NULL) {
+            TreeNode *temp = root->left;
+            free(root);
+            return temp;
+        }
+
+        // 有两个子节点，找到右子树的最小值
+        TreeNode *temp = root->right;
+        while (temp->left != NULL) {
+            temp = temp->left;
+        }
+        root->data = temp->data;
+        root->right = bst_delete(root->right, temp->data);
+    }
+    return root;
+}
+\end{lstlisting}
+
+\subsubsection{平衡二叉树}
+
+平衡二叉树（Balanced Binary Tree）通过旋转操作保持树的平衡，避免退化为链表。
+
+\paragraph{AVL 树}
+
+AVL 树是最早的自平衡二叉搜索树，得名于其发明者 Adelson-Velsky 和 Landis。
+
+性质：
+\begin{itemize}
+  \item 任意节点的左右子树高度差不超过 1
+  \item 所有操作的时间复杂度为 O(log n)
+\end{itemize}
+
+旋转操作：
+\begin{enumerate}
+  \item \textbf{左旋（Left Rotation）}
+    \begin{itemize}
+      \item 当右子树过高时使用
+      \item 将右子节点提升为新的根节点
+    \end{itemize}
+
+  \item \textbf{右旋（Right Rotation）}
+    \begin{itemize}
+      \item 当左子树过高时使用
+      \item 将左子节点提升为新的根节点
+    \end{itemize}
+
+  \item \textbf{左右旋（Left-Right Rotation）}
+    \begin{itemize}
+      \item 先对左子树左旋，再对根节点右旋
+    \end{itemize}
+
+  \item \textbf{右左旋（Right-Left Rotation）}
+    \begin{itemize}
+      \item 先对右子树右旋，再对根节点左旋
+    \end{itemize}
+\end{enumerate}
+
+\paragraph{红黑树}
+
+红黑树（Red-Black Tree）是另一种自平衡二叉搜索树，在 Linux 内核、C++ STL 的 map/set 中广泛使用。
+
+性质：
+\begin{enumerate}
+  \item 每个节点要么是红色，要么是黑色
+  \item 根节点是黑色
+  \item 每个叶子节点（NIL）是黑色
+  \item 如果一个节点是红色，则它的两个子节点都是黑色
+  \item 从任意节点到其每个叶子的所有路径都包含相同数目的黑色节点
+\end{enumerate}
+
+优势：
+\begin{itemize}
+  \item 插入和删除操作的平均和最坏情况都是 O(log n)
+  \item 旋转操作比 AVL 树少，性能更优
+  \item 实现相对简单
+\end{itemize}
+
+\subsubsection{B 树和 B+ 树}
+
+B 树（B-Tree）是一种多路平衡搜索树，主要用于数据库和文件系统。
+
+特点：
+\begin{itemize}
+  \item 每个节点可以有多个子节点（通常数百到数千个）
+  \item 所有叶子节点在同一层
+  \item 节点中的关键字按升序排列
+  \item 降低树的高度，减少磁盘 I/O 次数
+\end{itemize}
+
+B+ 树是 B 树的变种：
+\begin{itemize}
+  \item 所有数据都存储在叶子节点
+  \item 叶子节点之间用指针连接，支持范围查询
+  \item 内部节点只存储关键字，不存储数据
+  \item 广泛应用于数据库索引
+\end{itemize}
+
+\subsubsection{Trie 树}
+
+Trie 树（前缀树，Prefix Tree）是一种专门用于字符串检索的树结构。
+
+特点：
+\begin{itemize}
+  \item 每个节点代表一个字符
+  \item 从根到节点的路径表示一个字符串
+  \item 支持前缀匹配和字符串查找
+  \item 查找时间复杂度 O(m)，m 为字符串长度
+\end{itemize}
+
+应用场景：
+\begin{itemize}
+  \item 字符串检索
+  \item 自动补全
+  \item IP 路由表
+  \item 拼写检查
+\end{itemize}
+
+\subsection{堆}
+
+\BlockDesc{堆}
+
+堆（Heap）是一种特殊的完全二叉树，满足堆序性质。
+
+堆的类型：
+\begin{enumerate}
+  \item \textbf{最大堆（Max Heap）}
+    \begin{itemize}
+      \item 父节点的值大于等于所有子节点的值
+      \item 根节点是最大值
+    \end{itemize}
+
+  \item \textbf{最小堆（Min Heap）}
+    \begin{itemize}
+      \item 父节点的值小于等于所有子节点的值
+      \item 根节点是最小值
+    \end{itemize}
+\end{enumerate}
+
+性质：
+\begin{itemize}
+  \item 完全二叉树，可以用数组实现
+  \item 对于节点 $i$，父节点为 $\lfloor (i-1)/2 \rfloor$，左子节点为 $2i+1$，右子节点为 $2i+2$
+  \item 插入和删除的时间复杂度为 O(log n)
+  \item 查找最大值/最小值的时间复杂度为 O(1)
+\end{itemize}
+
+应用场景：
+\begin{enumerate}
+  \item \textbf{优先队列}
+    \begin{itemize}
+      \item 任务调度
+      \item 事件驱动系统
+    \end{itemize}
+
+  \item \textbf{堆排序}
+    \begin{itemize}
+      \item 时间复杂度 O(n log n)
+      \item 原地排序算法
+    \end{itemize}
+
+  \item \textbf{Top-K 问题}
+    \begin{itemize}
+      \item 找出最大的 K 个元素
+      \item 使用最小堆维护 K 个元素
+    \end{itemize}
+
+  \item \textbf{合并 K 个有序链表}
+    \begin{itemize}
+      \item 使用最小堆维护每个链表的当前节点
+    \end{itemize}
+\end{enumerate}
+
+\begin{lstlisting}[language=C, caption={最大堆实现}]
+typedef struct {
+    int *data;
+    size_t size;
+    size_t capacity;
+} MaxHeap;
+
+MaxHeap* heap_create(size_t capacity) {
+    MaxHeap *h = malloc(sizeof(MaxHeap));
+    h->data = malloc(capacity * sizeof(int));
+    h->size = 0;
+    h->capacity = capacity;
+    return h;
+}
+
+void heapify_up(MaxHeap *h, size_t index) {
+    while (index > 0) {
+        size_t parent = (index - 1) / 2;
+        if (h->data[parent] >= h->data[index]) {
+            break;
+        }
+        // 交换
+        int temp = h->data[parent];
+        h->data[parent] = h->data[index];
+        h->data[index] = temp;
+        index = parent;
+    }
+}
+
+void heapify_down(MaxHeap *h, size_t index) {
+    while (1) {
+        size_t left = 2 * index + 1;
+        size_t right = 2 * index + 2;
+        size_t largest = index;
+
+        if (left < h->size && h->data[left] > h->data[largest]) {
+            largest = left;
+        }
+        if (right < h->size && h->data[right] > h->data[largest]) {
+            largest = right;
+        }
+
+        if (largest == index) break;
+
+        // 交换
+        int temp = h->data[index];
+        h->data[index] = h->data[largest];
+        h->data[largest] = temp;
+        index = largest;
+    }
+}
+
+void heap_insert(MaxHeap *h, int value) {
+    if (h->size >= h->capacity) {
+        h->capacity *= 2;
+        h->data = realloc(h->data, h->capacity * sizeof(int));
+    }
+    h->data[h->size] = value;
+    heapify_up(h, h->size);
+    h->size++;
+}
+
+int heap_extract_max(MaxHeap *h) {
+    if (h->size == 0) return -1;
+
+    int max = h->data[0];
+    h->data[0] = h->data[h->size - 1];
+    h->size--;
+    heapify_down(h, 0);
+    return max;
+}
+\end{lstlisting}
+
+\subsection{哈希表}
+
+\BlockDesc{哈希表}
+
+哈希表（Hash Table）是一种根据键（Key）直接访问内存存储位置的数据结构。
+通过哈希函数将键映射到数组索引，实现 O(1) 平均时间复杂度的查找、插入和删除。
+
+哈希函数：
+\begin{itemize}
+  \item 将任意大小的输入映射到固定大小的输出
+  \item 理想情况下，不同的键映射到不同的索引
+  \item 实际中可能出现哈希冲突
+\end{itemize}
+
+常见哈希函数：
+\begin{enumerate}
+  \item \textbf{除法哈希法}
+    \begin{itemize}
+      \item $h(k) = k \bmod m$
+      \item $m$ 通常选择质数
+    \end{itemize}
+
+  \item \textbf{乘法哈希法}
+    \begin{itemize}
+      \item $h(k) = \lfloor m(kA \bmod 1) \rfloor$
+      \item $A$ 通常选择 $(\sqrt{5} - 1)/2 \approx 0.618$
+    \end{itemize}
+
+  \item \textbf{字符串哈希}
+    \begin{itemize}
+      \item 多项式哈希：$h(s) = \sum_{i=0}^{n-1} s[i] \cdot a^{n-1-i} \bmod m$
+      \item 常用的 $a$ 值：31, 131, 1313
+    \end{itemize}
+\end{enumerate}
+
+冲突处理方法：
+\begin{enumerate}
+  \item \textbf{链地址法（Chaining）}
+    \begin{itemize}
+      \item 每个桶存储一个链表
+      \item 冲突的元素添加到链表中
+      \item 实现简单，但需要额外的指针空间
+    \end{itemize}
+
+  \item \textbf{开放寻址法（Open Addressing）}
+    \begin{itemize}
+      \item 所有元素都存储在数组中
+      \item 冲突时寻找下一个可用位置
+      \item 方法包括：线性探测、二次探测、双重哈希
+    \end{itemize}
+
+  \item \textbf{再哈希法}
+    \begin{itemize}
+      \item 使用第二个哈希函数计算新的位置
+      \item 减少聚集现象
+    \end{itemize}
+\end{enumerate}
+
+负载因子：
+\begin{itemize}
+  \item $\alpha = n/m$，其中 $n$ 是元素数量，$m$ 是桶的数量
+  \item 负载因子过高会导致性能下降
+  \item 通常当 $\alpha > 0.75$ 时进行扩容
+  \item 扩容时需要重新哈希所有元素
+\end{itemize}
+
+\begin{lstlisting}[language=C, caption={哈希表实现（链地址法）}]
+#define HASH_TABLE_SIZE 1000
+
+typedef struct HashNode {
+    int key;
+    int value;
+    struct HashNode *next;
+} HashNode;
+
+typedef struct {
+    HashNode **buckets;
+    size_t size;
+} HashTable;
+
+HashTable* hash_create() {
+    HashTable *ht = malloc(sizeof(HashTable));
+    ht->buckets = calloc(HASH_TABLE_SIZE, sizeof(HashNode*));
+    ht->size = 0;
+    return ht;
+}
+
+size_t hash_function(int key) {
+    return key % HASH_TABLE_SIZE;
+}
+
+void hash_insert(HashTable *ht, int key, int value) {
+    size_t index = hash_function(key);
+    HashNode *node = ht->buckets[index];
+
+    // 检查是否已存在
+    while (node != NULL) {
+        if (node->key == key) {
+            node->value = value;
+            return;
+        }
+        node = node->next;
+    }
+
+    // 插入新节点
+    HashNode *new_node = malloc(sizeof(HashNode));
+    new_node->key = key;
+    new_node->value = value;
+    new_node->next = ht->buckets[index];
+    ht->buckets[index] = new_node;
+    ht->size++;
+}
+
+int hash_get(HashTable *ht, int key) {
+    size_t index = hash_function(key);
+    HashNode *node = ht->buckets[index];
+
+    while (node != NULL) {
+        if (node->key == key) {
+            return node->value;
+        }
+        node = node->next;
+    }
+    return -1; // 未找到
+}
+
+void hash_delete(HashTable *ht, int key) {
+    size_t index = hash_function(key);
+    HashNode *node = ht->buckets[index];
+    HashNode *prev = NULL;
+
+    while (node != NULL) {
+        if (node->key == key) {
+            if (prev == NULL) {
+                ht->buckets[index] = node->next;
+            } else {
+                prev->next = node->next;
+            }
+            free(node);
+            ht->size--;
+            return;
+        }
+        prev = node;
+        node = node->next;
+    }
+}
+\end{lstlisting}
+
+\subsection{位图}
+
+\BlockDesc{位图}
+
+位图（Bitmap）是一种使用位数组来表示集合的数据结构。
+每个位表示一个元素是否存在，非常适合表示稠密集合。
+
+特点：
+\begin{itemize}
+  \item 空间效率高：每个元素只占用 1 位
+  \item 操作快速：位运算实现，时间复杂度 O(1)
+  \item 适合表示整数集合
+  \item 内存连续，缓存友好
+\end{itemize}
+
+应用场景：
+\begin{enumerate}
+  \item \textbf{集合操作}
+    \begin{itemize}
+      \item 并集、交集、差集
+      \item 成员查询
+    \end{itemize}
+
+  \item \textbf{去重}
+    \begin{itemize}
+      \item 标记已访问的元素
+      \item 找出重复元素
+    \end{itemize}
+
+  \item \textbf{布隆过滤器}
+    \begin{itemize}
+      \item 快速判断元素是否可能存在
+      \item 用于缓存、数据库等场景
+    \end{itemize}
+
+  \item \textbf{内存管理}
+    \begin{itemize}
+      \item 标记内存页的使用情况
+      \item 标记文件系统中的块使用情况
+    \end{itemize}
+\end{enumerate}
+
+\begin{lstlisting}[language=C, caption={位图实现}]
+typedef struct {
+    unsigned char *bits;
+    size_t size;  // 位数量
+} Bitmap;
+
+Bitmap* bitmap_create(size_t size) {
+    Bitmap *bm = malloc(sizeof(Bitmap));
+    bm->size = size;
+    size_t bytes = (size + 7) / 8;  // 向上取整
+    bm->bits = calloc(bytes, sizeof(unsigned char));
+    return bm;
+}
+
+void bitmap_set(Bitmap *bm, size_t index) {
+    if (index >= bm->size) return;
+    size_t byte_index = index / 8;
+    size_t bit_index = index % 8;
+    bm->bits[byte_index] |= (1 << bit_index);
+}
+
+void bitmap_clear(Bitmap *bm, size_t index) {
+    if (index >= bm->size) return;
+    size_t byte_index = index / 8;
+    size_t bit_index = index % 8;
+    bm->bits[byte_index] &= ~(1 << bit_index);
+}
+
+int bitmap_get(Bitmap *bm, size_t index) {
+    if (index >= bm->size) return 0;
+    size_t byte_index = index / 8;
+    size_t bit_index = index % 8;
+    return (bm->bits[byte_index] >> bit_index) & 1;
+}
+\end{lstlisting}
 
 \subsection{图}
 
+\BlockDesc{图}
+
+图（Graph）是一种由节点（顶点）和边组成的数据结构，用于表示实体之间的关系。
+
+术语：
+\begin{itemize}
+  \item \textbf{顶点（Vertex）}：图中的节点
+  \item \textbf{边（Edge）}：连接两个顶点的线
+  \item \textbf{有向图（Directed Graph）}：边有方向
+  \item \textbf{无向图（Undirected Graph）}：边无方向
+  \item \textbf{权重（Weight）}：边的权值
+  \item \textbf{度（Degree）}：与顶点相连的边的数量
+  \item \textbf{路径（Path）}：从顶点 $u$ 到 $v$ 的顶点序列
+  \item \textbf{环（Cycle）}：起点和终点相同的路径
+  \item \textbf{连通图（Connected Graph）}：任意两个顶点之间都有路径
+\end{itemize}
+
+\subsubsection{图的表示}
+
+\begin{enumerate}
+  \item \textbf{邻接矩阵（Adjacency Matrix）}
+    \begin{itemize}
+      \item 使用二维数组表示
+      \item $matrix[i][j] = 1$ 表示存在边 $(i, j)$
+      \item 对于有权图，存储权重；无权重时存储 1 或 0
+      \item 空间复杂度 O($V^2$)
+      \item 查询边是否存在：O(1)
+      \item 遍历所有邻接顶点：O(V)
+    \end{itemize}
+
+  \item \textbf{邻接表（Adjacency List）}
+    \begin{itemize}
+      \item 每个顶点维护一个链表，存储其邻接顶点
+      \item 空间复杂度 O(V + E)
+      \item 查询边是否存在：O(degree(v))
+      \item 遍历所有邻接顶点：O(degree(v))
+      \item 适合稀疏图
+    \end{itemize}
+
+  \item \textbf{边列表（Edge List）}
+    \begin{itemize}
+      \item 直接存储所有边的列表
+      \item 空间复杂度 O(E)
+      \item 适合某些特定算法（如 Kruskal 最小生成树算法）
+    \end{itemize}
+\end{enumerate}
+
+\begin{lstlisting}[language=C, caption={图的邻接表表示}]
+typedef struct EdgeNode {
+    int vertex;
+    int weight;
+    struct EdgeNode *next;
+} EdgeNode;
+
+typedef struct {
+    EdgeNode **adj_list;
+    int num_vertices;
+    int num_edges;
+    int directed;
+} Graph;
+
+Graph* graph_create(int num_vertices, int directed) {
+    Graph *g = malloc(sizeof(Graph));
+    g->num_vertices = num_vertices;
+    g->num_edges = 0;
+    g->directed = directed;
+    g->adj_list = calloc(num_vertices, sizeof(EdgeNode*));
+    return g;
+}
+
+void graph_add_edge(Graph *g, int from, int to, int weight) {
+    EdgeNode *edge = malloc(sizeof(EdgeNode));
+    edge->vertex = to;
+    edge->weight = weight;
+    edge->next = g->adj_list[from];
+    g->adj_list[from] = edge;
+    g->num_edges++;
+
+    if (!g->directed) {
+        // 无向图，添加反向边
+        EdgeNode *reverse_edge = malloc(sizeof(EdgeNode));
+        reverse_edge->vertex = from;
+        reverse_edge->weight = weight;
+        reverse_edge->next = g->adj_list[to];
+        g->adj_list[to] = reverse_edge;
+    }
+}
+\end{lstlisting}
+
+\subsubsection{图的遍历}
+
+\begin{enumerate}
+  \item \textbf{深度优先搜索（DFS）}
+    \begin{itemize}
+      \item 尽可能深地搜索图的分支
+      \item 使用栈（递归或显式栈）实现
+      \item 时间复杂度：O(V + E)
+      \item 应用：拓扑排序、强连通分量、路径查找
+    \end{itemize}
+
+  \item \textbf{广度优先搜索（BFS）}
+    \begin{itemize}
+      \item 逐层遍历图
+      \item 使用队列实现
+      \item 时间复杂度：O(V + E)
+      \item 应用：最短路径（无权图）、层次遍历、连通性检测
+    \end{itemize}
+\end{enumerate}
+
+\begin{lstlisting}[language=C, caption={图的深度优先搜索}]
+void dfs_recursive(Graph *g, int vertex, int *visited) {
+    visited[vertex] = 1;
+    printf("%d ", vertex);
+
+    EdgeNode *edge = g->adj_list[vertex];
+    while (edge != NULL) {
+        if (!visited[edge->vertex]) {
+            dfs_recursive(g, edge->vertex, visited);
+        }
+        edge = edge->next;
+    }
+}
+
+void dfs_iterative(Graph *g, int start) {
+    int *visited = calloc(g->num_vertices, sizeof(int));
+    Stack *s = stack_create(g->num_vertices);
+
+    stack_push(s, start);
+    visited[start] = 1;
+
+    while (s->top > 0) {
+        int vertex = stack_pop(s);
+        printf("%d ", vertex);
+
+        EdgeNode *edge = g->adj_list[vertex];
+        while (edge != NULL) {
+            if (!visited[edge->vertex]) {
+                visited[edge->vertex] = 1;
+                stack_push(s, edge->vertex);
+            }
+            edge = edge->next;
+        }
+    }
+
+    free(visited);
+}
+\end{lstlisting}
+
+\begin{lstlisting}[language=C, caption={图的广度优先搜索}]
+void bfs(Graph *g, int start) {
+    int *visited = calloc(g->num_vertices, sizeof(int));
+    CircularQueue *q = queue_create(g->num_vertices);
+
+    queue_enqueue(q, start);
+    visited[start] = 1;
+
+    while (q->size > 0) {
+        int vertex = queue_dequeue(q);
+        printf("%d ", vertex);
+
+        EdgeNode *edge = g->adj_list[vertex];
+        while (edge != NULL) {
+            if (!visited[edge->vertex]) {
+                visited[edge->vertex] = 1;
+                queue_enqueue(q, edge->vertex);
+            }
+            edge = edge->next;
+        }
+    }
+
+    free(visited);
+}
+\end{lstlisting}
+
 \section{算法}
 
-\subsection{算法思想}
+算法是解决问题的步骤和方法。
+好的算法不仅要正确，还要高效。
+本节介绍各种算法设计思想和经典算法。
 
-\subsubsection{递归}
+\subsection{排序算法}
 
-\subsubsection{分治}
+排序是计算机科学中最基础的操作之一。
+不同的排序算法有不同的时间复杂度和适用场景。
 
-\subsubsection{贪心}
+\subsubsection{比较排序}
 
-\subsubsection{回溯}
+\begin{enumerate}
+  \item \textbf{冒泡排序（Bubble Sort）}
+    \begin{itemize}
+      \item 时间复杂度：O(n²)
+      \item 空间复杂度：O(1)
+      \item 稳定排序
+      \item 实现简单，但效率低
+    \end{itemize}
 
-\subsubsection{动态规划}
+  \item \textbf{选择排序（Selection Sort）}
+    \begin{itemize}
+      \item 时间复杂度：O(n²)
+      \item 空间复杂度：O(1)
+      \item 不稳定排序
+      \item 每次选择最小元素放到前面
+    \end{itemize}
+
+  \item \textbf{插入排序（Insertion Sort）}
+    \begin{itemize}
+      \item 时间复杂度：O(n²)，最好情况 O(n)
+      \item 空间复杂度：O(1)
+      \item 稳定排序
+      \item 适合小规模数据或基本有序的数据
+    \end{itemize}
+
+  \item \textbf{归并排序（Merge Sort）}
+    \begin{itemize}
+      \item 时间复杂度：O(n log n)
+      \item 空间复杂度：O(n)
+      \item 稳定排序
+      \item 分治思想，适合链表排序
+    \end{itemize}
+
+  \item \textbf{快速排序（Quick Sort）}
+    \begin{itemize}
+      \item 平均时间复杂度：O(n log n)
+      \item 最坏时间复杂度：O(n²)
+      \item 空间复杂度：O(log n)（递归栈）
+      \item 不稳定排序
+      \item 实际应用中性能优秀
+    \end{itemize}
+
+  \item \textbf{堆排序（Heap Sort）}
+    \begin{itemize}
+      \item 时间复杂度：O(n log n)
+      \item 空间复杂度：O(1)
+      \item 不稳定排序
+      \item 不需要额外空间，适合内存受限场景
+    \end{itemize}
+\end{enumerate}
+
+\begin{lstlisting}[language=C, caption={快速排序实现}]
+int partition(int arr[], int low, int high) {
+    int pivot = arr[high];
+    int i = low - 1;
+
+    for (int j = low; j < high; j++) {
+        if (arr[j] < pivot) {
+            i++;
+            int temp = arr[i];
+            arr[i] = arr[j];
+            arr[j] = temp;
+        }
+    }
+
+    int temp = arr[i + 1];
+    arr[i + 1] = arr[high];
+    arr[high] = temp;
+    return i + 1;
+}
+
+void quicksort(int arr[], int low, int high) {
+    if (low < high) {
+        int pi = partition(arr, low, high);
+        quicksort(arr, low, pi - 1);
+        quicksort(arr, pi + 1, high);
+    }
+}
+\end{lstlisting}
+
+\begin{lstlisting}[language=C, caption={归并排序实现}]
+void merge(int arr[], int left, int mid, int right) {
+    int n1 = mid - left + 1;
+    int n2 = right - mid;
+
+    int *L = malloc(n1 * sizeof(int));
+    int *R = malloc(n2 * sizeof(int));
+
+    for (int i = 0; i < n1; i++) {
+        L[i] = arr[left + i];
+    }
+    for (int j = 0; j < n2; j++) {
+        R[j] = arr[mid + 1 + j];
+    }
+
+    int i = 0, j = 0, k = left;
+    while (i < n1 && j < n2) {
+        if (L[i] <= R[j]) {
+            arr[k++] = L[i++];
+        } else {
+            arr[k++] = R[j++];
+        }
+    }
+
+    while (i < n1) arr[k++] = L[i++];
+    while (j < n2) arr[k++] = R[j++];
+
+    free(L);
+    free(R);
+}
+
+void mergesort(int arr[], int left, int right) {
+    if (left < right) {
+        int mid = left + (right - left) / 2;
+        mergesort(arr, left, mid);
+        mergesort(arr, mid + 1, right);
+        merge(arr, left, mid, right);
+    }
+}
+\end{lstlisting}
+
+\subsubsection{非比较排序}
+
+\begin{enumerate}
+  \item \textbf{计数排序（Counting Sort）}
+    \begin{itemize}
+      \item 时间复杂度：O(n + k)，k 为数据范围
+      \item 空间复杂度：O(k)
+      \item 稳定排序
+      \item 适用于数据范围较小的整数排序
+    \end{itemize}
+
+  \item \textbf{基数排序（Radix Sort）}
+    \begin{itemize}
+      \item 时间复杂度：O(d(n + k))，d 为位数，k 为基数
+      \item 空间复杂度：O(n + k)
+      \item 稳定排序
+      \item 适用于整数或字符串排序
+    \end{itemize}
+
+  \item \textbf{桶排序（Bucket Sort）}
+    \begin{itemize}
+      \item 平均时间复杂度：O(n + k)
+      \item 空间复杂度：O(n + k)
+      \item 稳定排序
+      \item 适用于数据分布均匀的情况
+    \end{itemize}
+\end{enumerate}
+
+\subsection{搜索算法}
+
+\subsubsection{线性搜索}
+
+线性搜索（Linear Search）是最简单的搜索算法，逐个检查每个元素。
+
+\begin{itemize}
+  \item 时间复杂度：O(n)
+  \item 空间复杂度：O(1)
+  \item 适用于无序数组或链表
+\end{itemize}
+
+\subsubsection{二分搜索}
+
+二分搜索（Binary Search）要求数据有序，通过不断缩小搜索范围来查找目标。
+
+\begin{itemize}
+  \item 时间复杂度：O(log n)
+  \item 空间复杂度：O(1)（迭代）或 O(log n)（递归）
+  \item 要求数据有序
+  \item 适用于有序数组
+\end{itemize}
+
+\begin{lstlisting}[language=C, caption={二分搜索实现}]
+int binary_search(int arr[], int size, int target) {
+    int left = 0, right = size - 1;
+
+    while (left <= right) {
+        int mid = left + (right - left) / 2;
+
+        if (arr[mid] == target) {
+            return mid;
+        } else if (arr[mid] < target) {
+            left = mid + 1;
+        } else {
+            right = mid - 1;
+        }
+    }
+
+    return -1; // 未找到
+}
+
+// 查找第一个大于等于 target 的位置
+int lower_bound(int arr[], int size, int target) {
+    int left = 0, right = size;
+
+    while (left < right) {
+        int mid = left + (right - left) / 2;
+        if (arr[mid] < target) {
+            left = mid + 1;
+        } else {
+            right = mid;
+        }
+    }
+
+    return left;
+}
+\end{lstlisting}
+
+\subsection{递归}
+
+\BlockDesc{递归}
+
+递归（Recursion）是一种函数调用自身的编程技巧。
+递归算法通常更简洁，但需要注意栈溢出和重复计算的问题。
+
+递归的要素：
+\begin{enumerate}
+  \item \textbf{基准情况（Base Case）}
+    \begin{itemize}
+      \item 递归终止的条件
+      \item 避免无限递归
+    \end{itemize}
+
+  \item \textbf{递归关系（Recurrence Relation）}
+    \begin{itemize}
+      \item 将问题分解为更小的子问题
+      \item 子问题的解组合成原问题的解
+    \end{itemize}
+\end{enumerate}
+
+递归的优缺点：
+\begin{itemize}
+  \item 优点：代码简洁、思路清晰、符合问题本质
+  \item 缺点：可能栈溢出、重复计算、性能开销
+\end{itemize}
+
+优化技巧：
+\begin{enumerate}
+  \item \textbf{尾递归优化}
+    \begin{itemize}
+      \item 递归调用是函数的最后一个操作
+      \item 编译器可以优化为迭代
+    \end{itemize}
+
+  \item \textbf{记忆化（Memoization）}
+    \begin{itemize}
+      \item 缓存已计算的结果
+      \item 避免重复计算
+      \item 例如：斐波那契数列的动态规划解法
+    \end{itemize}
+
+  \item \textbf{迭代转换}
+    \begin{itemize}
+      \item 将递归算法转换为迭代算法
+      \item 使用栈模拟递归调用
+    \end{itemize}
+\end{enumerate}
+
+\begin{lstlisting}[language=C, caption={递归示例：斐波那契数列}]
+// 朴素递归，时间复杂度 O(2^n)
+int fibonacci_naive(int n) {
+    if (n <= 1) return n;
+    return fibonacci_naive(n - 1) + fibonacci_naive(n - 2);
+}
+
+// 记忆化递归，时间复杂度 O(n)
+int fibonacci_memo(int n, int *memo) {
+    if (n <= 1) return n;
+    if (memo[n] != -1) return memo[n];
+    memo[n] = fibonacci_memo(n - 1, memo) + fibonacci_memo(n - 2, memo);
+    return memo[n];
+}
+
+// 迭代版本，时间复杂度 O(n)，空间复杂度 O(1)
+int fibonacci_iterative(int n) {
+    if (n <= 1) return n;
+    int a = 0, b = 1;
+    for (int i = 2; i <= n; i++) {
+        int temp = a + b;
+        a = b;
+        b = temp;
+    }
+    return b;
+}
+\end{lstlisting}
+
+\subsection{分治}
+
+\BlockDesc{分治}
+
+分治（Divide and Conquer）是一种重要的算法设计思想，将问题分解为多个子问题，递归求解，然后合并结果。
+
+分治算法的步骤：
+\begin{enumerate}
+  \item \textbf{分解（Divide）}：将问题分解为规模更小的子问题
+  \item \textbf{解决（Conquer）}：递归求解子问题
+  \item \textbf{合并（Combine）}：将子问题的解合并为原问题的解
+\end{enumerate}
+
+经典应用：
+\begin{enumerate}
+  \item \textbf{归并排序}
+    \begin{itemize}
+      \item 分解：将数组分为两半
+      \item 解决：递归排序两半
+      \item 合并：合并两个有序数组
+    \end{itemize}
+
+  \item \textbf{快速排序}
+    \begin{itemize}
+      \item 分解：选择基准，分割数组
+      \item 解决：递归排序两部分
+      \item 合并：无需合并（原地排序）
+    \end{itemize}
+
+  \item \textbf{二分搜索}
+    \begin{itemize}
+      \item 分解：比较中间元素
+      \item 解决：在左半或右半递归搜索
+      \item 合并：直接返回结果
+    \end{itemize}
+
+  \item \textbf{大整数乘法}
+    \begin{itemize}
+      \item 使用 Karatsuba 算法
+      \item 时间复杂度：$O(n^log₂³) ≈ O(n^1.585)$
+    \end{itemize}
+
+  \item \textbf{矩阵乘法}
+    \begin{itemize}
+      \item Strassen 算法
+      \item 时间复杂度：$O(n^log₂⁷) ≈ O(n^2.807)$
+    \end{itemize}
+
+  \item \textbf{最近点对问题}
+    \begin{itemize}
+      \item 分解：将点集分为两半
+      \item 解决：递归求解两半的最近点对
+      \item 合并：考虑跨分割线的点对
+    \end{itemize}
+\end{enumerate}
+
+分治算法的时间复杂度通常可以用主定理（Master Theorem）分析：
+
+对于递归式 $T(n) = aT(n/b) + f(n)$，其中 $a \geq 1$，$b > 1$：
+\begin{itemize}
+  \item 如果 $f(n) = O(n^{\log_b a - \epsilon})$，则 $T(n) = \Theta(n^{\log_b a})$
+  \item 如果 $f(n) = \Theta(n^{\log_b a})$，则 $T(n) = \Theta(n^{\log_b a} \log n)$
+  \item 如果 $f(n) = \Omega(n^{\log_b a + \epsilon})$，则 $T(n) = \Theta(f(n))$
+\end{itemize}
+
+\subsection{贪心算法}
+
+\BlockDesc{贪心算法}
+
+贪心算法（Greedy Algorithm）在每一步都做出当前看起来最优的选择，希望最终得到全局最优解。
+
+特点：
+\begin{itemize}
+  \item 局部最优选择
+  \item 不回溯，一旦做出选择就不再改变
+  \item 效率高，但可能不是全局最优
+\end{itemize}
+
+适用条件：
+\begin{enumerate}
+  \item \textbf{贪心选择性质}
+    \begin{itemize}
+      \item 可以通过局部最优选择达到全局最优
+    \end{itemize}
+
+  \item \textbf{最优子结构}
+    \begin{itemize}
+      \item 问题的最优解包含子问题的最优解
+    \end{itemize}
+\end{enumerate}
+
+经典应用：
+\begin{enumerate}
+  \item \textbf{活动选择问题}
+    \begin{itemize}
+      \item 选择最多的互不重叠的活动
+      \item 贪心策略：每次选择结束时间最早的活动
+    \end{itemize}
+
+  \item \textbf{霍夫曼编码}
+    \begin{itemize}
+      \item 构造最优前缀编码
+      \item 贪心策略：每次合并频率最低的两个节点
+    \end{itemize}
+
+  \item \textbf{最小生成树}
+    \begin{itemize}
+      \item Kruskal 算法：按边权重排序，依次加入不形成环的边
+      \item Prim 算法：从任意顶点开始，每次加入距离当前树最近的顶点
+    \end{itemize}
+
+  \item \textbf{最短路径（Dijkstra 算法）}
+    \begin{itemize}
+      \item 单源最短路径问题（非负权重）
+      \item 贪心策略：每次选择距离源点最近的未访问顶点
+    \end{itemize}
+
+  \item \textbf{区间调度问题}
+    \begin{itemize}
+      \item 选择最多的不重叠区间
+      \item 贪心策略：按结束时间排序，依次选择
+    \end{itemize}
+
+  \item \textbf{找零问题}
+    \begin{itemize}
+      \item 用最少的硬币找零
+      \item 贪心策略：每次选择面额最大的硬币（仅适用于某些硬币系统）
+    \end{itemize}
+\end{enumerate}
+
+\begin{lstlisting}[language=C, caption={Dijkstra 最短路径算法}]
+#define INF 1000000
+#define MAX_V 1000
+
+void dijkstra(Graph *g, int start, int *dist) {
+    int *visited = calloc(g->num_vertices, sizeof(int));
+
+    // 初始化距离
+    for (int i = 0; i < g->num_vertices; i++) {
+        dist[i] = INF;
+    }
+    dist[start] = 0;
+
+    for (int count = 0; count < g->num_vertices - 1; count++) {
+        // 找到未访问的距离最小的顶点
+        int u = -1;
+        int min_dist = INF;
+        for (int v = 0; v < g->num_vertices; v++) {
+            if (!visited[v] && dist[v] < min_dist) {
+                min_dist = dist[v];
+                u = v;
+            }
+        }
+
+        if (u == -1) break;
+        visited[u] = 1;
+
+        // 更新邻接顶点的距离
+        EdgeNode *edge = g->adj_list[u];
+        while (edge != NULL) {
+            int v = edge->vertex;
+            if (!visited[v] && dist[u] + edge->weight < dist[v]) {
+                dist[v] = dist[u] + edge->weight;
+            }
+            edge = edge->next;
+        }
+    }
+
+    free(visited);
+}
+\end{lstlisting}
+
+\subsection{动态规划}
+
+\BlockDesc{动态规划}
+
+动态规划（Dynamic Programming, DP）通过将问题分解为重叠子问题，并存储子问题的解来避免重复计算。
+
+特点：
+\begin{itemize}
+  \item 最优子结构：问题的最优解包含子问题的最优解
+  \item 重叠子问题：递归过程中会重复计算相同的子问题
+  \item 记忆化：存储已计算的子问题的解
+\end{itemize}
+
+实现方式：
+\begin{enumerate}
+  \item \textbf{自顶向下（Top-Down）}
+    \begin{itemize}
+      \item 递归 + 记忆化
+      \item 代码更直观
+      \item 可能栈溢出
+    \end{itemize}
+
+  \item \textbf{自底向上（Bottom-Up）}
+    \begin{itemize}
+      \item 迭代，从基础情况开始构建
+      \item 空间效率更高
+      \item 通常更快
+    \end{itemize}
+\end{enumerate}
+
+经典问题：
+\begin{enumerate}
+  \item \textbf{斐波那契数列}
+    \begin{itemize}
+      \item 状态转移方程：$F(n) = F(n-1) + F(n-2)$
+      \item 时间复杂度：O(n)
+    \end{itemize}
+
+  \item \textbf{最长公共子序列（LCS）}
+    \begin{itemize}
+      \item 状态转移方程：
+      \begin{align*}
+        dp[i][j] = \begin{cases}
+          dp[i-1][j-1] + 1 & \text{if } s1[i] == s2[j] \\
+          \max(dp[i-1][j], dp[i][j-1]) & \text{otherwise}
+        \end{cases}
+      \end{align*}
+      \item 时间复杂度：O(mn)
+    \end{itemize}
+
+  \item \textbf{最长递增子序列（LIS）}
+    \begin{itemize}
+      \item 状态转移方程：$dp[i] = \max(dp[j]) + 1$，其中 $j < i$ 且 $arr[j] < arr[i]$
+      \item 时间复杂度：O(n²)，可用二分优化到 O(n log n)
+    \end{itemize}
+
+  \item \textbf{0-1 背包问题}
+    \begin{itemize}
+      \item 状态转移方程：
+      \begin{align*}
+        dp[i][w] = \max(dp[i-1][w], dp[i-1][w-weight[i]] + value[i])
+      \end{align*}
+      \item 时间复杂度：O(nW)
+    \end{itemize}
+
+  \item \textbf{编辑距离}
+    \begin{itemize}
+      \item 状态转移方程：
+      \begin{align*}
+        dp[i][j] = \min\begin{cases}
+          dp[i-1][j] + 1 & \text{删除} \\
+          dp[i][j-1] + 1 & \text{插入} \\
+          dp[i-1][j-1] + cost & \text{替换}
+        \end{cases}
+      \end{align*}
+      \item 时间复杂度：O(mn)
+    \end{itemize}
+
+  \item \textbf{矩阵链乘法}
+    \begin{itemize}
+      \item 状态转移方程：$dp[i][j] = \min(dp[i][k] + dp[k+1][j] + p[i-1]p[k]p[j])$
+      \item 时间复杂度：O(n³)
+    \end{itemize}
+\end{enumerate}
+
+\begin{lstlisting}[language=C, caption={0-1 背包问题动态规划解法}]
+int knapsack_01(int weights[], int values[], int n, int capacity) {
+    int **dp = malloc((n + 1) * sizeof(int*));
+    for (int i = 0; i <= n; i++) {
+        dp[i] = calloc(capacity + 1, sizeof(int));
+    }
+
+    for (int i = 1; i <= n; i++) {
+        for (int w = 1; w <= capacity; w++) {
+            if (weights[i-1] <= w) {
+                dp[i][w] = (dp[i-1][w] >
+                           dp[i-1][w-weights[i-1]] + values[i-1]) ?
+                           dp[i-1][w] :
+                           dp[i-1][w-weights[i-1]] + values[i-1];
+            } else {
+                dp[i][w] = dp[i-1][w];
+            }
+        }
+    }
+
+    int result = dp[n][capacity];
+
+    // 释放内存
+    for (int i = 0; i <= n; i++) {
+        free(dp[i]);
+    }
+    free(dp);
+
+    return result;
+}
+
+// 空间优化版本（一维数组）
+int knapsack_01_optimized(int weights[], int values[], int n, int capacity) {
+    int *dp = calloc(capacity + 1, sizeof(int));
+
+    for (int i = 0; i < n; i++) {
+        for (int w = capacity; w >= weights[i]; w--) {
+            if (dp[w] < dp[w - weights[i]] + values[i]) {
+                dp[w] = dp[w - weights[i]] + values[i];
+            }
+        }
+    }
+
+    int result = dp[capacity];
+    free(dp);
+    return result;
+}
+\end{lstlisting}
+
+\subsection{回溯算法}
+
+\BlockDesc{回溯算法}
+
+回溯算法（Backtracking）通过尝试所有可能的解，并在发现当前路径不可能得到解时回退，寻找问题的解。
+
+特点：
+\begin{itemize}
+  \item 系统性搜索：尝试所有可能的解
+  \item 剪枝：提前终止不可能得到解的分支
+  \item 递归实现：使用递归进行深度优先搜索
+\end{itemize}
+
+应用场景：
+\begin{enumerate}
+  \item \textbf{N 皇后问题}
+    \begin{itemize}
+      \item 在 N×N 棋盘上放置 N 个皇后，使得它们互不攻击
+      \item 回溯：尝试每一行的每个位置，检查冲突
+    \end{itemize}
+
+  \item \textbf{数独求解}
+    \begin{itemize}
+      \item 填充数独棋盘
+      \item 回溯：尝试每个空格的每个数字，检查有效性
+    \end{itemize}
+
+  \item \textbf{全排列}
+    \begin{itemize}
+      \item 生成所有可能的排列
+      \item 回溯：交换元素，递归，然后恢复
+    \end{itemize}
+
+  \item \textbf{子集生成}
+    \begin{itemize}
+      \item 生成集合的所有子集
+      \item 回溯：对每个元素选择包含或不包含
+    \end{itemize}
+
+  \item \textbf{组合问题}
+    \begin{itemize}
+      \item 从 n 个元素中选择 k 个
+      \item 回溯：选择当前元素，递归，然后取消选择
+    \end{itemize}
+
+  \item \textbf{路径查找}
+    \begin{itemize}
+      \item 迷宫求解
+      \item 回溯：尝试每个方向，标记已访问，递归，然后取消标记
+    \end{itemize}
+\end{enumerate}
+
+\begin{lstlisting}[language=C, caption={N 皇后问题回溯解法}]
+int is_safe(int board[], int row, int col, int n) {
+    for (int i = 0; i < row; i++) {
+        // 检查同一列
+        if (board[i] == col) return 0;
+        // 检查对角线
+        if (abs(board[i] - col) == abs(i - row)) return 0;
+    }
+    return 1;
+}
+
+int solve_n_queens(int board[], int row, int n) {
+    if (row == n) {
+        // 找到解，打印或计数
+        return 1;
+    }
+
+    int count = 0;
+    for (int col = 0; col < n; col++) {
+        if (is_safe(board, row, col, n)) {
+            board[row] = col;  // 放置皇后
+            count += solve_n_queens(board, row + 1, n);
+            // 回溯：不需要显式恢复，因为会被覆盖
+        }
+    }
+    return count;
+}
+\end{lstlisting}
+
+\subsection{字符串算法}
+
+字符串处理是编程中的常见任务，本节介绍一些重要的字符串算法。
+
+\subsubsection{字符串匹配}
+
+\begin{enumerate}
+  \item \textbf{朴素匹配（Naive）}
+    \begin{itemize}
+      \item 逐个比较模式串和文本串
+      \item 时间复杂度：O(mn)，m 为模式串长度，n 为文本串长度
+    \end{itemize}
+
+  \item \textbf{KMP 算法}
+    \begin{itemize}
+      \item 利用已匹配信息，避免重复比较
+      \item 时间复杂度：O(m + n)
+      \item 核心：构建部分匹配表（前缀函数）
+    \end{itemize}
+
+  \item \textbf{Boyer-Moore 算法}
+    \begin{itemize}
+      \item 从右到左匹配，利用坏字符和好后缀规则
+      \item 平均时间复杂度：O(n/m)，最坏 O(mn)
+      \item 实际应用中非常高效
+    \end{itemize}
+
+  \item \textbf{Rabin-Karp 算法}
+    \begin{itemize}
+      \item 使用哈希函数比较字符串
+      \item 平均时间复杂度：O(m + n)
+      \item 适合多模式匹配
+    \end{itemize}
+\end{enumerate}
+
+\begin{lstlisting}[language=C, caption={KMP 算法实现}]
+void build_prefix_table(char *pattern, int *prefix, int m) {
+    prefix[0] = 0;
+    int len = 0;
+    int i = 1;
+
+    while (i < m) {
+        if (pattern[i] == pattern[len]) {
+            len++;
+            prefix[i] = len;
+            i++;
+        } else {
+            if (len != 0) {
+                len = prefix[len - 1];
+            } else {
+                prefix[i] = 0;
+                i++;
+            }
+        }
+    }
+}
+
+int kmp_search(char *text, char *pattern) {
+    int n = strlen(text);
+    int m = strlen(pattern);
+
+    int *prefix = malloc(m * sizeof(int));
+    build_prefix_table(pattern, prefix, m);
+
+    int i = 0, j = 0;
+    while (i < n) {
+        if (text[i] == pattern[j]) {
+            i++;
+            j++;
+        }
+
+        if (j == m) {
+            free(prefix);
+            return i - j;  // 找到匹配
+        } else if (i < n && text[i] != pattern[j]) {
+            if (j != 0) {
+                j = prefix[j - 1];
+            } else {
+                i++;
+            }
+        }
+    }
+
+    free(prefix);
+    return -1;  // 未找到
+}
+\end{lstlisting}
+
+\subsubsection{其他字符串算法}
+
+\begin{enumerate}
+  \item \textbf{最长公共子串}
+    \begin{itemize}
+      \item 使用动态规划或后缀数组
+      \item 时间复杂度：O(mn) 或 O(m + n)
+    \end{itemize}
+
+  \item \textbf{最长回文子串}
+    \begin{itemize}
+      \item Manacher 算法：O(n)
+      \item 动态规划：O(n²)
+    \end{itemize}
+
+  \item \textbf{字符串编辑距离}
+    \begin{itemize}
+      \item Levenshtein 距离
+      \item 动态规划：O(mn)
+    \end{itemize}
+\end{enumerate}
+
+\subsection{图算法进阶}
+
+\subsubsection{最短路径算法}
+
+\begin{enumerate}
+  \item \textbf{Dijkstra 算法}
+    \begin{itemize}
+      \item 单源最短路径（非负权重）
+      \item 时间复杂度：O((V + E) log V)（使用优先队列）
+      \item 贪心算法
+    \end{itemize}
+
+  \item \textbf{Bellman-Ford 算法}
+    \begin{itemize}
+      \item 单源最短路径（允许负权重，检测负环）
+      \item 时间复杂度：O(VE)
+      \item 动态规划思想
+    \end{itemize}
+
+  \item \textbf{Floyd-Warshall 算法}
+    \begin{itemize}
+      \item 所有顶点对之间的最短路径
+      \item 时间复杂度：O(V³)
+      \item 动态规划思想
+    \end{itemize}
+
+  \item \textbf{A* 算法}
+    \begin{itemize}
+      \item 启发式搜索，用于路径查找
+      \item 使用启发函数估计到目标的距离
+      \item 广泛应用于游戏开发和路径规划
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{最小生成树算法}
+
+\begin{enumerate}
+  \item \textbf{Kruskal 算法}
+    \begin{itemize}
+      \item 按边权重排序，依次加入不形成环的边
+      \item 使用并查集检测环
+      \item 时间复杂度：O(E log E)
+    \end{itemize}
+
+  \item \textbf{Prim 算法}
+    \begin{itemize}
+      \item 从任意顶点开始，每次加入距离当前树最近的顶点
+      \item 使用优先队列
+      \item 时间复杂度：O((V + E) log V)
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{拓扑排序}
+
+拓扑排序（Topological Sort）对有向无环图（DAG）的顶点进行排序，使得对于每条边 (u, v)，u 在排序中出现在 v 之前。
+
+应用：
+\begin{itemize}
+  \item 任务调度
+  \item 编译顺序确定
+  \item 依赖关系解析
+\end{itemize}
+
+实现方法：
+\begin{enumerate}
+  \item \textbf{DFS 方法}
+    \begin{itemize}
+      \item 深度优先搜索，记录完成时间
+      \item 按完成时间逆序排列
+      \item 时间复杂度：O(V + E)
+    \end{itemize}
+
+  \item \textbf{Kahn 算法}
+    \begin{itemize}
+      \item 使用入度数组
+      \item 每次选择入度为 0 的顶点
+      \item 时间复杂度：O(V + E)
+    \end{itemize}
+\end{enumerate}
+
+\subsection{高级数据结构}
+
+\subsubsection{并查集}
+
+并查集（Union-Find）是一种树型数据结构，用于处理一些不交集的合并及查询问题。
+
+操作：
+\begin{itemize}
+  \item \texttt{find}：查找元素所属的集合
+  \item \texttt{union}：合并两个集合
+  \item 时间复杂度：接近 O(1)（使用路径压缩和按秩合并）
+\end{itemize}
+
+应用：
+\begin{itemize}
+  \item 连通性检测
+  \item Kruskal 最小生成树算法
+  \item 等价类划分
+\end{itemize}
+
+\begin{lstlisting}[language=C, caption={并查集实现}]
+typedef struct {
+    int *parent;
+    int *rank;
+    int n;
+} UnionFind;
+
+UnionFind* uf_create(int n) {
+    UnionFind *uf = malloc(sizeof(UnionFind));
+    uf->parent = malloc(n * sizeof(int));
+    uf->rank = calloc(n, sizeof(int));
+    uf->n = n;
+
+    for (int i = 0; i < n; i++) {
+        uf->parent[i] = i;
+    }
+    return uf;
+}
+
+int uf_find(UnionFind *uf, int x) {
+    if (uf->parent[x] != x) {
+        uf->parent[x] = uf_find(uf, uf->parent[x]);  // 路径压缩
+    }
+    return uf->parent[x];
+}
+
+void uf_union(UnionFind *uf, int x, int y) {
+    int root_x = uf_find(uf, x);
+    int root_y = uf_find(uf, y);
+
+    if (root_x == root_y) return;
+
+    // 按秩合并
+    if (uf->rank[root_x] < uf->rank[root_y]) {
+        uf->parent[root_x] = root_y;
+    } else if (uf->rank[root_x] > uf->rank[root_y]) {
+        uf->parent[root_y] = root_x;
+    } else {
+        uf->parent[root_y] = root_x;
+        uf->rank[root_x]++;
+    }
+}
+\end{lstlisting}
+
+\subsubsection{线段树}
+
+线段树（Segment Tree）是一种二叉树，用于处理区间查询和更新操作。
+
+特点：
+\begin{itemize}
+  \item 支持区间查询：O(log n)
+  \item 支持单点更新：O(log n)
+  \item 支持区间更新：O(log n)（使用懒标记）
+  \item 空间复杂度：O(n)
+\end{itemize}
+
+应用：
+\begin{itemize}
+  \item 区间最值查询
+  \item 区间和查询
+  \item 区间更新
+  \item 逆序对统计
+\end{itemize}
+
+\subsubsection{树状数组}
+
+树状数组（Binary Indexed Tree, BIT）是一种支持单点更新和前缀和查询的数据结构。
+
+特点：
+\begin{itemize}
+  \item 单点更新：O(log n)
+  \item 前缀和查询：O(log n)
+  \item 空间复杂度：O(n)
+  \item 实现简单，常数小
+\end{itemize}
+
+应用：
+\begin{itemize}
+  \item 动态前缀和
+  \item 逆序对统计
+  \item 区间更新、单点查询（差分数组）
+\end{itemize}
+
+\section{算法设计技巧总结}
+
+\subsection{问题分析}
+
+在解决算法问题时，应该：
+\begin{enumerate}
+  \item \textbf{理解问题}
+    \begin{itemize}
+      \item 明确输入输出
+      \item 理解约束条件
+      \item 识别边界情况
+    \end{itemize}
+
+  \item \textbf{分析复杂度要求}
+    \begin{itemize}
+      \item 数据规模
+      \item 时间限制
+      \item 空间限制
+    \end{itemize}
+
+  \item \textbf{选择合适的数据结构}
+    \begin{itemize}
+      \item 根据操作特点选择
+      \item 考虑时间和空间权衡
+    \end{itemize}
+
+  \item \textbf{设计算法}
+    \begin{itemize}
+      \item 识别问题类型
+      \item 选择合适的算法思想
+      \item 考虑优化空间
+    \end{itemize}
+\end{enumerate}
+
+\subsection{常见问题模式}
+
+\begin{enumerate}
+  \item \textbf{滑动窗口}
+    \begin{itemize}
+      \item 维护一个窗口，在数组上滑动
+      \item 用于子数组、子串问题
+      \item 时间复杂度：O(n)
+    \end{itemize}
+
+  \item \textbf{双指针}
+    \begin{itemize}
+      \item 使用两个指针遍历数组
+      \item 用于有序数组、链表问题
+      \item 时间复杂度：O(n)
+    \end{itemize}
+
+  \item \textbf{前缀和}
+    \begin{itemize}
+      \item 预处理前缀和数组
+      \item 快速计算区间和
+      \item 时间复杂度：O(1) 查询
+    \end{itemize}
+
+  \item \textbf{差分数组}
+    \begin{itemize}
+      \item 用于区间更新
+      \item 单点查询
+      \item 时间复杂度：O(1) 更新
+    \end{itemize}
+
+  \item \textbf{单调栈/队列}
+    \begin{itemize}
+      \item 维护单调性
+      \item 用于寻找下一个更大/更小元素
+      \item 时间复杂度：O(n)
+    \end{itemize}
+\end{enumerate}
+
+\subsection{优化技巧}
+
+\begin{enumerate}
+  \item \textbf{空间换时间}
+    \begin{itemize}
+      \item 使用哈希表加速查找
+      \item 预处理数据
+      \item 缓存计算结果
+    \end{itemize}
+
+  \item \textbf{时间换空间}
+    \begin{itemize}
+      \item 使用位运算压缩空间
+      \item 原地算法
+      \item 延迟计算
+    \end{itemize}
+
+  \item \textbf{算法优化}
+    \begin{itemize}
+      \item 减少不必要的计算
+      \item 使用更高效的数据结构
+      \item 利用问题特性
+    \end{itemize}
+
+  \item \textbf{实现优化}
+    \begin{itemize}
+      \item 减少函数调用开销
+      \item 优化内存访问模式
+      \item 使用位运算
+      \item 编译器优化选项
+    \end{itemize}
+\end{enumerate}
+
+数据结构与算法是编程的基础，掌握这些知识对于编写高效、可靠的嵌入式软件至关重要。
+在实际开发中，需要根据具体场景选择合适的数据结构和算法，在时间、空间和代码复杂度之间做出权衡。
+持续学习和实践是提高算法能力的关键。

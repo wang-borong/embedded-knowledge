@@ -1,3 +1,1386 @@
 \chapter{FPGA 简介}
 
-\section{HDL}
+现场可编程门阵列（Field-Programmable Gate Array，FPGA）是一种可编程逻辑器件，用户可以通过编程来配置其内部逻辑功能。FPGA 具有灵活性高、开发周期短、可重复编程等优点，广泛应用于数字信号处理、通信、图像处理、嵌入式系统等领域。本章将系统介绍 FPGA 的基本原理、架构、设计方法和应用。
+
+\section{FPGA 基础}
+
+\subsection{FPGA 的发展历史}
+
+FPGA 的发展历程：
+
+\begin{enumerate}
+  \item \textbf{1980 年代}：Xilinx 和 Altera（现 Intel）推出第一代 FPGA
+    \begin{itemize}
+      \item 简单的可编程逻辑块
+      \item 有限的资源
+    \end{itemize}
+
+  \item \textbf{1990 年代}：第二代 FPGA
+    \begin{itemize}
+      \item 增加嵌入式存储器
+      \item 改进的布线资源
+    \end{itemize}
+
+  \item \textbf{2000 年代}：第三代 FPGA
+    \begin{itemize}
+      \item 嵌入式处理器（硬核和软核）
+      \item DSP 块
+      \item 高速串行接口
+    \end{itemize}
+
+  \item \textbf{2010 年代至今}：现代 FPGA
+    \begin{itemize}
+      \item 大规模集成（数百万逻辑单元）
+      \item 高级工艺（7 nm、5 nm）
+      \item 异构计算平台
+      \item AI 加速
+    \end{itemize}
+\end{enumerate}
+
+\subsection{FPGA 的基本概念}
+
+\subsubsection{什么是 FPGA}
+
+FPGA 是一种半定制电路，特点：
+\begin{itemize}
+  \item 可编程：用户可以通过编程配置逻辑功能
+  \item 可重复编程：可以多次修改和更新
+  \item 并行处理：天然支持并行计算
+  \item 灵活性高：可以实现各种数字逻辑功能
+\end{itemize}
+
+\subsubsection{FPGA 与 ASIC 的比较}
+
+\begin{table}[H]
+  \centering
+  \caption{FPGA 与 ASIC 的比较}
+  \begin{tabular}{|l|l|l|}
+    \hline
+    特性 & FPGA & ASIC \\
+    \hline
+    开发成本 & 低 & 高 \\
+    开发周期 & 短（几周到几个月） & 长（几个月到几年） \\
+    单位成本 & 高 & 低（大批量） \\
+    性能 & 中等 & 高 \\
+    功耗 & 较高 & 低 \\
+    灵活性 & 高 & 低 \\
+    可重复编程 & 是 & 否 \\
+    适用场景 & 原型、小批量、快速上市 & 大批量、高性能 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+\subsubsection{FPGA 与 CPLD 的比较}
+
+\begin{table}[H]
+  \centering
+  \caption{FPGA 与 CPLD 的比较}
+  \begin{tabular}{|l|l|l|}
+    \hline
+    特性 & FPGA & CPLD \\
+    \hline
+    架构 & 查找表（LUT） & 乘积项（Product Term） \\
+    容量 & 大（数万到数百万逻辑单元） & 小（数百到数万逻辑单元） \\
+    速度 & 中等 & 快 \\
+    功耗 & 较高 & 较低 \\
+    应用 & 复杂逻辑、DSP、处理器 & 简单逻辑、状态机、接口 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+\subsection{FPGA 的应用领域}
+
+\begin{enumerate}
+  \item \textbf{数字信号处理}
+    \begin{itemize}
+      \item 滤波器
+      \item FFT/IFFT
+      \item 图像处理
+    \end{itemize}
+
+  \item \textbf{通信系统}
+    \begin{itemize}
+      \item 协议处理
+      \item 数据包处理
+      \item 无线通信基带
+    \end{itemize}
+
+  \item \textbf{嵌入式系统}
+    \begin{itemize}
+      \item 系统级芯片（SoC）
+      \item 协处理器
+      \item 接口桥接
+    \end{itemize}
+
+  \item \textbf{高性能计算}
+    \begin{itemize}
+      \item 加速器
+      \item AI 推理
+      \item 加密解密
+    \end{itemize}
+
+  \item \textbf{原型验证}
+    \begin{itemize}
+      \item ASIC 原型
+      \item 算法验证
+    \end{itemize}
+\end{enumerate}
+
+\section{FPGA 架构}
+
+\subsection{基本架构组成}
+
+FPGA 的基本架构包括：
+
+\begin{enumerate}
+  \item \textbf{可配置逻辑块（CLB/Configurable Logic Block）}
+    \begin{itemize}
+      \item 实现组合逻辑和时序逻辑
+      \item 基本逻辑单元
+    \end{itemize}
+
+  \item \textbf{输入输出块（IOB/IO Block）}
+    \begin{itemize}
+      \item 与外部接口
+      \item 支持多种 I/O 标准
+    \end{itemize}
+
+  \item \textbf{布线资源（Routing Resources）}
+    \begin{itemize}
+      \item 连接逻辑块
+      \item 可编程互连
+    \end{itemize}
+
+  \item \textbf{时钟资源（Clock Resources）}
+    \begin{itemize}
+      \item 全局时钟网络
+      \item 时钟管理单元
+    \end{itemize}
+
+  \item \textbf{嵌入式资源}
+    \begin{itemize}
+      \item 存储器（Block RAM、Distributed RAM）
+      \item DSP 块
+      \item 处理器（硬核、软核）
+    \end{itemize}
+\end{enumerate}
+
+\subsection{可配置逻辑块（CLB）}
+
+\subsubsection{查找表（LUT）}
+
+查找表（Look-Up Table，LUT）是 FPGA 的基本逻辑单元，用于实现组合逻辑。
+
+\begin{enumerate}
+  \item \textbf{工作原理}
+    \begin{itemize}
+      \item N 输入 LUT 可以实现任意 N 输入组合逻辑函数
+      \item 通过配置存储单元（SRAM）存储真值表
+      \item 输入作为地址，输出为存储的值
+    \end{itemize}
+
+  \item \textbf{LUT 大小}
+    \begin{itemize}
+      \item 4 输入 LUT（4-LUT）：最常用
+      \item 6 输入 LUT（6-LUT）：现代 FPGA
+      \item 更大的 LUT：某些高端 FPGA
+    \end{itemize}
+
+  \item \textbf{LUT 级联}
+    \begin{itemize}
+      \item 多个 LUT 可以级联实现更复杂的逻辑
+      \item 通过快速进位链连接
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{触发器（Flip-Flop）}
+
+每个 CLB 通常包含多个触发器：
+\begin{itemize}
+  \item 用于实现时序逻辑
+  \item 可以配置为 D 触发器、T 触发器、JK 触发器等
+  \item 支持同步/异步复位和置位
+\end{itemize}
+
+\subsubsection{CLB 结构}
+
+典型的 CLB 结构：
+\begin{itemize}
+  \item 多个 LUT（如 2--8 个）
+  \item 多个触发器（如 2--16 个）
+  \item 多路选择器（MUX）
+  \item 快速进位链
+  \item 局部布线资源
+\end{itemize}
+
+\subsection{输入输出块（IOB）}
+
+\subsubsection{IOB 功能}
+
+IOB 提供：
+\begin{enumerate}
+  \item \textbf{输入缓冲}
+    \begin{itemize}
+      \item 可配置的输入标准
+      \item 施密特触发器输入
+    \end{itemize}
+
+  \item \textbf{输出缓冲}
+    \begin{itemize}
+      \item 可配置的驱动能力
+      \item 开漏输出
+      \item 三态输出
+    \end{itemize}
+
+  \item \textbf{输入/输出寄存器}
+    \begin{itemize}
+      \item 提高时序性能
+      \item 减少建立/保持时间要求
+    \end{itemize}
+
+  \item \textbf{延迟控制}
+    \begin{itemize}
+      \item 可编程延迟
+      \item 用于时序调整
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{支持的 I/O 标准}
+
+\begin{itemize}
+  \item LVTTL/LVCMOS：3.3 V、2.5 V、1.8 V、1.5 V、1.2 V
+  \item LVDS：低电压差分信号
+  \item SSTL：存储器接口
+  \item HSTL：高速存储器接口
+  \item PCI/PCIe：PCI 接口
+  \item 其他专用标准
+\end{itemize}
+
+\subsection{布线资源}
+
+\subsubsection{布线层次}
+
+FPGA 的布线资源通常分为多个层次：
+
+\begin{enumerate}
+  \item \textbf{局部布线}
+    \begin{itemize}
+      \item CLB 内部连接
+      \item 相邻 CLB 之间的连接
+    \end{itemize}
+
+  \item \textbf{通用布线}
+    \begin{itemize}
+      \item 中等距离连接
+      \item 可编程开关矩阵
+    \end{itemize}
+
+  \item \textbf{长线}
+    \begin{itemize}
+      \item 长距离连接
+      \item 全局信号
+    \end{itemize}
+
+  \item \textbf{专用布线}
+    \begin{itemize}
+      \item 时钟网络
+      \item 复位网络
+      \item 高速信号
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{布线延迟}
+
+布线延迟是 FPGA 性能的重要因素：
+\begin{itemize}
+  \item 延迟与布线长度相关
+  \item 通过时序约束控制
+  \item 工具自动优化
+\end{itemize}
+
+\subsection{时钟资源}
+
+\subsubsection{时钟网络}
+
+FPGA 提供专门的时钟网络：
+\begin{enumerate}
+  \item \textbf{全局时钟}
+    \begin{itemize}
+      \item 低延迟、低抖动
+      \item 覆盖整个芯片
+      \item 数量有限（通常 10--50 个）
+    \end{itemize}
+
+  \item \textbf{区域时钟}
+    \begin{itemize}
+      \item 覆盖特定区域
+      \item 数量较多
+    \end{itemize}
+
+  \item \textbf{I/O 时钟}
+    \begin{itemize}
+      \item 用于 I/O 接口
+      \item 支持高速接口
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{时钟管理单元}
+
+现代 FPGA 通常包含时钟管理单元：
+
+\begin{enumerate}
+  \item \textbf{锁相环（PLL）}
+    \begin{itemize}
+      \item 频率合成
+      \item 时钟倍频/分频
+      \item 相位调整
+    \end{itemize}
+
+  \item \textbf{延迟锁定环（DLL）}
+    \begin{itemize}
+      \item 时钟对齐
+      \item 延迟补偿
+    \end{itemize}
+
+  \item \textbf{混合模式时钟管理器（MMCM）}
+    \begin{itemize}
+      \item 结合 PLL 和 DLL 功能
+      \item 更灵活的时钟管理
+    \end{itemize}
+\end{enumerate}
+
+\subsection{存储器资源}
+
+\subsubsection{Block RAM}
+
+Block RAM（BRAM）是 FPGA 中的专用存储器块：
+
+\begin{enumerate}
+  \item \textbf{特点}
+    \begin{itemize}
+      \item 容量大（通常 18--36 kbit/块）
+      \item 双端口或真双端口
+      \item 可配置为 RAM、ROM、FIFO
+    \end{itemize}
+
+  \item \textbf{配置模式}
+    \begin{itemize}
+      \item 单端口 RAM
+      \item 简单双端口 RAM
+      \item 真双端口 RAM
+      \item ROM
+      \item FIFO
+    \end{itemize}
+
+  \item \textbf{应用}
+    \begin{itemize}
+      \item 数据缓冲
+      \item 查找表
+      \item FIFO 队列
+      \item 缓存
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{分布式 RAM}
+
+分布式 RAM 使用 LUT 实现小容量存储器：
+\begin{itemize}
+  \item 容量小（每个 LUT 16--64 bit）
+  \item 延迟小
+  \item 用于小容量存储
+\end{itemize}
+
+\subsubsection{UltraRAM}
+
+某些高端 FPGA 提供 UltraRAM：
+\begin{itemize}
+  \item 超大容量（数 Mbit）
+  \item 用于大数据缓冲
+\end{itemize}
+
+\subsection{DSP 块}
+
+\subsubsection{DSP 块功能}
+
+DSP 块（DSP Slice）用于实现数字信号处理功能：
+
+\begin{enumerate}
+  \item \textbf{乘法器}
+    \begin{itemize}
+      \item 高速乘法运算
+      \item 支持有符号/无符号
+    \end{itemize}
+
+  \item \textbf{乘加器（MAC）}
+    \begin{itemize}
+      \item 乘法和累加
+      \item 用于滤波器、FFT 等
+    \end{itemize}
+
+  \item \textbf{预加器}
+    \begin{itemize}
+      \item 输入数据的预处理
+    \end{itemize}
+
+  \item \textbf{流水线}
+    \begin{itemize}
+      \item 支持流水线操作
+      \item 提高工作频率
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{DSP 块应用}
+
+\begin{itemize}
+  \item 滤波器实现
+  \item FFT/IFFT
+  \item 相关器
+  \item 矩阵运算
+\end{itemize}
+
+\subsection{处理器资源}
+
+\subsubsection{硬核处理器}
+
+某些 FPGA 包含硬核处理器：
+\begin{itemize}
+  \item ARM Cortex-A 系列（应用处理器）
+  \item ARM Cortex-R 系列（实时处理器）
+  \item PowerPC（某些老款 FPGA）
+\end{itemize}
+
+\subsubsection{软核处理器}
+
+可以在 FPGA 中实现软核处理器：
+\begin{itemize}
+  \item MicroBlaze（Xilinx）
+  \item Nios II（Intel/Altera）
+  \item RISC-V 软核
+  \item 其他开源处理器
+\end{itemize}
+
+\section{硬件描述语言（HDL）}
+
+硬件描述语言用于描述数字电路的行为和结构，是 FPGA 设计的基础。
+
+\subsection{HDL 概述}
+
+\subsubsection{主要 HDL}
+
+\begin{enumerate}
+  \item \textbf{Verilog}
+    \begin{itemize}
+      \item 语法类似 C 语言
+      \item 广泛使用
+      \item IEEE 1364 标准
+    \end{itemize}
+
+  \item \textbf{VHDL}
+    \begin{itemize}
+      \item 语法类似 Ada 语言
+      \item 欧洲常用
+      \item IEEE 1076 标准
+    \end{itemize}
+
+  \item \textbf{SystemVerilog}
+    \begin{itemize}
+      \item Verilog 的扩展
+      \item 增强的验证功能
+      \item IEEE 1800 标准
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{HDL 的层次}
+
+\begin{enumerate}
+  \item \textbf{行为级（Behavioral）}
+    \begin{itemize}
+      \item 描述功能行为
+      \item 抽象层次高
+    \end{itemize}
+
+  \item \textbf{寄存器传输级（RTL）}
+    \begin{itemize}
+      \item 描述数据流和寄存器
+      \item 可综合
+    \end{itemize}
+
+  \item \textbf{门级（Gate Level）}
+    \begin{itemize}
+      \item 描述逻辑门连接
+      \item 抽象层次低
+    \end{itemize}
+\end{enumerate}
+
+\subsection{Verilog HDL}
+
+\subsubsection{基本语法}
+
+\paragraph{模块定义}
+
+\begin{verbatim}
+module module_name (
+    input  wire signal1,
+    input  wire signal2,
+    output reg  signal3
+);
+    // 模块内容
+endmodule
+\end{verbatim}
+
+\paragraph{数据类型}
+
+\begin{itemize}
+  \item \textbf{wire}：连线，用于组合逻辑
+  \item \textbf{reg}：寄存器，用于时序逻辑
+  \item \textbf{integer}：整数
+  \item \textbf{real}：实数
+\end{itemize}
+
+\paragraph{运算符}
+
+\begin{itemize}
+  \item 算术运算符：+、-、*、/、\%
+  \item 逻辑运算符：\&\&、||、!
+  \item 位运算符：\&、|、\textasciicircum、\textasciitilde
+  \item 关系运算符：<、>、<=、>=
+  \item 移位运算符：<<、>>
+\end{itemize}
+
+\subsubsection{组合逻辑}
+
+\paragraph{连续赋值}
+
+\begin{verbatim}
+assign out = in1 & in2;
+\end{verbatim}
+
+\paragraph{always 块（组合逻辑）}
+
+\begin{verbatim}
+always @(*) begin
+    out = in1 | in2;
+end
+\end{verbatim}
+
+\subsubsection{时序逻辑}
+
+\paragraph{always 块（时序逻辑）}
+
+\begin{verbatim}
+always @(posedge clk) begin
+    if (reset)
+        q <= 1'b0;
+    else
+        q <= d;
+end
+\end{verbatim}
+
+\paragraph{阻塞赋值与非阻塞赋值}
+
+\begin{itemize}
+  \item \textbf{阻塞赋值（=）}：用于组合逻辑，立即执行
+  \item \textbf{非阻塞赋值（<=）}：用于时序逻辑，在时钟边沿更新
+\end{itemize}
+
+\subsubsection{常用设计模式}
+
+\paragraph{计数器}
+
+\begin{verbatim}
+reg [7:0] counter;
+always @(posedge clk) begin
+    if (reset)
+        counter <= 8'b0;
+    else if (enable)
+        counter <= counter + 1;
+end
+\end{verbatim}
+
+\paragraph{状态机}
+
+\begin{verbatim}
+parameter IDLE = 2'b00;
+parameter WORK = 2'b01;
+parameter DONE = 2'b10;
+
+reg [1:0] state;
+always @(posedge clk) begin
+    if (reset)
+        state <= IDLE;
+    else
+        case (state)
+            IDLE: if (start) state <= WORK;
+            WORK: if (done)  state <= DONE;
+            DONE:            state <= IDLE;
+        endcase
+end
+\end{verbatim}
+
+\subsection{VHDL}
+
+\subsubsection{基本语法}
+
+\paragraph{实体和架构}
+
+\begin{verbatim}
+entity entity_name is
+    port (
+        signal1 : in  std_logic;
+        signal2 : in  std_logic;
+        signal3 : out std_logic
+    );
+end entity;
+
+architecture rtl of entity_name is
+    -- 信号声明
+begin
+    -- 逻辑描述
+end architecture;
+\end{verbatim}
+
+\paragraph{数据类型}
+
+\begin{itemize}
+  \item \textbf{std\_logic}：标准逻辑类型（'0'、'1'、'Z'、'X' 等）
+  \item \textbf{std\_logic\_vector}：逻辑向量
+  \item \textbf{integer}：整数
+  \item \textbf{unsigned/signed}：无符号/有符号数
+\end{itemize}
+
+\subsubsection{组合逻辑}
+
+\paragraph{并发信号赋值}
+
+\begin{verbatim}
+signal3 <= signal1 and signal2;
+\end{verbatim}
+
+\paragraph{进程（Process）}
+
+\begin{verbatim}
+process(signal1, signal2)
+begin
+    signal3 <= signal1 or signal2;
+end process;
+\end{verbatim}
+
+\subsubsection{时序逻辑}
+
+\begin{verbatim}
+process(clk)
+begin
+    if rising_edge(clk) then
+        if reset = '1' then
+            q <= '0';
+        else
+            q <= d;
+        end if;
+    end if;
+end process;
+\end{verbatim}
+
+\subsection{SystemVerilog}
+
+SystemVerilog 是 Verilog 的扩展，增加了：
+
+\begin{enumerate}
+  \item \textbf{接口（Interface）}
+    \begin{itemize}
+      \item 封装信号组
+      \item 简化连接
+    \end{itemize}
+
+  \item \textbf{类（Class）}
+    \begin{itemize}
+      \item 面向对象编程
+      \item 主要用于验证
+    \end{itemize}
+
+  \item \textbf{断言（Assertion）}
+    \begin{itemize}
+      \item 属性检查
+      \item 形式化验证
+    \end{itemize}
+
+  \item \textbf{增强的数据类型}
+    \begin{itemize}
+      \item 枚举类型
+      \item 结构体
+      \item 联合体
+    \end{itemize}
+\end{enumerate}
+
+\subsection{HDL 设计原则}
+
+\begin{enumerate}
+  \item \textbf{可综合代码}
+    \begin{itemize}
+      \item 只使用可综合的语法
+      \item 避免不可综合的构造
+    \end{itemize}
+
+  \item \textbf{同步设计}
+    \begin{itemize}
+      \item 使用同步复位
+      \item 避免异步逻辑（除非必要）
+    \end{itemize}
+
+  \item \textbf{代码风格}
+    \begin{itemize}
+      \item 清晰的命名
+      \item 适当的注释
+      \item 模块化设计
+    \end{itemize}
+
+  \item \textbf{可移植性}
+    \begin{itemize}
+      \item 使用标准语法
+      \item 避免厂商特定特性
+    \end{itemize}
+\end{enumerate}
+
+\section{FPGA 设计流程}
+
+\subsection{设计流程概述}
+
+FPGA 设计流程包括：
+
+\begin{enumerate}
+  \item \textbf{需求分析}
+  \item \textbf{架构设计}
+  \item \textbf{RTL 设计}
+  \item \textbf{功能仿真}
+  \item \textbf{综合（Synthesis）}
+  \item \textbf{实现（Implementation）}
+  \item \textbf{时序分析}
+  \item \textbf{下载和测试}
+\end{enumerate}
+
+\subsection{设计输入}
+
+\subsubsection{设计输入方式}
+
+\begin{enumerate}
+  \item \textbf{HDL 代码}
+    \begin{itemize}
+      \item Verilog/VHDL/SystemVerilog
+      \item 最常用的方式
+    \end{itemize}
+
+  \item \textbf{原理图}
+    \begin{itemize}
+      \item 图形化设计
+      \item 较少使用
+    \end{itemize}
+
+  \item \textbf{IP 核}
+    \begin{itemize}
+      \item 预设计的模块
+      \item 提高设计效率
+    \end{itemize}
+
+  \item \textbf{高层次综合（HLS）}
+    \begin{itemize}
+      \item 从 C/C++ 生成 RTL
+      \item 提高抽象层次
+    \end{itemize}
+\end{enumerate}
+
+\subsection{功能仿真}
+
+\subsubsection{仿真工具}
+
+\begin{itemize}
+  \item ModelSim/QuestaSim
+  \item VCS
+  \item Verilator（开源）
+  \item Icarus Verilog（开源）
+\end{itemize}
+
+\subsubsection{测试平台}
+
+测试平台（Testbench）用于验证设计：
+\begin{itemize}
+  \item 生成测试激励
+  \item 监控输出
+  \item 自动验证
+\end{itemize}
+
+\subsection{综合}
+
+\subsubsection{综合过程}
+
+综合将 RTL 代码转换为门级网表：
+\begin{enumerate}
+  \item \textbf{语法分析}
+  \item \textbf{优化}
+  \item \textbf{映射到目标器件}
+  \item \textbf{生成网表}
+\end{enumerate}
+
+\subsubsection{综合工具}
+
+\begin{itemize}
+  \item Xilinx Vivado/ISE
+  \item Intel Quartus
+  \item Synopsys Synplify
+  \item Mentor Precision
+\end{itemize}
+
+\subsection{实现}
+
+\subsubsection{实现步骤}
+
+实现包括：
+
+\begin{enumerate}
+  \item \textbf{转换（Translate）}
+    \begin{itemize}
+      \item 将网表转换为 FPGA 格式
+    \end{itemize}
+
+  \item \textbf{映射（Map）}
+    \begin{itemize}
+      \item 将逻辑映射到 CLB
+      \item 分配资源
+    \end{itemize}
+
+  \item \textbf{布局（Place）}
+    \begin{itemize}
+      \item 确定逻辑块的位置
+      \item 考虑时序和布线
+    \end{itemize}
+
+  \item \textbf{布线（Route）}
+    \begin{itemize}
+      \item 连接逻辑块
+      \item 满足时序约束
+    \end{itemize}
+
+  \item \textbf{比特流生成（Bitstream Generation）}
+    \begin{itemize}
+      \item 生成配置文件
+      \item 用于下载到 FPGA
+    \end{itemize}
+\end{enumerate}
+
+\subsection{时序分析}
+
+\subsubsection{时序路径}
+
+时序路径包括：
+\begin{enumerate}
+  \item \textbf{建立时间路径}
+    \begin{itemize}
+      \item 从源触发器到目标触发器
+      \item 必须满足建立时间要求
+    \end{itemize}
+
+  \item \textbf{保持时间路径}
+    \begin{itemize}
+      \item 必须满足保持时间要求
+    \end{itemize}
+
+  \item \textbf{时钟路径}
+    \begin{itemize}
+      \item 时钟分配延迟
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{时序约束}
+
+时序约束用于指导工具优化：
+\begin{itemize}
+  \item 时钟约束
+  \item 输入/输出延迟约束
+  \item 多周期路径
+  \item 虚假路径
+\end{itemize}
+
+\section{时序约束和时序分析}
+
+\subsection{时序约束基础}
+
+\subsubsection{时钟约束}
+
+时钟约束定义时钟特性：
+
+\begin{verbatim}
+# Xilinx Vivado
+create_clock -period 10.0 -name clk [get_ports clk]
+
+# Intel Quartus
+create_clock -name clk -period 10.0 [get_ports {clk}]
+\end{verbatim}
+
+\subsubsection{输入延迟约束}
+
+定义输入信号的延迟：
+
+\begin{verbatim}
+set_input_delay -clock clk -max 2.0 [get_ports data_in]
+set_input_delay -clock clk -min 1.0 [get_ports data_in]
+\end{verbatim}
+
+\subsubsection{输出延迟约束}
+
+定义输出信号的延迟：
+
+\begin{verbatim}
+set_output_delay -clock clk -max 2.0 [get_ports data_out]
+set_output_delay -clock clk -min 1.0 [get_ports data_out]
+\end{verbatim}
+
+\subsection{时序分析}
+
+\subsubsection{建立时间检查}
+
+建立时间必须满足：
+
+\begin{equation}
+T_{clk} \geq T_{co} + T_{logic} + T_{routing} + T_{setup} - T_{skew} \label{eq:setup-time}
+\end{equation}
+
+其中：
+\begin{itemize}
+  \item $T_{clk}$：时钟周期
+  \item $T_{co}$：时钟到输出延迟
+  \item $T_{logic}$：组合逻辑延迟
+  \item $T_{routing}$：布线延迟
+  \item $T_{setup}$：建立时间
+  \item $T_{skew}$：时钟偏移
+\end{itemize}
+
+\subsubsection{保持时间检查}
+
+保持时间必须满足：
+
+\begin{equation}
+T_{hold} \leq T_{co} + T_{logic} + T_{routing} - T_{skew} \label{eq:hold-time}
+\end{equation}
+
+\subsubsection{时序裕量}
+
+时序裕量（Slack）是实际延迟与要求延迟的差值：
+\begin{itemize}
+  \item 正裕量：满足时序要求
+  \item 负裕量：时序违规，需要优化
+\end{itemize}
+
+\subsection{时序优化}
+
+\subsubsection{优化方法}
+
+\begin{enumerate}
+  \item \textbf{流水线}
+    \begin{itemize}
+      \item 插入寄存器
+      \item 减少组合逻辑延迟
+    \end{itemize}
+
+  \item \textbf{逻辑优化}
+    \begin{itemize}
+      \item 简化逻辑
+      \item 使用专用资源（如 DSP）
+    \end{itemize}
+
+  \item \textbf{约束优化}
+    \begin{itemize}
+      \item 合理的时序约束
+      \item 多周期路径
+    \end{itemize}
+
+  \item \textbf{布局布线优化}
+    \begin{itemize}
+      \item 区域约束
+      \item 时序驱动布局
+    \end{itemize}
+\end{enumerate}
+
+\section{FPGA 设计技巧}
+
+\subsection{同步设计}
+
+\subsubsection{同步复位 vs 异步复位}
+
+\begin{enumerate}
+  \item \textbf{同步复位}
+    \begin{itemize}
+      \item 复位信号在时钟边沿有效
+      \item 推荐使用
+      \item 易于时序分析
+    \end{itemize}
+
+  \item \textbf{异步复位}
+    \begin{itemize}
+      \item 复位信号立即有效
+      \item 需要复位同步器
+      \item 用于上电复位
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{复位同步器}
+
+异步复位需要同步释放：
+
+\begin{verbatim}
+reg rst_sync1, rst_sync2;
+always @(posedge clk or posedge rst_async) begin
+    if (rst_async) begin
+        rst_sync1 <= 1'b1;
+        rst_sync2 <= 1'b1;
+    end else begin
+        rst_sync1 <= 1'b0;
+        rst_sync2 <= rst_sync1;
+    end
+end
+\end{verbatim}
+
+\subsection{时钟域交叉（CDC）}
+
+\subsubsection{CDC 问题}
+
+不同时钟域之间的信号传输需要特殊处理：
+\begin{itemize}
+  \item 亚稳态（Metastability）
+  \item 数据丢失
+  \item 数据错误
+\end{itemize}
+
+\subsubsection{CDC 技术}
+
+\begin{enumerate}
+  \item \textbf{双触发器同步器}
+    \begin{itemize}
+      \item 用于单比特信号
+      \item 两级触发器
+    \end{itemize}
+
+  \item \textbf{握手协议}
+    \begin{itemize}
+      \item 用于多比特信号
+      \item 请求/应答机制
+    \end{itemize}
+
+  \item \textbf{FIFO}
+    \begin{itemize}
+      \item 用于数据流
+      \item 异步 FIFO
+    \end{itemize}
+
+  \item \textbf{格雷码}
+    \begin{itemize}
+      \item 用于计数器
+      \item 单比特变化
+    \end{itemize}
+\end{enumerate}
+
+\subsection{资源优化}
+
+\subsubsection{逻辑优化}
+
+\begin{enumerate}
+  \item \textbf{资源共享}
+    \begin{itemize}
+      \item 复用逻辑
+      \item 减少资源使用
+    \end{itemize}
+
+  \item \textbf{流水线}
+    \begin{itemize}
+      \item 平衡逻辑深度
+      \item 提高工作频率
+    \end{itemize}
+
+  \item \textbf{使用专用资源}
+    \begin{itemize}
+      \item DSP 块用于乘法
+      \item BRAM 用于存储器
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{功耗优化}
+
+\begin{enumerate}
+  \item \textbf{时钟门控}
+    \begin{itemize}
+      \item 关闭不用的时钟域
+      \item 降低动态功耗
+    \end{itemize}
+
+  \item \textbf{降低工作频率}
+    \begin{itemize}
+      \item 满足性能要求即可
+    \end{itemize}
+
+  \item \textbf{降低电压}
+    \begin{itemize}
+      \item 使用低电压 I/O
+    \end{itemize}
+\end{enumerate}
+
+\section{高级主题}
+
+\subsection{高速串行接口}
+
+\subsubsection{SerDes}
+
+串行器/解串器（Serializer/Deserializer，SerDes）用于高速串行通信：
+
+\begin{itemize}
+  \item PCIe
+  \item SATA
+  \item Ethernet（10 Gbps+）
+  \item USB 3.0+
+  \item 自定义高速接口
+\end{itemize}
+
+\subsubsection{设计要点}
+
+\begin{enumerate}
+  \item \textbf{时钟恢复}
+    \begin{itemize}
+      \item CDR（Clock Data Recovery）
+    \end{itemize}
+
+  \item \textbf{均衡}
+    \begin{itemize}
+      \item 预加重
+      \item 去加重
+      \item 自适应均衡
+    \end{itemize}
+
+  \item \textbf{眼图}
+    \begin{itemize}
+      \item 信号质量分析
+    \end{itemize}
+\end{enumerate}
+
+\subsection{系统级芯片（SoC）}
+
+\subsubsection{SoC 架构}
+
+FPGA SoC 结合了处理器和可编程逻辑：
+\begin{itemize}
+  \item 硬核处理器（如 ARM）
+  \item 可编程逻辑
+  \item 高速互连（AXI 总线）
+  \item 共享资源
+\end{itemize}
+
+\subsubsection{设计流程}
+
+\begin{enumerate}
+  \item 处理器系统设计
+  \item 可编程逻辑设计
+  \item 系统集成
+  \item 软件开发
+\end{enumerate}
+
+\subsection{高层次综合（HLS）}
+
+\subsubsection{HLS 概念}
+
+HLS 从高级语言（C/C++）生成 RTL：
+\begin{itemize}
+  \item 提高抽象层次
+  \item 加快开发速度
+  \item 自动优化
+\end{itemize}
+
+\subsubsection{HLS 工具}
+
+\begin{itemize}
+  \item Xilinx Vivado HLS（现 Vitis HLS）
+  \item Intel HLS Compiler
+  \item LegUp（开源）
+\end{itemize}
+
+\subsection{部分重配置}
+
+\subsubsection{部分重配置概念}
+
+部分重配置允许在运行时重新配置 FPGA 的一部分：
+\begin{itemize}
+  \item 其他部分继续工作
+  \item 动态功能切换
+  \item 节省资源
+\end{itemize}
+
+\subsubsection{应用}
+
+\begin{itemize}
+  \item 多模式系统
+  \item 资源复用
+  \item 动态优化
+\end{itemize}
+
+\section{FPGA 应用实例}
+
+\subsection{数字信号处理}
+
+\subsubsection{滤波器}
+
+\begin{itemize}
+  \item FIR 滤波器
+  \item IIR 滤波器
+  \item 自适应滤波器
+\end{itemize}
+
+\subsubsection{FFT}
+
+\begin{itemize}
+  \item 快速傅里叶变换
+  \item 用于频谱分析
+  \item 使用 DSP 块加速
+\end{itemize}
+
+\subsection{图像处理}
+
+\begin{itemize}
+  \item 图像滤波
+  \item 边缘检测
+  \item 图像压缩
+  \item 视频编解码
+\end{itemize}
+
+\subsection{通信系统}
+
+\begin{itemize}
+  \item 协议处理
+  \item 数据包处理
+  \item 无线通信基带
+  \item 网络加速
+\end{itemize}
+
+\subsection{AI 加速}
+
+\begin{itemize}
+  \item 神经网络推理
+  \item 卷积加速
+  \item 矩阵运算
+  \item 低延迟推理
+\end{itemize}
+
+\section{FPGA 厂商和工具}
+
+\subsection{主要厂商}
+
+\begin{enumerate}
+  \item \textbf{Xilinx（现 AMD）}
+    \begin{itemize}
+      \item 市场份额最大
+      \item 产品线：Artix、Kintex、Virtex、Zynq
+      \item 工具：Vivado、Vitis
+    \end{itemize}
+
+  \item \textbf{Intel（原 Altera）}
+    \begin{itemize}
+      \item 第二大厂商
+      \item 产品线：Cyclone、Arria、Stratix、Agilex
+      \item 工具：Quartus Prime
+    \end{itemize}
+
+  \item \textbf{Lattice}
+    \begin{itemize}
+      \item 专注于低功耗、小尺寸
+      \item 产品线：iCE、ECP、MachXO
+      \item 工具：Lattice Diamond、Radiant
+    \end{itemize}
+
+  \item \textbf{Microsemi（现 Microchip）}
+    \begin{itemize}
+      \item 专注于抗辐射、高可靠性
+      \item 产品线：SmartFusion、IGLOO、ProASIC
+      \item 工具：Libero SoC
+    \end{itemize}
+\end{enumerate}
+
+\subsection{开发工具}
+
+\subsubsection{综合和实现工具}
+
+\begin{itemize}
+  \item Xilinx Vivado
+  \item Intel Quartus Prime
+  \item Lattice Radiant
+  \item 第三方工具（Synplify、Precision）
+\end{itemize}
+
+\subsubsection{仿真工具}
+
+\begin{itemize}
+  \item ModelSim/QuestaSim
+  \item VCS
+  \item Verilator（开源）
+\end{itemize}
+
+\subsubsection{调试工具}
+
+\begin{itemize}
+  \item 逻辑分析仪（ILA、SignalTap）
+  \item 示波器
+  \item 协议分析仪
+\end{itemize}
+
+\section{FPGA 选型}
+
+\subsection{选型考虑因素}
+
+\begin{enumerate}
+  \item \textbf{逻辑资源}
+    \begin{itemize}
+      \item LUT 数量
+      \item 触发器数量
+      \item 是否满足设计需求
+    \end{itemize}
+
+  \item \textbf{存储器}
+    \begin{itemize}
+      \item Block RAM 容量
+      \item 是否需要 UltraRAM
+    \end{itemize}
+
+  \item \textbf{DSP 资源}
+    \begin{itemize}
+      \item DSP 块数量
+      \item 是否满足 DSP 需求
+    \end{itemize}
+
+  \item \textbf{I/O}
+    \begin{itemize}
+      \item I/O 数量
+      \item 支持的 I/O 标准
+      \item 高速接口（SerDes）
+    \end{itemize}
+
+  \item \textbf{时钟资源}
+    \begin{itemize}
+      \item 时钟管理单元
+      \item 全局时钟数量
+    \end{itemize}
+
+  \item \textbf{功耗}
+    \begin{itemize}
+      \item 静态功耗
+      \item 动态功耗
+      \item 散热要求
+    \end{itemize}
+
+  \item \textbf{成本}
+    \begin{itemize}
+      \item 器件成本
+      \item 开发工具成本
+    \end{itemize}
+
+  \item \textbf{封装}
+    \begin{itemize}
+      \item 封装类型
+      \item 引脚数
+    \end{itemize}
+\end{enumerate}
+
+\section{总结}
+
+FPGA 是一种强大的可编程逻辑器件，具有灵活性高、开发周期短、可重复编程等优点。掌握 FPGA 设计需要理解其架构、熟悉 HDL、掌握设计流程和时序分析。随着 FPGA 技术的不断发展，其在 AI 加速、高性能计算、通信等领域的应用越来越广泛。通过系统学习和实践，可以充分发挥 FPGA 的优势，实现高性能的数字系统设计。
