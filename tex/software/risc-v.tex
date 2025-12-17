@@ -1,0 +1,578 @@
+RISC-V 是一个开源的指令集架构（ISA），由加州大学伯克利分校开发。RISC-V 具有模块化、可扩展、无专利限制等特点，在学术界和工业界都得到了广泛关注。
+
+\subsection{Privileged Architecture}
+
+RISC-V 特权架构定义了系统级的功能，包括异常处理、内存管理、中断处理等。
+
+\subsubsection{特权级别}
+
+RISC-V 定义了多个特权级别（模式）：
+
+\begin{enumerate}
+  \item \textbf{用户模式（User Mode，U-Mode）}
+    \begin{itemize}
+      \item 最低特权级别
+      \item 运行用户应用程序
+      \item 受限的指令和资源访问
+    \end{itemize}
+
+  \item \textbf{监管者模式（Supervisor Mode，S-Mode）}
+    \begin{itemize}
+      \item 运行操作系统内核
+      \item 管理虚拟内存
+      \item 处理系统调用和异常
+    \end{itemize}
+
+  \item \textbf{机器模式（Machine Mode，M-Mode）}
+    \begin{itemize}
+      \item 最高特权级别
+      \item 运行固件和引导代码
+      \item 最低级别的硬件访问
+    \end{itemize}
+
+  \item \textbf{Hypervisor 模式（H-Mode）}
+    \begin{itemize}
+      \item 可选的特权级别
+      \item 用于虚拟化
+      \item 在 S-Mode 和 M-Mode 之间
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{控制状态寄存器（CSR）}
+
+RISC-V 使用控制状态寄存器来管理系统状态：
+
+\paragraph{机器模式 CSR}
+
+\begin{itemize}
+  \item \textbf{mstatus}：机器状态寄存器
+  \item \textbf{misa}：机器 ISA 寄存器
+  \item \textbf{medeleg}：机器异常委托寄存器
+  \item \textbf{mideleg}：机器中断委托寄存器
+  \item \textbf{mie}：机器中断使能寄存器
+  \item \textbf{mtvec}：机器陷阱向量基址寄存器
+  \item \textbf{mepc}：机器异常程序计数器
+  \item \textbf{mcause}：机器异常原因寄存器
+  \item \textbf{mtval}：机器陷阱值寄存器
+  \item \textbf{mip}：机器中断挂起寄存器
+\end{itemize}
+
+\paragraph{监管者模式 CSR}
+
+\begin{itemize}
+  \item \textbf{sstatus}：监管者状态寄存器
+  \item \textbf{sedeleg}：监管者异常委托寄存器
+  \item \textbf{sideleg}：监管者中断委托寄存器
+  \item \textbf{sie}：监管者中断使能寄存器
+  \item \textbf{stvec}：监管者陷阱向量基址寄存器
+  \item \textbf{sepc}：监管者异常程序计数器
+  \item \textbf{scause}：监管者异常原因寄存器
+  \item \textbf{stval}：监管者陷阱值寄存器
+  \item \textbf{sip}：监管者中断挂起寄存器
+  \item \textbf{satp}：监管者地址转换和保护寄存器
+\end{itemize}
+
+\subsubsection{异常和中断}
+
+\paragraph{异常类型}
+
+RISC-V 定义了多种异常类型：
+\begin{itemize}
+  \item 指令地址未对齐
+  \item 指令访问错误
+  \item 非法指令
+  \item 断点
+  \item 加载地址未对齐
+  \item 加载访问错误
+  \item 存储地址未对齐
+  \item 存储访问错误
+  \item 用户模式环境调用
+  \item 监管者模式环境调用
+  \item 机器模式环境调用
+  \item 指令页错误
+  \item 加载页错误
+  \item 存储页错误
+\end{itemize}
+
+\paragraph{中断类型}
+
+RISC-V 支持多种中断：
+\begin{itemize}
+  \item 软件中断（Software Interrupt）
+  \item 定时器中断（Timer Interrupt）
+  \item 外部中断（External Interrupt）
+\end{itemize}
+
+\subsubsection{内存管理}
+
+\paragraph{Sv32（32 位虚拟内存）}
+
+\begin{itemize}
+  \item 32 位虚拟地址空间
+  \item 4 KB 页大小
+  \item 两级页表
+\end{itemize}
+
+\paragraph{Sv39（39 位虚拟内存）}
+
+\begin{itemize}
+  \item 39 位虚拟地址空间（512 GB）
+  \item 4 KB 页大小
+  \item 三级页表
+  \item 64 位系统常用
+\end{itemize}
+
+\paragraph{Sv48（48 位虚拟内存）}
+
+\begin{itemize}
+  \item 48 位虚拟地址空间（256 TB）
+  \item 4 KB 页大小
+  \item 四级页表
+  \item 大型系统使用
+\end{itemize}
+
+\paragraph{页表项（PTE）}
+
+RISC-V 页表项格式：
+\begin{itemize}
+  \item V（Valid）：有效位
+  \item R（Read）：读权限
+  \item W（Write）：写权限
+  \item X（Execute）：执行权限
+  \item U（User）：用户模式可访问
+  \item G（Global）：全局映射
+  \item A（Accessed）：已访问
+  \item D（Dirty）：已修改
+  \item RSW：保留给软件使用
+  \item PPN：物理页号
+\end{itemize}
+
+\subsection{Unprivileged ISA}
+
+RISC-V 非特权 ISA 定义了用户程序可以使用的指令。
+
+\subsubsection{基本指令集}
+
+\paragraph{RV32I（32 位基础指令集）}
+
+\begin{itemize}
+  \item 32 个通用寄存器（x0--x31）
+  \item x0 硬连线为 0
+  \item 基本整数运算指令
+  \item 加载/存储指令
+  \item 分支和跳转指令
+  \item 系统调用指令（ECALL）
+\end{itemize}
+
+\paragraph{RV64I（64 位基础指令集）}
+
+\begin{itemize}
+  \item 扩展 RV32I 到 64 位
+  \item 64 位寄存器
+  \item 64 位地址空间
+  \item 额外的 64 位运算指令
+\end{itemize}
+
+\subsubsection{标准扩展}
+
+\paragraph{M 扩展（乘法/除法）}
+
+\begin{itemize}
+  \item MUL：乘法
+  \item MULH：高位乘法
+  \item DIV：有符号除法
+  \item DIVU：无符号除法
+  \item REM：有符号取余
+  \item REMU：无符号取余
+\end{itemize}
+
+\paragraph{A 扩展（原子操作）}
+
+\begin{itemize}
+  \item LR（Load Reserved）：保留加载
+  \item SC（Store Conditional）：条件存储
+  \item AMO（Atomic Memory Operation）：原子内存操作
+  \item 用于实现锁和同步原语
+\end{itemize}
+
+\paragraph{F 扩展（单精度浮点）}
+
+\begin{itemize}
+  \item 32 位浮点运算
+  \item 32 个浮点寄存器（f0--f31）
+  \item IEEE 754 标准
+\end{itemize}
+
+\paragraph{D 扩展（双精度浮点）}
+
+\begin{itemize}
+  \item 64 位浮点运算
+  \item 扩展 F 扩展
+\end{itemize}
+
+\paragraph{C 扩展（压缩指令）}
+
+\begin{itemize}
+  \item 16 位指令编码
+  \item 减少代码大小
+  \item 提高代码密度
+\end{itemize}
+
+\subsubsection{寄存器约定}
+
+\paragraph{通用寄存器用途}
+
+\begin{itemize}
+  \item x0：零寄存器（硬连线为 0）
+  \item x1（ra）：返回地址
+  \item x2（sp）：栈指针
+  \item x3（gp）：全局指针
+  \item x4（tp）：线程指针
+  \item x5--x7（t0--t2）：临时寄存器
+  \item x8（s0/fp）：保存寄存器/帧指针
+  \item x9（s1）：保存寄存器
+  \item x10--x11（a0--a1）：函数参数/返回值
+  \item x12--x17（a2--a7）：函数参数
+  \item x18--x27（s2--s11）：保存寄存器
+  \item x28--x31（t3--t6）：临时寄存器
+\end{itemize}
+
+\subsubsection{调用约定}
+
+\paragraph{参数传递}
+
+\begin{itemize}
+  \item 前 8 个整数参数通过 a0--a7 传递
+  \item 前 8 个浮点参数通过 f0--f7 传递
+  \item 更多参数通过栈传递
+\end{itemize}
+
+\paragraph{返回值}
+
+\begin{itemize}
+  \item 整数返回值通过 a0 传递
+  \item 浮点返回值通过 f0 传递
+  \item 大结构体通过内存传递
+\end{itemize}
+
+\paragraph{调用者保存 vs 被调用者保存}
+
+\begin{itemize}
+  \item 临时寄存器（t0--t6）：调用者保存
+  \item 保存寄存器（s0--s11）：被调用者保存
+  \item 参数寄存器（a0--a7）：调用者保存
+\end{itemize}
+
+\section{内存层级}
+
+现代计算机系统采用多级内存层次结构，以平衡性能、容量和成本。
+
+\subsection{内存层次结构}
+
+\subsubsection{层次结构}
+
+典型的内存层次结构（从快到慢，从小到大）：
+
+\begin{enumerate}
+  \item \textbf{寄存器}
+    \begin{itemize}
+      \item 最快，容量最小（几十到几百字节）
+      \item CPU 内部，访问延迟：0 周期
+    \end{itemize}
+
+  \item \textbf{L1 缓存}
+    \begin{itemize}
+      \item 很快，容量小（32--64 KB）
+      \item CPU 内部，访问延迟：1--3 周期
+    \end{itemize}
+
+  \item \textbf{L2 缓存}
+    \begin{itemize}
+      \item 较快，容量中等（256 KB--1 MB）
+      \item CPU 内部或外部，访问延迟：10--20 周期
+    \end{itemize}
+
+  \item \textbf{L3 缓存}
+    \begin{itemize}
+      \item 中等速度，容量较大（几 MB 到几十 MB）
+      \item 多核共享，访问延迟：20--40 周期
+    \end{itemize}
+
+  \item \textbf{主内存（DRAM）}
+    \begin{itemize}
+      \item 较慢，容量大（几 GB 到几 TB）
+      \item 访问延迟：100--300 周期
+    \end{itemize}
+
+  \item \textbf{辅助存储（SSD/HDD）}
+    \begin{itemize}
+      \item 最慢，容量最大（几百 GB 到几十 TB）
+      \item 访问延迟：数万到数百万周期
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{访问时间对比}
+
+\begin{table}[H]
+  \centering
+  \caption{不同存储层次的典型访问时间}
+  \begin{tabular}{|l|l|l|}
+    \hline
+    存储类型 & 容量 & 访问时间 \\
+    \hline
+    寄存器 & 几十字节 & 0 周期 \\
+    L1 缓存 & 32--64 KB & 1--3 周期 \\
+    L2 缓存 & 256 KB--1 MB & 10--20 周期 \\
+    L3 缓存 & 几 MB--几十 MB & 20--40 周期 \\
+    主内存 & 几 GB--几 TB & 100--300 周期 \\
+    SSD & 几百 GB--几 TB & 数万周期 \\
+    HDD & 几 TB--几十 TB & 数百万周期 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+\subsection{缓存性能}
+
+\subsubsection{缓存命中率}
+
+缓存命中率是衡量缓存性能的重要指标：
+
+\begin{equation}
+\text{命中率} = \frac{\text{缓存命中次数}}{\text{总访问次数}} \label{eq:cache-hit-rate}
+\end{equation}
+
+\subsubsection{平均访问时间}
+
+平均内存访问时间：
+
+\begin{equation}
+T_{avg} = T_{hit} \times H + T_{miss} \times (1 - H) \label{eq:avg-access-time}
+\end{equation}
+
+其中：
+\begin{itemize}
+  \item $T_{hit}$：缓存命中时间
+  \item $T_{miss}$：缓存未命中时间（包括访问内存的时间）
+  \item $H$：缓存命中率
+\end{itemize}
+
+\subsubsection{缓存效率}
+
+缓存效率取决于：
+\begin{itemize}
+  \item 命中率
+  \item 缓存大小
+  \item 替换策略
+  \item 预取策略
+\end{itemize}
+
+\subsection{内存带宽}
+
+\subsubsection{理论带宽}
+
+内存的理论带宽：
+
+\begin{equation}
+\text{带宽} = \text{数据宽度} \times \text{频率} \times \text{通道数} \label{eq:memory-bandwidth}
+\end{equation}
+
+\subsubsection{实际带宽}
+
+实际带宽受多种因素影响：
+\begin{itemize}
+  \item 访问模式（顺序 vs 随机）
+  \item 缓存效率
+  \item 内存控制器效率
+  \item 系统负载
+\end{itemize}
+
+\section{每个程序员都应该知道的内存知识}
+
+内存是计算机系统中最关键的资源之一，理解内存的工作原理对于编写高效、正确的程序至关重要。本节总结程序员需要了解的关键内存知识。
+
+\subsection{内存的基本概念}
+
+\subsubsection{物理内存 vs 虚拟内存}
+
+\begin{enumerate}
+  \item \textbf{物理内存}
+    \begin{itemize}
+      \item 实际的硬件内存（DRAM）
+      \item 有限的容量
+      \item 直接由硬件访问
+    \end{itemize}
+
+  \item \textbf{虚拟内存}
+    \begin{itemize}
+      \item 程序看到的地址空间
+      \item 可以比物理内存大
+      \item 通过 MMU 映射到物理内存
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{内存对齐}
+
+\paragraph{对齐的重要性}
+
+\begin{itemize}
+  \item 未对齐的访问可能导致性能下降
+  \item 某些架构不支持未对齐访问
+  \item 对齐到自然边界可以提高性能
+\end{itemize}
+
+\paragraph{对齐规则}
+
+\begin{itemize}
+  \item 基本类型通常对齐到其大小
+  \item 结构体对齐到最大成员的对齐要求
+  \item 可以使用 \texttt{\_\_attribute\_\_((packed))} 取消对齐（不推荐）
+\end{itemize}
+
+\subsection{缓存友好的编程}
+
+\subsubsection{数据访问模式}
+
+\paragraph{顺序访问}
+
+\begin{itemize}
+  \item 顺序访问内存效率高
+  \item 充分利用空间局部性
+  \item 预取效果好
+\end{itemize}
+
+\paragraph{随机访问}
+
+\begin{itemize}
+  \item 随机访问效率低
+  \item 缓存命中率低
+  \item 应尽量避免
+\end{itemize}
+
+\subsubsection{数据结构设计}
+
+\paragraph{紧凑的数据结构}
+
+\begin{itemize}
+  \item 减少内存占用
+  \item 提高缓存利用率
+  \item 减少缓存未命中
+\end{itemize}
+
+\paragraph{数据布局}
+
+\begin{itemize}
+  \item 将经常一起访问的数据放在一起
+  \item 避免伪共享
+  \item 考虑缓存行大小（通常 64 字节）
+\end{itemize}
+
+\subsubsection{循环优化}
+
+\paragraph{循环顺序}
+
+\begin{itemize}
+  \item 按行访问优于按列访问（对于二维数组）
+  \item 考虑内存布局（行主序 vs 列主序）
+\end{itemize}
+
+\paragraph{循环展开}
+
+\begin{itemize}
+  \item 减少循环开销
+  \item 提高指令级并行
+  \item 但可能增加代码大小
+\end{itemize}
+
+\subsection{多核编程的内存考虑}
+
+\subsubsection{伪共享}
+
+\paragraph{问题}
+
+\begin{itemize}
+  \item 不同线程访问同一缓存行的不同数据
+  \item 导致不必要的缓存一致性开销
+  \item 严重影响性能
+\end{itemize}
+
+\paragraph{解决方法}
+
+\begin{itemize}
+  \item 数据对齐到缓存行边界
+  \item 使用填充（Padding）分离数据
+  \item 将共享数据改为私有数据
+\end{itemize}
+
+\subsubsection{内存屏障}
+
+\begin{itemize}
+  \item 确保内存操作的顺序
+  \item 防止编译器优化导致的问题
+  \item 保证多线程程序的正确性
+\end{itemize}
+
+\subsection{内存分配}
+
+\subsubsection{栈 vs 堆}
+
+\begin{enumerate}
+  \item \textbf{栈}
+    \begin{itemize}
+      \item 自动管理
+      \item 速度快
+      \item 容量有限
+      \item 局部变量
+    \end{itemize}
+
+  \item \textbf{堆}
+    \begin{itemize}
+      \item 手动管理（或垃圾回收）
+      \item 速度较慢
+      \item 容量大
+      \item 动态分配
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{内存分配器}
+
+\begin{itemize}
+  \item 理解分配器的行为
+  \item 避免频繁分配/释放
+  \item 使用对象池减少分配
+  \item 考虑内存碎片
+\end{itemize}
+
+\subsection{性能分析工具}
+
+\subsubsection{缓存分析}
+
+\begin{itemize}
+  \item perf：Linux 性能分析工具
+  \item Cachegrind：Valgrind 的缓存分析工具
+  \item Intel VTune：Intel 性能分析工具
+\end{itemize}
+
+\subsubsection{内存分析}
+
+\begin{itemize}
+  \item Valgrind：内存错误检测
+  \item AddressSanitizer：快速内存错误检测
+  \item 内存分析器：分析内存使用模式
+\end{itemize}
+
+\subsection{推荐阅读}
+
+关于内存相关的知识，强烈建议阅读
+\href{https://people.freebsd.org/~lstewart/articles/cpumemory.pdf}{What Every Programmer Should Know About Memory}。
+
+这篇经典文章详细介绍了：
+\begin{itemize}
+  \item 内存硬件的工作原理
+  \item CPU 缓存的组织和性能
+  \item 虚拟内存系统
+  \item NUMA 系统
+  \item 编程实践和优化技巧
+\end{itemize}
+
+理解这些内容对于编写高性能程序至关重要。
+

@@ -1,0 +1,707 @@
+\subsection{A64 指令集}
+
+一般情况下我们只需要记住指令的助记符即可，不需要在意更底层的指令编码，指令编码的事情留给汇编器来完成。
+
+我们将指令集按照其功能分类，有如下几类指令：\footnote{
+  关于指令集的快速参考可以使用 \url{
+    https://courses.cs.washington.edu/courses/cse469/19wi/arm64.pdf
+  }
+}
+
+\begin{itemize}
+  \item 数据处理指令
+    % \begin{itemize}
+    %   \item 算术与逻辑运算指令
+    %   \item 乘法与除法指令
+    %   \item 移位指令
+    %   \item 位和字节操作指令
+    %   \item 状态位操作指令
+    % \end{itemize}
+  \item 内存访问指令
+  \item 流程控制指令
+  \item 系统控制及其它指令
+    % \begin{itemize}
+    %   \item 异常处理指令
+    %   \item 系统寄存器操作指令
+    %   \item Debug 指令
+    %   \item Hint 指令
+    %   \item NEON 指令
+    %   \item 浮点指令
+    %   \item 加密算法指令
+    % \end{itemize}
+\end{itemize}
+
+\subsubsection{数据处理指令}
+
+\paragraph{算术与逻辑运算指令}
+
+\begin{stblr}
+  {算术和逻辑运算指令}
+  {a64-isa-al}
+  {c>{\centering\arraybackslash}X}
+  \hline[1pt]
+  类型 & 指令 \\
+  \hline
+  算术 & ADD, SUB, ADC, SBC, NEG \\
+  逻辑 & AND, BIC, ORR, ORN, EOR, EON \\
+  比较 & CMP, CMN, TST \\
+  转移 & MOV, MVN \\
+  \hline[1pt]
+\end{stblr}
+
+另外，有些指令的后缀带 S，表明该指令会更新状态 flags。
+这些指令可以配合跳转指令使用。
+注意，CMP、CMN 和 TST 不带后缀 S。
+
+\paragraph{乘法与除法指令}
+
+\begin{ltblr}[caption={乘法与除法指令}, label={tbl:a64-isa-md}]
+  {colspec={c>{\centering\arraybackslash}X}}
+    \hline[1pt]
+    指令 & 说明 \\
+    \hline
+    \textbf{乘法} & \\
+    MADD & Multiply add \\
+    MNEG & Multiply negate \\
+    MSUB & Multiply subtract \\
+    MUL & Multiply \\
+    SMADDL & Signed multiply-add long \\
+    SMNEGL & Signed multiply-negate long \\
+    SMSUBL & Signed multiply-subtract long \\
+    SMULH & Signed multiply returning high half \\
+    SMULL & Signed multiply long \\
+    UMADDL & Unsigned multiply-add long \\
+    UMNEGL & Unsigned multiply-negate long \\
+    UMSUBL & Unsigned multiply-subtract long \\
+    UMULH & Unsigned multiply returning high half \\
+    UMULL & Unsigned multiply long \\
+    \hline
+    \textbf{除法} & \\
+    SDIV & Signed divide \\
+    UDIV & Unsigned divide \\
+    \hline[1pt]
+\end{ltblr}
+
+\paragraph{移位指令}
+
+\begin{ltblr}[caption={移位指令}, label={tbl:a64-isa-so}]
+  {colspec={c>{\centering\arraybackslash}X}}
+    \hline[1pt]
+    指令 & 说明 \\
+    \hline
+    \textbf{移位} & \\
+    ASR & Arithmetic shift right \\
+    LSL & Logical shift left \\
+    LSR & Logical shift right \\
+    ROR & Rotate right \\
+    \hline
+    \textbf{转移} & \\
+    MOV & Move \\
+    MVN & Bitwise NOT \\
+    \hline[1pt]
+\end{ltblr}
+
+下图形象展示了移位指令的执行。
+
+\Figure[caption={移位操作}, label={fig:shift-ops}, width=1]{shift-ops}
+
+\paragraph{位和字节操作指令}
+
+\begin{ltblr}[caption={位和字节操作指令}, label={tbl:a64-isa-bB}]
+  {colspec={c>{\centering\arraybackslash}X}, width=1\textwidth}
+  \hline[1pt]
+  指令 & 说明 \\
+  \hline
+  BFI rd, rn, \#p, \#n & $rd_{p+n-1:p} = rn_{n-1:0}$ \\
+  BFXIL rd, rn, \#p, \#n & $rd_{n−1:0} = rn_{p+n−1:p}$ \\
+  CLS rd, rn & $rd = CountLeadingOnes(rn)$ \\
+  CLZ rd, rn & $rd = CountLeadingZeros(rn)$ \\
+  EXTR rd, rn, rm, \#p & $rd = rn_{p−1:0}:rm_{N0}$ \\
+  RBIT rd, rn & $rd = ReverseBits(rn)$ \\
+  REV rd, rn & $rd = BSwap(rn)$ \\
+  REV16 rd, rn & $for(n=0..1|3) rd_{Hn}=BSwap(rn_{Hn})$ \\
+  REV32 Xd, Xn & $Xd=BSwap(Xn_{63:32}):BSwap(Xn_{31:0})$ \\
+  \{S,U\}BFIZ rd, rn, \#p, \#n & $rd = rn^?_{n−1:0} << p$ \\
+  \{S,U\}BFX rd, rn, \#p, \#n & $rd = rn^?_{p+n−1:p}$ \\
+  \{S,U\}XT\{B,H\} rd, Wn & $rd = Wn^?_{N0}$ \\
+  SXTW Xd, Wn & $Xd = Wn^±$ \\
+  \hline[1pt]
+\end{ltblr}
+
+\paragraph{状态位操作指令}
+
+A64 支持处理器状态位有 NZCV，分别位 Negative、Zero、Carry 和 Overflow。
+C flag 在无符号数操作溢出时被设置，而 V 类似，但是是在有符号数操作溢出时被设置。
+
+\begin{ltblr}[caption={Condition codes}, label={tbl:condcode}]
+  {colspec={cc>{\centering\arraybackslash}X>{\centering\arraybackslash}Xc}, width=1\textwidth}
+  \hline[1pt]
+  Code & Encoding & Meaning (when set by CMP) & Meaning (when set by FCMP) & Condition flags \\
+  \hline
+  EQ & 0b0000 & Equal to. & Equal to. & Z =1 \\
+  NE & 0b0001 & Not equal to. & Unordered, or not equal to. & Z = 0 \\
+  CS & 0b0010 & Carry set (identical to HS). & Greater than, equal to, or unordered (identical to HS). & C = 1 \\
+  HS & 0b0010 & Greater than, equal to (unsigned) (identical to CS). & Greater than, equal to, or unordered (identical to CS). & C = 1 \\
+  CC & 0b0011 & Carry clear (identical to LO). & Less than (identical to LO). & C = 0 \\
+  LO & 0b0011 & Unsigned less than (identical to CC). & Less than (identical to CC). & C = 0 \\
+  MI & 0b0100 & Minus, Negative. & Less than. & N = 1 \\
+  PL & 0b0101 & Positive or zero. & Greater than, equal to, or unordered. & N = 0 \\
+  VS & 0b0110 & Signed overflow. & Unordered. (At least one argument was NaN). & V = 1 \\
+  VC & 0b0111 & No signed overflow. & Not unordered. (No argument was NaN). & V = 0 \\
+  HI & 0b1000 & Greater than (unsigned). & Greater than or unordered. & (C = 1) \&\& (Z = 0) \\
+  LS & 0b1001 & Less than or equal to (unsigned). & Less than or equal to. & (C = 0) || (Z = 1) \\
+  GE & 0b1010 & Greater than or equal to (signed). & Greater than or equal to. & N==V \\
+  LT & 0b1011 & Less than (signed). & Less than or unordered. & N!=V \\
+  GT & 0b1100 & Greater than (signed). & Greater than. & (Z==0) \&\& (N==V) \\
+  LE & 0b1101 & Less than or equal to (signed). & Less than, equal to or unordered. & (Z==1) || (N!=V) \\
+  AL & 0b1110 & Always executed. & Default. Always executed. & Any \\
+  NV & 0b1111 & Always executed. & Always executed. & Any \\
+  \hline[1pt]
+\end{ltblr}
+
+有一小部份的条件数据处理指令是无条件执行的，但使用条件标志作为指令的额外输入。
+提供这组指令是为了取代 ARM 代码中条件执行的常见用法。
+
+\subparagraph*{加 / 减}
+
+例如，用于多精度算术和校验和的传统 ARM 指令。
+
+\subparagraph*{带有可选增量、否定或反转的条件选择}
+
+有条件地在一个源寄存器和第二个增量、否定、倒置或未修改的源寄存器之间进行选择。
+
+这些是 A32 和 T32 中单个条件指令最常见的用途。
+典型的用途包括有条件计数或计算有符号数量的绝对值。
+
+\subparagraph*{条件操作}
+
+有别于 A32 和 T32（大多数指令可以使用条件码预测），A64 只有流程控制类的跳转指令才会使用到条件码。
+A64 中使用到条件码的指令，大致可以总结为：
+
+\begin{description}
+  \item[条件选择（移动）] 包括 CSEL、CSINC、CSINV 和 CSNEG。
+    \begin{itemize}
+      \item CSEL 根据一个条件在两个寄存器之间进行选择。
+        无条件指令，然后是条件选择，可以取代简短的条件序列。
+      \item CSINC 根据一个条件在两个寄存器之间进行选择。
+        返回第一个源寄存器或第二个源寄存器增加一个。
+      \item CSINV 根据条件在两个寄存器之间进行选择。
+        返回第一个源寄存器或倒置的第二个源寄存器。
+      \item CSNEG 根据条件在两个寄存器之间进行选择。
+        返回第一个源寄存器或被否定的第二个源寄存器。
+    \end{itemize}
+  \item[条件设置] 有条件地在 0 和 1（CSET）或 0 和 -1（CSETM）之间进行选择。
+    例如，用于在一般寄存器中将条件标志设置为布尔值或掩码。
+  \item[条件比较]（CMP 和 CMN）如果原始条件为真，则将条件标志设置为比较结果。
+    如果不是真，条件标志将设置为指定的条件标志状态。
+    条件比较指令对于表示嵌套或复合比较非常有用。
+\end{description}
+
+\subsubsection{内存访问指令}
+
+与之前的所有 ARM 处理器一样，ARMv8 架构是一个加载 / 存储架构。
+这意味着没有数据处理指令直接对内存中的数据进行操作。
+数据必须首先被加载到寄存器中，进行修改，然后存储到内存中。
+必须在程序中指定一个地址，要传输的数据大小，以及一个源寄存器或目标寄存器。
+还有一些额外的加载和存储指令，提供了更多的选择，如非时间性的加载 / 存储，加载 / 存储排他性，以及获取 / 释放。
+
+内存指令可以以非对齐方式访问普通内存（见 Memory ordering 章节~\ref{sec:memory-ordering}）。
+但是独占访问、加载获取或存储释放等变种访问方式不支持非对齐方式访问。
+如果不需要非对齐访问，可以将上述变种访问方式配置为故障（非对齐访问时产生故障异常）。
+
+\paragraph{Load}
+
+Load 指令的一般形式如下：
+
+\begin{lstcode}[language={[ARM]Assembler}]
+  LDR Rt, <addr>
+\end{lstcode}
+
+您可以选择加载数据的大小到整数寄存器中。
+例如，要加载一个比指定的寄存器值小的尺寸，可以在 LDR 指令中加入以下对应后缀：
+\begin{itemize}
+  \item LDRB (8-bit, zero extend)
+  \item LDRSB (8-bit, sign extend)
+  \item LDRH (16-bit, zero extend)
+  \item LDRSH (16-bit, sign extend)
+  \item LDRSW (32-bit, sign extend)
+\end{itemize}
+
+无需指定 zero-extended（高位扩展为 0）加载指令将数据加载到 X 寄存器，因为向 W 寄存器写数据会自动 zero extend 整个寄存器宽度。
+
+\paragraph{Store}
+
+类似的，存储指令的一般形式如下：
+
+\begin{lstcode}[language={[ARM]Assembler}]
+  STR Rn, <addr>
+\end{lstcode}
+
+要存储的大小同样可能比寄存器小。
+那么您可以添加类似 LDR 指令的后缀到 STR。
+在这种情况下，存储的总是寄存器中的最低有效部分。
+
+\paragraph{浮点和 NEON 向量的 Load 和 Store}
+
+Load 和 Store 指令同样支持访问浮点 / NEON 寄存器。
+此时，仅由所加载或存储的寄存器（B、H、S、D 或 Q 寄存器中的任意一个）来决定操作大小。
+具体情况总结如下表：
+
+加载指令：
+
+\begin{stblr}
+  {加载位数}
+  {load-bits}
+  {cccccccc}
+  \hline[1pt]
+  Load & Xt & Wt & Qt & Dt & St & Ht & Bt \\
+  \hline
+  LDR & 64 & 32 & 128 & 64 & 32 & 16 & 9 \\
+  LDP & 128 & 64 & 256 & 128 & 64 & - & - \\
+  LDRB & - & 8 & - & - & - & - & - \\
+  LDRH & - & 16 & - & - & - & - & - \\
+  LDRSB & 8 & 8 & - & - & - & - & - \\
+  LDRSH & 16 & 16 & - & - & - & - & - \\
+  LDRSW & 32 & - & - & - & - & - & - \\
+  LDPSW & - & - & - & - & - & - & - \\
+  \hline[1pt]
+\end{stblr}
+
+存储指令：
+
+\begin{stblr}
+  {存储位数}
+  {store-bits}
+  {cccccccc}
+  \hline[1pt]
+  Store & Xt & Wt & Qt & Dt & St & Ht & Bt \\
+  \hline
+  STR & 64 & 32 & 126 & 64 & 32 & 16 & 8 \\
+  STP & 128 & 64 & 256 & 128 & 64 & - & - \\
+  STRB & - & 8 & - & - & - & - & - \\
+  STRH & - & 16 & - & - & - & - & - \\
+  \hline[1pt]
+\end{stblr}
+
+加载数据到浮点或 NEON 寄存器的指令没有 sign-extension 选项。
+并且，地址也是由通用寄存器指定的。
+
+例如：
+
+\begin{lstcode}[language={[ARM]Assembler}]
+  LDR D0, [X0, X1]
+\end{lstcode}
+
+\begin{Tcbox}[title={注}]
+  浮点或向量 NEON 加载和存储指令使用和整型加载和存储指令一样的寻址模式。
+\end{Tcbox}
+
+\paragraph{Load 和 Store 指令中的地址指定}
+
+A64 可用的寻址模式与 A32 和 T32 中的相似。
+有一些额外的限制以及一些新的功能，但是对于熟悉 A32 或 T32 的人来说，A64 可用的寻址模式并不新奇。
+
+在 A64 中，一个地址操作数的基寄存器必须总是一个 X 寄存器。
+但是，有几条零扩展或符号扩展的指令可以使用，来满足通过 W 寄存器来提供 32 位偏移。
+
+\subparagraph{偏移模式}
+
+偏移寻址模式将一个立即数或一个可选择可修改的寄存器值添加到一个 64 位的基寄存器中来产生一个地址。
+
+\begin{stblr}
+  {偏移寻址}
+  {offset-addressing}
+  {c>{\centering\arraybackslash}X}
+  \hline[1pt]
+  Example instruction & Description \\
+  \hline
+  \lstinline[language={[ARM]Assembler}]!LDR X0, [X1]! & Load from the address in \lstinline!X1! \\
+  \lstinline[language={[ARM]Assembler}]!LDR X0, [X1, #8]! & Load from address \lstinline!X1 + 8! \\
+  \lstinline[language={[ARM]Assembler}]!LDR X0, [X1, X2]! & Load from address \lstinline!X1 + X2! \\
+  \lstinline[language={[ARM]Assembler}]!LDR X0, [X1, X2, LSL, #3]! & Load from address \lstinline!X1 + (X2 << 3)! \\
+  \lstinline[language={[ARM]Assembler}]!LDR X0, [X1, W2, SXTW]! & Load from address \lstinline!X1 + sign_extend(W2)! \\
+  \lstinline[language={[ARM]Assembler}]!LDR X0, [X1, W2, SXTW, #3]! & Load from address \lstinline!X1 + (sign_extend(W2) << 3)! \\
+  \hline[1pt]
+\end{stblr}
+
+通常，当指定移位或扩展选项时，移位量可以是 0（默认值）或 $log_2(access\; size\; in\; bytes)$（因此，$Rn \ll\; <shift>$ 即是 Rn 乘以访问大小）。
+所以，偏移寻址支持常见的数组索引操作。
+
+\begin{lstcode}[language=C]
+// A C example showing accesses that a compiler is likely to generate.
+void example_dup(int32_t a[], int32_t length) {
+  int32_t first = a[0];  // LDR W3, [X0]
+  for (int32_t i = 1; i < length; i++) {
+    a[i] = first;  // STR W3, [X0, W2, SXTW, #2]
+  }
+}
+\end{lstcode}
+
+\subparagraph{索引模式}
+
+索引模式与偏移模式类似，但它们还会更新基地址寄存器。
+这里的语法与 A32 和 T32 相同，但操作集的限制性更强。
+通常情况下，只能为索引模式提供立即数偏移。
+
+索引模式有两种变体：
+\begin{itemize}
+  \item 在访问内存之前施加偏移量的预索引模式。
+  \item 以及在访问内存之后施加偏移量的后索引模式。
+\end{itemize}
+
+\begin{stblr}
+  {索引寻址}
+  {index-addressing}
+  {c>{\centering\arraybackslash}X}
+  \hline[1pt]
+  Example instruction & Description \\
+  \hline
+  \lstinline[language={[ARM]Assembler}]{LDR X0, [X1]} & Load from the address in X1 \\
+  \lstinline[language={[ARM]Assembler}]{LDR X0, [X1, #8]!} & Pre-index: \textit{Update X1 first} (to X1 + \#8), then load from the new address \\
+  \lstinline[language={[ARM]Assembler}]{LDR X0, [X1], #8} & Post-index: \textit{Load from the unmodified address in X1 first}, then update X1 (to X1 + \#8) \\
+  \lstinline[language={[ARM]Assembler}]{STP X0, X1, [SP, #-16]!} & Push X0 and X1 to the stack. \\
+  \lstinline[language={[ARM]Assembler}]{LDP X0, X1, [SP], \#16} & Pop X0 and X1 off the stack. \\
+  \hline[1pt]
+\end{stblr}
+
+例如，这些选项准确地映射到一些常见的 C 操作上：
+
+\begin{lstcode}[language=C]
+// A C example showing accesses that a compiler is likely to generate.
+void example_strcpy(char * dst, const char * src)
+{
+  char c;
+  do {
+    c = *(src++);  // LDRB W2, [X1], #1
+    *(dst++) = c;  // STRB W2, [X0], #1
+  } while (c != '\0');
+}
+\end{lstcode}
+
+\subparagraph{相对 PC 模式（load-literal）}
+
+A64 添加了另外一个专门用于获取 literal pool 的寻址模式。
+Literal pool 是编码成一个指令流的数据块。
+它们不会被执行，但是其数据可以通过周围的代码相对于 PC 的内存地址获取到。
+Literal pool 经常用于编码常数，而这些常数不能被塞进一个简单的 move-immediate 指令（因为留给立即数的编码位数不足）中。
+A32 和 T32 指令集中，PC 寄存器可以当作一个通用寄存器来读，所以可以通过指定 PC 作为基地址寄存器简单的访问 literal pool。
+
+然而，在 A64 下，PC 寄存器不可以用通常的方式获取了，但是提供了一个特殊的寻址模式（只针对 load 指令）来获取 PC 相对地址。
+这个特殊作用的寻址模式也极大扩展了 PC 相对加载的范围（相比于 A32 和 T32），所以可以更稀疏地定位 literal pool 。
+
+\begin{stblr}
+  {PC 相对寻址}
+  {PC-relative-addressing}
+  {cc}
+  \hline[1pt]
+  Example instruction & Description \\
+  \hline
+  \lstinline[language={[ARM]Assembler}]{LDR W0, <label>} & Load 4 bytes from <label> into W0 \\
+  \lstinline[language={[ARM]Assembler}]{LDR X0, <label>} & Load 8 bytes from <label> into X0 \\
+  \lstinline[language={[ARM]Assembler}]{LDRSW X0, <label>} & Load 4 bytes from <label> and sign-extend into X0 \\
+  \lstinline[language={[ARM]Assembler}]{LDR S0, <label>} & Load 4 bytes from <label> into S0 \\
+  \lstinline[language={[ARM]Assembler}]{LDR D0, <label>} & Load 8 bytes from <label> into D0 \\
+  \lstinline[language={[ARM]Assembler}]{LDR Q0, <label>} & Load 16 bytes from <label> into Q0 \\
+  \hline[1pt]
+\end{stblr}
+
+\begin{remark}
+  对于所有变体而言，<label> 都必须 4-byte 对齐。
+\end{remark}
+
+\paragraph{获取多个地址位置}
+
+A64 中不存在 A32 和 T32 类似的 Load Multiple (LDM) 或 Store Multiple (STM) 指令。
+
+然而，在 A64 代码中，含有 Load Pair (LDP) 和 Store Pair (STP) 指令。
+与 A32 LDRD 和 STRD 指令不同的是，LDP 和 STP 可以读写任何两个整型寄存器。
+LDP 和 STP 指令从相邻的内存地址读写数据。
+这两个指令的内存取址模式的选项比其它内存访问指令更加受限。
+它们只能使用一个基地址寄存器附加一个成比例的 7-bit 的有符号立即数，另外一个可选的预地址或后地址增加操作。
+与 32-bit 的 LDRD 和 STRD 不同，LDP 和 STP 也可以进行非对齐访问。
+
+\paragraph{非特权访问}
+
+A64 的 LDTR 和 STTR 指令用于非特权级的数据加载和存储操作。
+
+\lstinline!LDTR rt, [Xn{, #i9}]! 相当于 $rt = [Xn += i^{\pm}, <Unpriv>]_N$
+
+\lstinline!STTR rt, [Xn{, #i9}]! 相当于 $[Xn += i^{\pm}, <Unpriv>]_N = rt$
+
+\begin{itemize}
+  \item 在 EL0、EL2 或 EL3 中，它们表现为一般的加载或存储指令。
+  \item 在 EL1 下执行这些指令，则表现为就像在 EL0 中执行一样。
+\end{itemize}
+ 
+这些指令等效于 A32 的 LDRT 和 STRT 指令。
+
+\paragraph{预取内存访问}
+
+\textit{Prefetch from Memory}（PRFM）指令向代码提供了一个给内存系统暗示的功能，暗示内存系统一个特定的地址将很快就会被当前程序用到。
+该功能的效果\textbf{由具体实现定义}，典型的实现是将数据或指令加载到 Cache 中。
+
+该指令的语法为：
+
+\lstinline!PRFM <prfop>, <addr> | label!
+
+其中 prfop 是以下选项的拼接：
+
+\begin{description}
+  \item[Type] PLD 或 PST (prefetch for load or store)。
+  \item[Target] L1、L2 或 L3（以那个 Cache 为目的）。
+  \item[Policy] KEEP 或 STRM（保持在 cache 中，还是作为数据流）。
+\end{description}
+
+例如，PLDL1KEEP，加载预取 + L1 cache + 保持在 cache 中。
+
+这些指令与 A32 的 PLD 和 PLI 指令类似。
+
+\paragraph{Non-temporal load and store pair}
+
+ARMv8 增加了一个关于 non-temporal 加载和存储的新概念。
+相关指令是 LDNP 和 STNP，功能是读写一对寄存器的值。
+并且，它们会给内存系统一个暗示，即缓存的数据不靠谱。
+该暗示阻止内存系统激活诸如地址的缓存、预加载或合并等功能。
+但是，这也无法获得缓存的加速。
+一个典型的用例是生产数据流，但是注意高效使用这些指令需要一种微架构的特定方式。
+
+Non-temporal 加载和存储缓解了内存序列化的需求。
+在上述例子中，即使 LDNP 指令排在 LDR 指令之后，但是也可能先被观察到。
+这种情况会导致从一个存储在 X0 中的不确定的地址中读到数据。
+例如：
+
+\begin{lstcode}
+  LDR X0, [X3]
+  LDNP X2, X1, [X0] // X0 may not be loaded when the instruction executes!
+\end{lstcode}
+
+为了解决这个问题，需要放置一个 load barrier 指令。
+
+\begin{lstcode}
+  LDR X0, [X3]
+  DMB nshld
+  LDNP X2, X1, [X0]
+\end{lstcode}
+
+\paragraph{内存访问的原子性}
+
+使用单个通用寄存器进行的对齐内存访问保证是原子性的。
+使用一对通用寄存器的 Load pair 和 store pair 指令进行内存地址对齐访问确保为两个独立的原子访问。
+非对齐访问不具有原子性，因为它们通常需要两次单独的访问。
+另外，浮点和 SIMD 内存访问不保证是原子性的。
+
+\paragraph{内存屏障和栅栏指令}
+
+ARMv7 和 ARMv8 都提供了不同的 barrier 操作支持。
+这些操作会在~\ref{sec:memory-ordering} 更加详尽的描述。
+
+\begin{itemize}
+  \item Data Memory Barrier (DMB)。
+  该指令强制所有按照程序顺序的早期内存访问变成全局可见后才会执行后续的访问操作。
+  \item Data Synchronization Barrier (DSB)。
+    在程序运行之前，所有挂起的加载和存储指令、Cache 维护指令和所有 TLB 维护指令都必须先完成。
+    DSB 类似 DMB，但是附加了其它属性。
+  \item Instruction Synchronization Barrier (ISB)。
+    这个指令刷新 CPU 的流水线和预取 buffer，致使 ISB 后续的指令需要从缓存或内存中预取（或重新预取）。
+\end{itemize}
+
+ARMv8 介绍了关于释放一致性模型的单侧 fence 操作。
+包括 Load-Acquire (LDAR) 和 Store-Release (STLR) 并且都是基于地址的同步原语。
+这两个操作可以作为完整的 fence 成对使用。
+它们只支持基地址寄存器的寻址方式，偏移或其它类型的索引寻址都不支持。
+
+\paragraph{同步原语}
+
+ARMv7-A 和 ARMv8-A 架构都提供了独占的内存访问操作。
+A64 下是由一对 Load/Store exclusive (LDXR/STXR) 指令提供的。
+
+LDXR 指令从一个内存地址加载一个值，并且尝试静默的给该地址上个互斥锁。
+Store-Exclusive 指令只能在获取并持有锁的情况下才能向该地址写入新值。
+组合使用 LDXR/STXR 能够构建标准的同步原语，如 spinlock。
+一对 LDXRP 和 STXRP 指令允许代码自动更新跨越两个寄存器长度的地址。
+可用的选项有 byte、halfword、word 和 doubleword。
+这对指令与 Load Acquire/Store Release 成对指令一样，只支持基地址寄存器寻址方式。
+
+不同于 ARMv7 异常入口或返回也能够清除 monitor，CLREX 指令在 ARMv8 下专门用于清除 monitor。
+Monitor 也可能虚假的被清除，例如 cache 驱逐操作（evictions）或其它一些与该操作无关的原因。
+\textit{软件必须要避免在 LDXR 和 STXR 指令对之间含有内存访问、系统控制寄存器更新或缓存维护指令。}
+
+另外，还有一对 Acquire/Store Release 相关的互斥指令是 LDAXR 和 STLXR。
+详见关于同步的章节。
+
+\subsubsection{流程控制指令}
+
+A64 指令集提供一些不同类型的跳转指令（见下表~\ref{tbl:a64-isa-branch}）。
+相对于当前地址偏移的简单跳转指令则使用 B 指令。
+简单的无条件相对跳转指令可以基于当前地址前后跳跃 128MB。
+含有条件码后缀的简单的有条件相对跳转指令的跳转范围只有 $\pm1MB$。
+
+当函数（subroutine）调用时，则需要使用 BL 指令保存返回地址到 link 寄存器（X30），这个指令没有有条件的跳转类型。
+除了会保存返回地址（BL 指令的下一条指令）到寄存器（X30）外，BL 指令功能类似 B 指令。
+
+\begin{ltblr}[caption={流程控制指令}, label={tbl:a64-isa-branch}]
+  {colspec={c>{\centering\arraybackslash}X}}
+  \hline[1pt]
+  & Branch 指令 \\
+  \hline
+  \lstinline!B (offset)! & Program relative branch forward or back 128MB. A conditional version, for example B.EQ, has a 1MB range. \\
+  \lstinline!BL (offset)! & As B but store the return address in X30, and hint to branch prediction logic that this is a function call. \\
+  \lstinline!BR Xn! & Absolute branch to address in Xn. \\
+  \lstinline!BLR Xn! & As BR but store the return address in X30, and hint to branch prediction logic that this is a function call. \\
+  \lstinline!RET\{Xn\}! & As BR, but hint to branch prediction logic that this is a function return. Returns to the address in X30 by default, but a different register can be specified. \\
+  \hline
+  & Conditional branch 指令 \\
+  \hline
+  \lstinline!CBZ Rt, label! & Compare and branch if zero. If Rt is zero, branch forward or back up to 1MB. \\
+  \lstinline!CBNZ Rt, label! & Compare and branch if non-zero. If Rt is not zero, branch forward or back up to 1MB. \\
+  \lstinline!TBNZ Rt, bit, label! & Test and branch if zero. Branch forward or back up to 32kB. \\
+  \lstinline!TBNZ Rt, bit, label! & Test and branch if non-zero. Branch forward or back up to 32kB. \\
+  \hline[1pt]
+\end{ltblr}
+
+除了相对 PC 的跳转指令外，A64 指令集也包含了两个绝对跳转指令。
+\lstinline!BR Xn! 指令执行一个到 Xn 寄存器的绝对跳转。
+同时，\lstinline!BLR Xn! 也是类似的绝对跳转功能，但是它会保存返回地址到 link 寄存器 X30 中。
+\lstinline!RET! 指令行为上类似 \lstinline!BR Xn!，但是它会暗示跳转预测逻辑它执行的是一个函数返回。
+尽管 \lstinline!RET! 指令可以指定其它跳转目的寄存器，但是它默认使用 X30 所保存的返回地址。
+
+A64 指令集还包括一些特别的条件跳转指令。
+这些指令能在一些情况下提高代码的密度，因为在这些情况下没必要做明确的比较。
+
+\begin{itemize}
+  \item \lstinline!CBZ Rt, label! \quad Compare and branch if zero
+  \item \lstinline!CBNZ Rt, label! \quad Compare and branch if not zero
+\end{itemize}
+
+这些指令先将 32-bit 或 64-bit 源寄存器与 0 进行比较，然后执行条件跳转。
+跳转的偏移范围是 $\pm1MB$。
+这些指令不会读或写状态码（NZCV）。
+
+有两个类似的检测并跳转的指令：
+
+\begin{itemize}
+  \item \lstinline!TBZ Rt, bit, label! \quad Test and branch if Rt<bit> zero
+  \item \lstinline!TBNZ Rt, bit, label! \quad Test and branch if Rt<bit> is not zero
+\end{itemize}
+
+这些指令检测由立即数指定的 bit 位与源寄存器中的 bit 位是否满足条件（Z 或 NZ），然后根据检测的结果跳转。
+这个跳转指令的偏移范围是 $\pm32KB$。
+这两个指令与 CBZ/CBNZ 一样不会读写状态码（NZCV）。
+
+\subsubsection{系统控制及其它指令}
+
+\paragraph*{异常处理指令}
+
+A64 有三个异常处理指令用于产生一个异常。
+这些指令用于产生一个高异常级的代码调用，分别是 OS（EL1）、Hypervisor（EL2）和 Secure Monitor（EL3）：
+
+\begin{itemize}
+  \item \lstinline!SVC \#imm16! \quad Supervisor 调用，允许应用程序调用内核代码。
+  \item \lstinline!HVC \#imm16! \quad Hypervisor 调用，允许 OS 代码 调用 hypervisor (EL2)。
+  \item \lstinline!SMC \#imm16! \quad Secure Monitor 调用，允许 OS 或 hypervisor 调用 Secure Monitor (EL3)。
+\end{itemize}
+
+立即数存放到 \textit{Exception Syndrome Register} 里的 handler 中。
+这是一个从 ARMv7 的改动，ARMv7 的立即数需要由所调用指令的 opcode 确定。
+详情请看章节~\ref{sec:exception}。
+
+若要从异常返回，则使用 \lstinline!ERET! 指令。
+该指令从过将 SPSR\_ELn 寄存器复制到 PSTATE 来恢复处理器状态，并且跳转到保存在 ELR\_ELn 中的地址继续运行。
+
+\paragraph*{系统寄存器访问指令}
+
+有两条可以访问系统寄存器的指令：
+\begin{itemize}
+  \item \lstinline!MRS Xt, <system register>! \quad 读取系统寄存器的值到通用寄存器。
+
+    例如 \lstinline!MRS X4, ELR_EL1 // Copies ELR_EL1 to X4!
+  \item \lstinline!MSR <system register>, Xt! \quad 写入通用寄存器中的配置值到系统寄存器。
+
+    例如 \lstinline!MSR SPSR_EL1, X0 // Copies X0 to SPSR_EL1!
+\end{itemize}
+
+MSR 或 MRS 也可以单独获取 PSTATE 寄存器中的 field。
+例如，选择关联于 EL0 的 Stack Pointer 或当前的异常级：
+
+\begin{lstcode}
+  // A value of 0 or 1 in this register is used to select
+  // between using EL0 stack pointer or the current exception
+  // level stack pointer
+  MSR SPSel, #imm
+\end{lstcode}
+
+以下两个指令有一些特殊的形式可以用于清除或设置独立的异常掩码位：
+
+\begin{lstcode}
+  MSR DAIFClr, #imm4
+  MSR DAIFSet, #imm4
+\end{lstcode}
+
+\paragraph*{Debug 指令}
+
+A64 有两个调试相关的指令：
+
+\begin{lstcode}
+  // Enters monitor mode debug, where there is on-chip debug monitor
+  // code
+  BRK #imm16
+  // Enters halt mode debug, where external debug hardware is connected
+  HLT #imm16
+\end{lstcode}
+
+\paragraph*{Hint 指令}
+
+HINT 指令可以被合理的视作 NOP，但是注意这些指令受特定实现的影响。
+
+\begin{stblr}
+  {Hint 指令}
+  {a64-isa-hint}
+  {c>{\centering\arraybackslash}X}
+  \hline[1pt]
+  指令 & 说明 \\
+  \hline
+  NOP & No operation - not guaranteed to take time to execute \\
+  YIELD & Hint that the current thread is performing a task that can be swapped out \\
+  WFE & Wait for Event \\
+  WFI & Wait for interrupt \\
+  SEV & Send Event \\
+  SEVL & Send Event Local \\
+  \hline[1pt]
+\end{stblr}
+
+\paragraph*{NEON 指令}
+
+NEON 指令在 A64 下也有很大加强，有些加强至关重要。
+章节~\ref{sec:floating-neon} 有更多的说明细节，下面简单列出 NEON 在 A64 下的改进：
+
+\begin{itemize}
+  \item 支持双精度浮点类型，向量化 C 代码下的双精度浮点类型。
+  \item 新增将标量数据存储到 NEON 寄存器的指令。
+  \item 新增插入和提取向量元素的指令。
+  \item 新增类型转换和饱和整型算术运算指令。
+  \item 新增浮点数值正规化（normalization）指令。
+  \item 新增向量 reduction、summation 和获取最大最小值的 cross-lane 指令。
+\end{itemize}
+
+已经扩展了诸如比较、加法、查找绝对值和否定（negate）等指令，得以操作 64-bit 元素。
+
+\paragraph*{浮点指令}
+
+A64 提供了一些类似 ARMv7 VFPv4 扩展的浮点指令，这些指令提供了对标量浮点值之间的单精度和双精度数学运算。
+以下列举了一些改进和新特性：
+
+\begin{itemize}
+  \item 浮点比较直接设置状态码（NZCV）。
+    A64 下不用在特意转换浮点 flag 为整型 flag。
+  \item 增添了关于 IEEE754 - 2008 标准的指令，例如计算一对数字的最小值和最大值。
+  \item 转换整型数据到浮点型时，可以明确指定为 rounding 模式。
+    在特别的 rounding 模式下进行的简单转换，已不再需要设置全局 FPCR flag。
+    ARMv8 的 A32 和 T32 也支持其中一些选项。
+  \item 新增 64-bit 整型到浮点型格式转换指令。
+  \item A64 下，直接在整型寄存器中进行涉及整型的浮点操作。
+    进行转换操作时，已不再需要手动转换整型值和浮点值以及整型寄存器。
+\end{itemize}
+
+\paragraph*{加密算法指令}
+
+可以通过添加可选的加密算法指令扩展来极大的提升关于 AES 加密、SHA1 和 SHA256 hashing 等任务的效率。

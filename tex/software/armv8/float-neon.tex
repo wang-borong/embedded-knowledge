@@ -1,0 +1,429 @@
+\subsection{浮点与 NEON} \label{sec:floating-neon}
+
+ARM 架构下，软件支持的高级 SIMD 架构的关联实现称为 NEON 技术。
+AArch32（相当于 ARMv7 NEON 指令）和 AArch64 都含有 NEON 指令集。
+AArch32 和 AArch64 下的 NEON 指令都可以加速大数据量的重复操作。
+经典的应用是多媒体数字信号编解码。
+
+AArch64 的 NEON 架构使用 32 个 128-bit 寄存器，是 ARMv7 的两倍。
+浮点指令也使用同样的寄存器。
+所有编译的代码和子程序都遵循 EABI，EABI 定义了在特殊的子程序中哪些寄存器可以被写入使用（corrupt，可以被破坏意为能被写入使用），哪些寄存器需要保留。
+编译器可以自由的在代码任意点使用 NEON/VFP 寄存器保存浮点数和 NEON 数据。
+所有的标准的 ARMv8 实现都需要包括浮点和 NEON。
+但是，面向特殊用途的实现中可以采取以下组合：
+\begin{itemize}
+  \item 不实现 NEON 或浮点
+  \item 完全实现包含异常的浮点和 SIMD。
+  \item 实现不包含异常的浮点和 SIMD。
+\end{itemize}
+
+\subsubsection{NEON 和浮点新特性}
+
+AArch64 NEON 是基于 AArch32 NEON，包括以下改动：
+\begin{itemize}
+  \item 从 16 个寄存器增加到 32 个。
+  \item 长度大的寄存器不再是通过长度小的寄存器组合而成，而是将 128-bit 的寄存器的低有效位映射为长度较小的寄存器。
+    单精度的浮点数使用 128-bit 寄存器的低 32 位，双精度数使用用低 64 位。
+  \item 去掉 V 前缀。
+  \item 向向量寄存器中写入小于等于 64 bit 的数据，寄存器的高位则被清零。
+  \item AArch64 下不存在使用通用寄存器的 SIMD 或饱和运算指令\footnote{
+      饱和指令（Saturating instructions）是一类特殊的指令，用于执行饱和运算。
+      饱和运算是一种数学运算，它限制结果在一个特定的范围内，超出范围的值将被截断或限制在范围边界上。
+
+      例如，在使用 8 位无符号整数表示的情况下，如果一个运算结果大于 255（即超出了 8 位无符号整数的范围），则饱和运算将结果限制为 255。
+      类似地，如果结果小于 0，则饱和运算将结果限制为 0。
+
+      饱和指令通常用于数字信号处理（DSP）和媒体处理等应用中，这些应用对数据精度和动态范围有严格的要求。
+      使用饱和指令可以确保结果不会溢出，并且可以避免由于溢出而引起的意外行为或失真。
+    }。
+    这些操作全部使用 NEON 寄存器。
+  \item 新增 lane 插入和提取指令以支持新的寄存器 pack 模式。
+  \item 添加额外的指令用于生产或消费 128-bit 向量寄存器的高 64 bit。
+    会产生多于一个寄存器的结果（扩展到 256-bit 向量）或者消耗两个源（收缩成一个向量）的数据处理指令已经划分成不同的指令。
+  \item 新增向量 reduction 操作集，提供 across-lane 加法、最小值和最大值操作。
+  \item 扩展一些已有的指令以支持 64-bit 整数。
+    例如：比较、加法、取绝对值和否定等指令，并且包括 staturating 版本。
+  \item 扩展饱和指令，以便在无符号累加和有符号累加之间进行转换（to include Unsigned Accumulate into Signed, and Signed into Unsigned Accumulate）。\footnote{
+      表明饱和指令现在具有更多的灵活性，可以在有符号累加和无符号累加之间进行转换，并在结果溢出时执行饱和处理，以确保结果在指定的范围内。
+    }
+  \item AArch64 NEON 现已支持双精度类型的浮点数和完整的 IEEE754 操作，包括 rounding 模式、非规范化数字和 NaN 处理。
+\end{itemize}
+
+AArch64 加强了浮点功能，改动如下（相对于 ARMv7）：
+
+\begin{itemize}
+  \item 前缀 V 替换成 F。
+  \item 先已支持 IEEE754 浮点标准定义的单精度（32-bit）和双精度（64-bit）浮点向量数据类型和运算。
+    遵循 FPCR 寄存器中指定的舍入模式来执行浮点数运算\footnote{
+    “Honoring the FPCR Rounding Mode field”表示处理器或者软件库遵循浮点控制寄存器（Floating Point Control Register，FPCR）中的舍入模式字段（Rounding Mode field）。
+
+      在 IEEE 754 浮点数标准中，舍入模式指定了在进行浮点数运算时如何处理结果的舍入方式。
+      常见的舍入模式包括向最接近的偶数舍入、向正无穷大舍入、向负无穷大舍入、向零舍入等。
+    }
+    、默认的 NaN 控制、Flush-to-Zero 控制\footnote{
+      Flush-to-Zero 控制允许在执行浮点数运算时将非常小的结果舍入为零。
+      当启用 Flush-to-Zero 模式时，如果计算得到的结果小于一个设定的阈值（通常是一个非常小的正数，例如 IEEE 754 中的 subnormal number），则结果将被直接截断为零，而不是保留非常小的非零值。
+    }
+    和异常 trap 使能位（由具体实现所支持）。
+  \item FP/NEON 寄存器的 Load/Store 寻址模式与整型的 Load/Store 相统一，包括加载或存储一对浮点寄存器的操作。
+  \item 添加与整型 CSEL 和 CCMP 指令等效的浮点 FCSEL 和 选择并比较指令。
+
+    类似 ARMv7，浮点 FCMP、FCMPE、FCCMP 和 FCCMP 指令根据浮点比较结果设置 PSTATE.\{N, Z, C, V\} 标志，但是不会更改 FPSR 寄存器中的状态标志。
+  \item 合并所有浮点乘加（Multiply-Add）和乘减（Multiply-Subtract）指令\footnote{
+      “Fused Multiply-Add (FMA)”指的是在单个指令中执行乘加运算的能力。
+      这意味着指令可以同时进行乘法和加法操作，并且结果是精确的。
+      这样可以提高性能，并且在一些情况下可以提高数值计算的精度。
+
+      该变化意味着所有的浮点数乘加和乘减指令都支持 FMA 功能。
+      也就是说，这些指令在执行乘加或乘减运算时，都能够同时进行乘法和加法（或减法），而不需要将乘法结果存储到临时变量中再进行加法或减法操作。
+
+      使用 FMA 指令可以提高性能，因为它可以将乘法和加法操作合并为一个指令，并且可以在硬件级别上并行执行这两个操作。
+      这样可以减少指令的数量，降低了指令调度和执行的开销，并且可以提高代码的并行性。
+    }。
+
+    VFPv4 首次介绍了 Fused multiply，这个功能意味着在执行加法运算前不会近似乘法运算的结果。
+    早期的 ARM 浮点架构乘法累加操作对中间结果和最终结果都会进行近似，导致潜在的精度丢失。
+
+  \item 新增转换操作，例如：64-bit 整型和单精度及双精度浮点型数据转换。
+    转换浮点到整型数据（FCVTxU、FCVTxS）的指令有如下的有向舍入编码模式：
+
+    \begin{itemize}
+      \item[-] 到 0。
+      \item[-] 到 $+\inf$。
+      \item[-] 到 $-\inf$。
+      \item[-] 到一个接近的偶数。
+      \item[-] 到更远离零的那个整数\footnote{在“Nearest with ties to away”这种舍入模式下，如果一个值恰好处于两个整数的中间，它会舍入到远离零的整数。
+          换句话说，如果一个值恰好处于两个整数的中间，它会舍入到更远离零的那个整数。
+        }。
+    \end{itemize}
+  \item 新增包含相同有向舍入模式并且可根据当前环境进行舍入的浮点向邻近整型舍入的指令（FRINTx）。
+  \item 新增不精确的舍入到奇数的双精度到单精度向下转换指令，适合通过正确的近似（FCVTXN）进行现场向下转换到半精度类型。
+  \item 添加了 FMINNM 和 FMAXNM 指令，这两个指令用来实现 IEEE754 - 2008 中的操作 minNum() 和 maxNum()。
+  如果其中一个操作数是静态 NaN，则返回数值。
+  \item 新增浮点向量规范化加速指令（FRECPX 和 FMULX）。
+\end{itemize}
+
+\subsubsection{NEON 和 Floating-Point 架构}
+
+NEON 寄存器保存有相同数据类型的元素组成的向量。
+一个向量被分成许多 lane，每个 lane 含有一个称为元素（element）的数据值。
+
+NEON 向量的 lane 数量取决于向量的大小和向量中的数据元素。
+
+通常，每个 NEON 指令会产生 n 个并行操作，n 是输入向量分成的 lane 数量。
+从一个 lane 到另外一个 lane 不能涉及进位或溢出。
+向量的元素顺序是从最低有效位开始，说明元素 0 使用寄存器的最低有效位。
+
+NEON 和 浮点指令操作适用于以下类型的元素：
+
+\begin{itemize}
+  \item 32-bit 单精度和 64-bit 双精度浮点类型。
+    \begin{Tcbox}[title={Note}]
+      16-bit 浮点类型也是支持的，但是只能作为一种被转换的类型，而不能被直接处理。
+    \end{Tcbox}
+  \item 8-bit、16-bit、32-bit 或 64-bit 的无符号和有符号整型。
+  \item 8-bit 和 16-bit 多项式。
+
+    多项式类型用于代码，例如使用 2 的幂有限域\footnote{
+      有限域（Finite Field）算术是一种在有限域上进行的数学运算。
+      有限域也称为 Galois 域，是一个包含有限数量元素的数学结构。
+      在有限域中，加法和乘法运算满足特定的性质，类似于实数域或复数域中的运算。
+
+      有限域中的元素可以是整数模素数的余数，也可以是多项式系数模一个不可约多项式的余数。
+      在密码学、编码理论、数字通信等领域，有限域的理论和运算被广泛应用。
+    }
+    或者在 \{0, 1\} 上的简单多项式的错误纠正。
+    通常的 ARM 整型代码一般使用查表的方式进行有限域运算。
+    而 AArch64 NEON 则提供了使用巨大查找表的指令。
+
+  \item 多项式运算很难从其他运算中合成出来，因此拥有一个基本的乘法运算非常有用，可以从中合成其他更大的运算。
+\end{itemize}
+
+NEON 单元将寄存器文件视作：
+
+分别视作 32 个 128-bit 四字寄存器 V0-V31 为：
+
+\Figure[caption={V 寄存器拆分}, label={fig:v-reg-div}, width=0.95]{divisions-of-the-v-regs}
+
+分别视作 32 个 64-bit 双字寄存器 D0-D31 为：
+
+\Figure[caption={D 寄存器拆分}, label={fig:d-reg-div}, width=0.95]{divisions-of-the-d-regs}
+
+可以在任意时间访问这些寄存器。
+由于所使用的指令决定了合适的视角（view），所以软件不需要明确地调整当前该使用哪种寄存器。
+
+\paragraph{Floating-Point}
+
+AArch64 的浮点单元将 NEON 寄存器文件视作：
+
+\begin{itemize}
+  \item 32 个 64-bit D 寄存器 D0-D31。
+    D 寄存器称为双精度寄存器，可以保存双精度浮点数。
+  \item 32 个 32-bit S 寄存器 S0-S31。
+    S 寄存器称为单精度寄存器，可以保存单精度浮点数。
+  \item 32 个 16-bit H 寄存器 H0-H31。
+    H 寄存器称为半精度寄存器，可以保存半精度浮点数。
+  \item 以上视角的寄存器合并。
+\end{itemize}
+
+\Figure[caption={浮点寄存器的拆分}, label={fig:fp-reg-div}, width=0.95]{fp-reg-div}
+
+\paragraph{标量数据和 NEON}
+
+标量数据是一个单一值，而非包含在向量中的多个值。
+一些 NEON 指令使用标量操作数。
+寄存器中的标量的获取通过向量的索引。
+
+以通用的数组形式访问向量中的单个元素的格式如下：
+
+\lstinline!<Instruction> Vd.Ts[index1], Vn.Ts[index2]!
+
+其中，
+
+\begin{itemize}
+  \item[] Vd 是目的寄存器。
+  \item[] Vn 是第一个源寄存器。
+  \item[] Ts 用于指定元素的大小。
+  \item[] index 是元素的索引。
+\end{itemize}
+
+例如：
+
+\lstinline[language={[ARM]Assembler}]!INS V0.S[1], V1.S[0]!
+
+\Figure[caption={插入一个元素到向量}, label={fig:insert-an-element-into-a-vector}, width=0.95]{insert-an-element-into-a-vector}
+
+\lstinline!MOV V0.B[3], W0! 指令操作是将 W0 寄存器中的最低有效 byte 拷贝到 V0 寄存器的第四个 byte 位置中。
+
+\Figure[caption={移动一个标量数到一个 lane}, label={fig:moving-a-scalar-to-a-lane}, width=0.95]{moving-a-scalar-to-a-lane}
+
+NEON 标量可以是 8-bit、16-bit、32-bit 或是 64-bit 数值。
+除了乘法指令外，其它指令都可以从寄存器文件中获取任意元素做为标量。
+
+乘法指令只允许 16-bit 或 32-bit 标量，并且只能获取到寄存器文件中的前 128 个标量：
+
+\begin{itemize}
+  \item 16-bit 标量限制在寄存器 \lstinline!Vn.H[x]!，其中 $0 \leq n \leq 15$。
+  \item 32-bit 标量限制为寄存器 \lstinline!Vn.S[x]!。
+\end{itemize}
+
+\paragraph{Floating-Point 参数}
+
+浮点数值通过浮点寄存器传输给函数（或者返回来）。
+可以同时使用整型（通用）和浮点寄存器。
+也就是说，浮点参数以 H、S 或 D 寄存器传输，其它参数则通过 X 或 W 寄存器。
+AArch64 调用标准强制规定只要使用到浮点运算的地方就必须使用硬件浮点运算，所以没有软件相关的浮点运算库。
+
+详细的指令参考《ARMv8-A Architecture Reference Manual》，下面列举了一些浮点数据处理操作：
+
+\begin{ltblr}
+  {colspec={c>{\centering\arraybackslash}X}, width=1\textwidth}
+  \hline[1pt]
+  \lstinline!FABS Sd, Sn! & Calculates the absolute value. \\
+  \lstinline!FNEG Sd, Sn! & Negates the value. \\
+  \lstinline!FSQRT Sd, Sn! & Calculates the square root. \\
+  \lstinline!FADD Sd, Sn, Sm! & Adds values. \\
+  \lstinline!FSUB Sd, Sn, Sm! & Subtracts values. \\
+  \lstinline!FDIV Sd, Sn, Sm! & Divides one value by another. \\
+  \lstinline!FMUL Sd, Sn, Sm! & Multiplies two values. \\
+  \lstinline!FNMUL Sd, Sn, Sm! & Multiplies and negates. \\
+  \lstinline!FMADD Sd, Sn, Sm, Sa! & Multiplies and adds (fused). \\
+  \lstinline!FMSUB Sd, Sn, Sm, Sa! & Multiplies, negates and subtracts (fused). \\
+  \lstinline!FNMADD Sd, Sn, Sm, Sa! & Multiplies, negates and adds (fused). \\
+  \lstinline!FNMSUB Sd, Sn, Sm, Sa! & Multiplies, negates and subtracts (fused). \\
+  \lstinline!FPINTy Sd, Sn! & Rounds to an integral in floating-point format (where y is one of a number of rounding mode options) \\
+  \lstinline!FCMP Sn, Sm! & Performs a floating-point compare. \\
+  \lstinline!FCCMP Sn, Sm, \#uimm4, cond! & Performs a floating-point conditional compare. \\
+  \lstinline!FCSEL Sd, Sn, Sm, cond! & Floating-point conditional select if (cond) Sd = Sn else Sd = Sm. \\
+  \lstinline!FCVTSty Rn, Sm! & Converts a floating-point value to an integer value (ty specifies type of rounding). \\
+  \lstinline!SCVTF Sm, Ro! & Converts an integer value to a floating-point value. \\
+  \hline[1pt]
+\end{ltblr}
+
+\subsubsection{AArch64 NEON 指令格式}
+
+AArch64 改动了 NEON 和浮点指令的语法以协调核心整型和标量浮点指令集语法。
+这些指令的助记符和 ARMv7 NEON 非常接近。
+
+\begin{itemize}
+  \item 移除 ARMv7 NEON 指令中存在的前缀 V。
+
+    重命名了与核心指令集冲突的助记符，并且移除 V 前缀。
+
+    这意味相同名字的指令会做相同的事情，并且可以是核心指令、NEON 指令或者浮点指令，而只是语法上有区别。
+    例如：
+
+    \lstinline!ADD W0, W1, W2{, shift #amount}!
+    和
+    \lstinline!ADD X0, X1, X2{, shift #amount}!
+
+    都是 A64 基础指令。
+
+    \lstinline!ADD D0, D1, D2!
+
+    是一个标量浮点指令。
+
+    \lstinline!ADD V0.4H, V1.4H, V2.4H!
+
+    则是一个 NEON 向量指令。
+
+  \item 指令的前缀上添加了 S、U、F 或 P 前缀，用以表示 Signed、Unsigned、Floating-point 或 Polynomial 数据类型。
+    指令根据该助记符来选择相应数据类型的操作。
+    例如：
+
+    \lstinline!PMULL V0.8B, V1.8B, V2.8B!
+
+  \item 寄存器修饰符描述向量寄存器的组织形式（元素大小和 lane 数量）。
+    例如：
+
+    \lstinline!ADD Vd.T, Vn.T, Vm.T!
+
+    其中，Vd、Vn 和 Vm 都是寄存器的名字，而 T 则是将被使用到的寄存器细分。
+    就此例而言，T 是做为排列说明符 8B、16B、4H、8H、2S、4S 或 2D 中的一个。
+    任意上述的排列说明符都可以使用，取决于数据类型的宽度（64、32、16 或 8-bit）以及寄存器的位宽（64 bit 或 128 bit）。
+
+    若要对 2 个 64-bit 的 lane 相加，则是用
+
+    \lstinline!ADD V0.2D, V1.2D, V2.2D!
+
+  \item ARMv7 中，一些 NEON 数据处理指令存在 Normal、Long、Wide、Narrow 和 Staturating 变种。
+    Long、Wide 和 Narrow 变种以后缀标识：
+
+    \begin{itemize}
+      \item[-] \textit{Normal 指令}可以对任何向量类型进行操作，并生成与操作数向量相同大小且通常相同类型的结果向量。
+      \item[-] \textit{Long 指令}或 \textit{Lengthening 指令}对双字向量操作数进行操作并产生四字向量结果。
+        结果元素的宽度是操作数的两倍。
+        长指令使用附加到指令的 L 来指定。
+        例如：
+
+        \lstinline!SADDL V0.4S, V1.4H, V2.4H!
+
+        下图展示了该操作，输入操作数在运算之前被提升。
+
+        \Figure[caption={NEON Long 指令}, label={fig:NEON-long-insts}, width=0.6]{NEON-long-insts}
+
+    \end{itemize}
+
+  \item \textit{Wide} 或 \textit{Widening 指令}对双字和四字向量操作数进行操作，产生四字向量。
+    产生的结果元素（第一个操作数）的长度是第二个操作数元素长度的两倍。
+    Wide 指令含有一个 W 后缀。
+    例如，
+
+    \lstinline!SADDW V0.4S, V1.4H, V2.4S!
+
+    下图展示该操作，输入的双字操作数在运算前被提升。
+
+    \Figure[caption={NEON Wide 指令}, label={fig:NEON-wide-insts}, width=0.6]{NEON-wide-insts}
+
+  \item \textit{Narrow} 或 \textit{Narrowing 指令}对四字向量进行操作，并且生成双字向量。
+    生产的元素通常为操作数元素长度的一半。
+    Narrow 指令用 N 后缀指定。
+    例如，
+
+    \lstinline!SUBHN V0.4H, V1.4S, V2.4S!
+
+    下图展示该操作，输入操作数在运算前被降级。
+
+    \Figure[caption={NEON Narrow 指令}, label={fig:NEON-narrow-insts}, width=0.6]{NEON-narrow-insts}
+
+  \item 一些指令存在 Signed 和 unsigned staturating 变种（以 SQ 或 UQ 前缀标识），比如 SQADD 和 UQADD。
+    如果结果超出了数据类型的最大值或最小值，那么 saturating 指令则返回其最大值或最小值。
+    Saturation 的限制取决于指令所用的数据类型。
+
+    \begin{stblr}
+      {Saturation ranges}
+      {NEON-saturation-ranges}
+      {cc}
+      \hline[1pt]
+      Data type & Saturation range of x \\
+      \hline
+      Signed byte (S8) & $-27 \leq x < 27$ \\
+      Signed halfword (S16) & $-215 \leq x < 215$ \\
+      Signed word (S32) & $-231 \leq x < 231$ \\
+      Signed doubleword (S64) & $-263 \leq x < 263$ \\
+      Unsigned byte (U8) & $0 \leq x < 28$ \\
+      Unsigned halfword (U16) & $0 \leq x < 216$ \\
+      Unsigned word (U32) & $0 \leq x < 232$ \\
+      Unsigned doubleword (U64) & $0 \leq x < 264$ \\
+      \hline[1pt]
+    \end{stblr}
+
+  \item ARMv7 中示意为 pairwise 操作的 P 前缀现已在 ARMv8 中改成后缀，比如 ADDP。
+    Pairwise 指令操作相邻的双字或四字操作数对。
+    例如：
+
+    \lstinline!ADDP V0.4S, V1.4S, V2.4S!
+
+    \Figure[caption={Pairwise 操作}, label={fig:pairwise-op}, width=0.6]{pairwise-op}
+
+  \item 添加 V 后缀到 across-all-lanes（整个寄存器）操作，比如 ADDV。
+    例如：
+
+    \lstinline!ADDV S0, V1.4S!
+
+    \Figure[caption={Across all lanes 操作}, label={fig:across-all-lanes-op}, width=0.6]{across-all-lanes-op}
+
+  \item 为新的加宽、缩小或加长的第二部分指令添加了 2 后缀，称为第二和上半部分说明符。
+    如果存在该后缀，那么相应的操作会保持较窄元素的寄存器的高 64 位上执行操作。
+
+    \begin{itemize}
+      \item[-] 带有 2 后缀的加宽指令从包含较窄值的向量的高编号通道获取输入数据，并将扩展结果写入 128 位目标。
+        例如：
+
+        \lstinline!SADDW2 V0.2D, V1.2D, V2.4S!
+
+        \Figure[caption={SADDW2}, label={fig:saddw2-inst}, width=0.6]{saddw2-inst}
+
+      \item[-] 带有 2 后缀的 Narrowing 指令从 128-bit 的源操作数获取它们的输入数据，并且将缩小后的结果插入到 128-bit 目的寄存器的高序 lane 中，低序 lane 保持不变。
+        例如：
+
+        \lstinline!XTN2 V0.4S, V1.2D!
+
+        \Figure[caption={XTN2}, label={fig:xtn2-inst}, width=0.6]{xtn2-inst}
+
+      \item[-] 带有 2 后缀的 Lengthening 指令从 128-bit 源向量寄存器的高序 lane 中获取它们的输入数据，并将加长的结果保存到 128-bit 目的寄存器中。
+        例如：
+
+        \lstinline!SADDL2 V0.2D, V1.4S, V2.4S!
+
+        \Figure[caption={SADDL2}, label={fig:saddl2-inst}, width=0.6]{saddl2-inst}
+    \end{itemize}
+
+  \item 比较指令已通过使用状态码来表明当前状态，以及当前状态是有符号的还是无符号的。
+    例如，CMGT 和 CMHI、CMGE 和 CMHS。
+
+\end{itemize}
+
+\subsubsection{NEON 编码替代方案}
+
+NEON 编码有很多种形式。
+本节只是简单的列举（详细内容可查看《ARM NEON Programmers Guide》）。
+其中包括内联函数的使用、C 代码的自动矢量化、库的使用，当然还有直接用汇编语言编写。
+
+内联函数是编译器用适当的 NEON 指令替换的 C 或 C++ 伪函数调用。
+这允许您使用 NEON 实现中可用的数据类型和操作，同时允许编译器处理指令调度和寄存器分配。
+这些 intrinsic 函数定义在 ARM C 语言扩展文档里。
+
+ARM 编译器 6 下，Auto-vectorization 由 \lstinline!-fvectorize! 选项配置，然而高级优化中该选项是自动打开的（\lstinline!-O2! 和更高）。
+只要 \lstinline!-O0! 选项开启，无论指不指定 \lstinline!-fvectorize! Auto-vectorization 都是关闭的。
+因此您需要在 \lstinline!-O1! 优化下通过以下命令开启 auto-vectorization：
+
+\lstinline!armclang --target=armv8a-arm-none-eabi -fvectorize -O1 -c file.c!
+
+有多个支持 NEON 代码的软件库。
+这些库随时间动态更新，因此其状态也无法把控，所以当前的支持情况并没有列举到该文档中。
+
+虽然技术上而言，手动优化 NEON 汇编代码是可行的，但是由于流水线和内存访问时序的内部复杂依赖，手动优化是非常困难的。
+ARM 强烈推荐直接使用 intrinsic 调用函数，而不是手写汇编。
+
+\begin{itemize}
+  \item 使用 instrinsic 函数比使用汇编助记符更简单。
+  \item Instrinsic 函数提供了很好的跨平台可移植性。
+  \item 使用 instrinsic 不需要关心内部流水线和内存访问时序。
+  \item 大多数情况下能够或得很好的性能。
+\end{itemize}
+
+如果您不是一个经验丰富的汇编开发者，那么使用 intrinsic 通常能获得更好的性能。
+Intrinsic 提供了和直接用汇编编写代码一样丰富的控制，但是把分配寄存器的任务分配给了编译器，因此您可以专注于算法。
+这样会比汇编语言具有更好的代码维护性。
+

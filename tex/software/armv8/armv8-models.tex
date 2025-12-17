@@ -1,0 +1,113 @@
+\subsection{ARMv8 模型}
+
+平台模型（如本章所述的模型）使软件开发无需实际硬件即可进行。
+软件模型从程序员的角度提供了处理器和设备的模型，其功能行为等同于真实硬件。
+
+为了实现快速的模拟执行速度，这些模型在绝对时间精度上作出了牺牲。
+这意味着可以使用 PV 模型确认软件功能，但不能依赖于周期计数的准确性、低级组件交互或其他特定于硬件的行为。
+
+ARMv8-A Foundation Platform 中的处理器并不基于任何现有的处理器设计，但仍然符合 ARMv8-A 架构规范。
+ARMv8-A Foundation Platform 使用 ARM Fast Model 技术，是 ARM 处理器建模解决方案套件的一部分。
+这些建模解决方案在 ARM Fast Models 提供的模型组合中可用。
+
+在 Base Platform FVP 中建模的处理器可以配置为像 Cortex-A53 和 Cortex-A57 处理器一样运行。
+
+\subsubsection{ARM Fast 模型}
+
+Fast Models 是一个用于创建高仿真速度的虚拟平台模型的环境。
+这些模型提供了对基于 ARM 的系统的访问，适用于在硅片尚未可用时的早期软件开发。
+与ARM Development Studio 5 (DS-5) 配合使用，Fast Models 可以帮助开发人员在整个开发周期中调试、分析和优化他们的应用程序。
+
+这些虚拟平台可以方便地分发给软件开发人员进行早期软件开发，而无需昂贵的开发板。
+它们具有以下特点：
+
+\begin{itemize}
+\item
+  每秒可执行多达 2.5 亿条 ARM 指令，速度与实际硬件相当。
+\item
+  性能和精度适用于应用程序和固件以及早期驱动程序开发。
+\item
+  可以快速启动操作系统，如 Linux 和 Android。
+\item
+  提供 ARM 处理器子系统的 SystemC Transaction Level Messaging (TLM) 2.0
+  导出。
+\item
+  具有功能精确的 ARM 指令集模型，完全经过 ARM 处理器设计的验证。
+\item
+  模拟先进的 ARM 技术，如缓存、MMU、LPAE、虚拟化、TrustZone 和 VFP。
+\item
+  模拟外设，例如以太网、LCD、键盘和鼠标。
+\end{itemize}
+
+生成的平台配备了 Component Architecture Debug Interface (CADI)，可以独立运行或从合适的调试器运行。
+Fast Models 自动生成独立和集成平台所需的接口。
+
+Fast Models 可用于多种 ARM 处理器和系统控制器，包括经典的 ARM 处理器和
+CoreLink 系统控制器。
+
+Fast Models 只关注从处理器上运行的程序的角度来看精确性。
+它们不尝试精确模拟总线事务，也不精确模拟指令定时。
+整体仿真有非常准确的时间概念，但代码转换（CT）处理器不声称以设备般的定时调度指令。
+
+Fast Models 试图准确模拟硬件，但在执行速度、准确性和其他标准之间存在妥协。
+在某些条件下，处理器模型可能无法与硬件完全匹配。
+
+Fast Models 可以：
+
+\begin{itemize}
+\item
+  准确地模拟指令。
+\item
+  正确执行符合架构规范的代码。
+\end{itemize}
+
+然而，Fast Models 不能：
+
+\begin{itemize}
+\item
+  验证硬件。
+\item
+  模拟所有架构上不可预测的行为。
+\item
+  模拟周期计数。
+\item
+  模拟时间敏感行为。
+\item
+  模拟 SMP 指令调度。
+\item
+  测量软件性能。
+\item
+  模拟总线流量。
+\end{itemize}
+
+Fast Models 的目标是对系统程序员的视角精确。
+软件能够检测到硬件和模型之间的差异，但这些差异通常依赖于未精确定义的行为。
+例如，可以检测到指令和总线事务的精确时序差异、推测预取的效果以及缓存受害者选择。
+某些类别的行为被指定为不可预测的，这些情况下软件可以检测到。
+依赖这些行为的程序，即使是无意的，也不能保证在任何设备或
+Fast Models 上可靠运行。
+这些行为可能会导致硬件和模型之间的执行结果有所不同。
+
+通常，处理器在同一仿真时间点发出一组指令（一个量子），然后等待一段时间再执行下一个量子。
+时间安排使得处理器平均每个时钟周期执行一条指令。
+
+其结果是：
+
+\begin{itemize}
+\item
+  在模型上运行的软件的感知性能与真实世界的软件有所不同，特别是内存访问和算术操作都需要相当多的时间。
+\item
+  程序可能能够检测到处理器的量化执行行为，例如通过轮询高分辨率计时器。
+\end{itemize}
+
+\paragraph*{从那里获取 ARM Fast models}
+
+购买 ARM Fast models 的详情在 \url{http://www.arm.com/fastmodels}。
+
+\subsubsection{ARM 基础平台}
+
+略
+
+\subsubsection{FVP 基础平台}
+
+略

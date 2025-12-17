@@ -1,0 +1,679 @@
+\subsection{异常处理} \label{sec:exception}
+
+严格来讲，中断将打断软件的运行流程。
+然而，在 ARM 术语中，这实际是异常。
+异常是一些状态和系统事件，这些事件需要特权软件（异常处理函数）采取一些措施来保证系统的正常运行。
+每类异常都由相关的异常处理函数与其关联。
+一旦异常被处理完成，特权软件将恢复 CPU 核到异常前的执行状态。
+
+异常分为以下几类：
+
+\begin{description}
+  \item[{Interrupts}] \hfill \\
+    系统有两种中断类型为 IRQ 和 FIQ。
+
+    FIQ 优先级高于 IRQ。
+    这两种异常类型通常与 CPU 核的输入引脚相连。
+    假定没有关闭中断的情况下，外部硬件发起一个中断线路请求，并且在当前的指令执行完成后（虽然一些指令可以加载多个数值，但是可以被中断），引发对应的异常类型。
+    FIQ 和 IRQ 是 CPU 核的物理信号，当触发这些信号时，CPU 核便会响应关联的异常（中断使能的情况下）。
+    绝大多数的系统中，各种中断源都是用中断控制器连接的。
+    中断控制器对中断进行仲裁和优先级排序，每次提供一个串行化的信号给连接到 CPU 核的 FIQ 或 IRQ 信号口。
+    由于中断的发生与 CPU 在任意时刻执行的软件没有直接的关系，所以它们被分类为异步异常。
+    详情可见于章节~\ref{sec:gic}。
+
+  \item[{Aborts}] \hfill \\
+    Abort 可能由取指令错误或者数据访问错误产生。
+    Abort 异常可能从外部的内存系统的数据访问错误产生（表面指定的地址与系统的真实内存不对应）。
+    另外，Abort 也可以通过 CPU 核的 MMU 产生。
+    操作系统使用 MMU abort 来给应用程序动态分配内存。
+
+    在取指令的过程中，指令在 pipeline 中可被标注为 abort 异常。
+    指令 abort 仅发生在 CPU 核尝试执行指令的时候。
+    异常发生在指令执行之前。
+    如果 pipeline 在会产生 abort 的指令进入 pipeline 的执行阶段前被刷新了，那么系统不再产生该 abort 异常。
+    数据 abort 由 load 或 store 指令产生，并且发生在系统尝试读写数据之后。
+
+    如果 Abort 异常由指令流的执行或尝试执行所产生，那么可以描述为同步异常，并且返回地址提供了产生异常的详细信息。
+
+    异步的 abort 异常不是由执行指令所产生，同时返回地址也不一定会提供产生 abort 的详细原因。
+    ARMv8-A 架构下，指令和数据 abort 是同步的。
+    异步异常是 IRQ/FIQ 和系统错误（System errors, SError）。
+
+  \item[{Reset}] \hfill \\
+    复位（reset）被视为所实现的最高异常级别的特殊向量。
+    该向量即为，当发起该异常时 ARM 处理器将跳转的指令位置。
+    \lstinline!RVBAR_ELn! 保存该 reset 向量地址，其中 n 是所实现的最高异常级的序号。
+
+    所有核都有一个 reset 入口并且当它们被复位后立即采取复位异常。
+    该异常的优先级是系统内最高的，并且不能被屏蔽。
+    该异常用于上电后执行核上的初始化代码。
+
+  \item[{Exception generating instructions}] \hfill \\
+    某些指令的执行也会产生异常。
+    一般，执行这些指令用于从运行在更高异常级的软件中获取其提供的服务（例如，系统调用服务）。
+
+    \begin{itemize}
+      \item SVC（Supervisor Call）指令开启了用户模式程序向操作系统请求服务的功能。
+      \item HVC（Hypervisor Call）指令开启了客户操作系统向虚拟机监控程序请求服务的功能。
+      \item SMC（Secure monitor）指令开启了普通程序向安全程序请求服务的功能。
+    \end{itemize}
+
+    如果所产生的异常是由于 EL0 下取指而生成的，那么它将被视为 EL1 下的异常。
+    除非在非安全状态下设置了 \lstinline!HCR_EL2.TGE! 位，那么它将被带入 EL2 下。
+
+    如果所产生的异常是由其它异常级下取指所产生的，那么异常级保持不变。
+\end{description}
+
+本文档的前面讲述了 ARMv8-A 架构有 4 个异常级。
+处理器的运行只能通过进入或返回一个异常的方式切换运行级。
+当处理器从更高的异常级切换到更低的异常级时，运行状态可以保持不变，或者处理器可以从 AArch64 切换到 AArch32。
+相反，处理器从更低的异常级切换到更高的异常级时，运行状态可以保持不变，或者处理器可以从 AArch32 切换到 AArch64。
+
+\Figure[caption={异常执行流程}, label={fig:exception-flow}, width=0.6]{exception-flow}
+
+上图示意出在应用程序运行过程中发生异常的程序流程。
+处理器跳转到包含所有异常类的入口的向量表。
+向量表包含通常表明有异常原因的调度代码，并且调度代码选择调用合适的函数处理所处异常。
+调度代码执行完成后并返回到高级的处理函数，该函数执行 ERET 指令返回应用程序。
+
+\subsubsection{异常处理寄存器}
+
+如果发生异常，PSTATE 信息将被保存到 \lstinline!SPSR_ELn!（Saved Program Status Register）寄存器中，系统有 \lstinline!SPSR_EL3!、\lstinline!SPSR_EL2! 和 \lstinline!SPSR_EL1!。
+
+\Figure[caption={AArch64 下的 SPSR}, label={fig:aarch64-spsr}, width=0.95]{aarch64-spsr}
+\Figure[caption={AArch32 下的 SPSR}, label={fig:aarch32-spsr}, width=0.95]{aarch32-spsr}
+
+% The SPRSR.M field (bit 4) is used to record the execution state (0 indicates AArch64 and 1
+% indicates AArch32).
+\lstinline!SPSR.M! 字段（bit 4）用于记录运行状态（0 表明 AArch64，1 为 AArch32）。
+
+\begin{stblr}
+  {PSTATE 字段}
+  {pstate-field}
+  {c>{\centering\arraybackslash}X}
+  \hline[1pt]
+  字段 & 说明 \\
+  \hline
+  NZCV & Condition flags \\
+  Q & Cumulative saturation bit \\
+  DAIF & Exception mask bits \\
+  SPSel & SP selection (EL0 or ELn), not applicable to EL0 \\
+  E & Data endianness (AArch32 only) \\
+  IL & Illegal flag \\
+  SS & Software stepping bit \\
+  \hline[1pt]
+\end{stblr}
+
+The exception bit mask bits (DAIF) allow the exception events to be masked. The exception is
+not taken when the bit is set.
+
+\begin{description}
+  \item[D] Debug exceptions mask.
+  \item[A] SError interrupt Process state mask, for example, asynchronous External Abort.
+  \item[I] IRQ interrupt Process state mask.
+  \item[F] FIQ interrupt Process state mask.
+\end{description}
+
+SPSel 字段选择当前的该使用哪个异常级栈指针 \lstinline!SP_EL0!。
+切换栈指针可以在除了 EL0 之外的任何异常级进行。
+后续章节会讨论如何切换。
+
+设置 IL 字段会导致执行下一条指令以触发异常。
+该字段使用非法执行的返回，例如，尝试从 AArch64 返回 EL2 而实际系统运行状态是 AArch32。
+
+SS（Software Stepping）字段在调试相关章节讲解。
+调试器使用它执行一条指令然后对后续的指令发起一个调试异常。
+
+当采取一个异常时，一些分开的字段（CurrentEL、DAIF 和 NZCV 等等）以一种紧凑的方式拷贝到 \lstinline!SPSR_ELn!（返回时相反）。
+
+当以事件引发一个异常，处理器会自动采取一些特定的动作。
+这些动作有更新 \lstinline!SPSR_ELn!（n 是异常发生时所处异常级）、
+保存正确从异常返回时所需的 PSTATE 信息、
+更新 PSTATE 以反应处理器的新状态（可能意味着异常级的发起或保持不变）以及
+将从异常所需的返回地址保存到 \lstinline!ELR_ELn!。
+
+\Figure[caption={异常处理}, label={fig:exception-handling}, width=0.5]{exception-handling}
+
+记住，\lstinline!_ELn! 后缀表示这些寄存器在不同异常级的多个备份。
+例如，\lstinline!SPSR_EL1! 与 \lstinline!SPSR_EL2! 是不同的物理寄存器。
+另外，在同步或 SError 异常的情况下，也会把 \lstinline!ESR_ELn! 更新为表面异常产生原因的值。
+
+软件通过执行 ERET 指令来通知处理器何时从异常返回。
+执行 ERET 将从 \lstinline!SPSR_ELn! 恢复异常前的 PSTATE 值并且从 \lstinline!ELR_ELn! 恢复之前的程序运行地址。
+
+上面已经讲述了 SPSR 如何为异常返回记录必要的状态信息。
+下面将继续讲述 link 寄存器如何存储程序地址信息。
+架构架构为函数调用和异常返回提供了单独的链接寄存器。
+
+我们已经在 A64 指令集相关章节了解到 X30 寄存器用于从子例程中返回（通过 RET 指令）。
+一旦我们执行了跳转链接（branch with link）指令（BL 或 BLR），那么返回值将被更新到 X30 寄存器中。
+而 \lstinline!ELR_ELn! 寄存器用于存储从异常返回的地址。
+当进入一个异常时，该寄存器值将被硬件自动更新，并且当执行 ERET 指令返回时，该寄存器的值会写入到 PC 中。
+
+\begin{Tcbox}[title={Note}]
+  当从异常返回时，如果 SPSR 的值与系统寄存器的设置冲突，那么您将看到一个错误。
+\end{Tcbox}
+
+\lstinline!ELR_ELn! 保存有指定异常类型的返回地址。
+对于一些异常而言，这个返回值是发生异常指令地址的下一条指令地址。
+例如，当一个 SVC 指令执行时，我们希望返回时能执行下一条指令。
+在其他情况下，我们可能希望重新执行发生异常的指令。
+
+对于异步异常来说，\lstinline!ELR_ELn! 指向由于获取中断而尚未执行或完全执行的第一条指令的地址。
+系统允许处理函数代码修改 \lstinline!ELR_En!，例如，如果有必要返回到中止同步异常之后的指令地址。
+ARMv8-A 模型已经明显比 ARMv7-A 简单了，然而处于兼容性的原因，从特定类型的异常中返回时仍然需要从链接寄存器中减去 4 或 8。
+
+除了 SPSR 和 ELR 寄存器，每个异常级都包含其专用的栈指针寄存器。
+这些寄存器被命名为 \lstinline!SP_EL0!、\lstinline!SP_EL1!、\lstinline!SP_EL2! 和 \lstinline!SP_EL3!。
+这些寄存器用于指向专用栈，这些专用栈则可用于保存一些会被异常处理函数破坏的寄存器，那么便可以在异常返回时恢复这些被保存的寄存器。
+
+异常处理代码可能会切换 \lstinline!SP_ELn! 为 \lstinline!SP_EL0!。
+例如，\lstinline!SP_EL1! 可能指向一块小型的内核可以确保永久有效的栈内存上。
+\lstinline!SP_EL0! 则可能指向一块大型的内核无法确保安全的（栈溢出）任务栈上。
+通过控制 SPSel 字段进行切换，方法如下：
+
+\begin{lstlisting}[
+  language={[ARM]Assembler},
+]
+MSR SPSel, #0  // switch to SP_EL0
+MSR SPSel, #1  // switch to SP_ELn
+\end{lstlisting}
+
+\subsubsection{同步和异步异常}
+
+AArch64 中，异常分为同步和异步异常。
+同步异常是由于尝试执行指令所引起的，并且返回地址包含导致异常的指令的详细信息。
+异步异常不是指令的执行所引起的，返回地址也不一定会包含产生异常的信息。
+
+异步异常是由 IRQ、FIQ 或 SError 产生的。
+有不少可能导致系统错误异常的产生原因，其中最常见的是异步数据中止（例如 cache line 中的脏数据写回外部内存所触发的中止）。
+
+同步异常的产生源头有：
+
+\begin{itemize}
+  \item MMU 产生的指令中止。
+    比如，指令的内存地址设置为不可执行。
+  \item MMU 产生的数据中止。
+    例如，访问权限不足或对齐检查。
+  \item SP 和 PC 对齐检查。
+  \item 同步的外部中止。
+    比如，读取也表时发生的中止。
+  \item 未分配的指令
+  \item 调试异常。
+\end{itemize}
+
+\paragraph*{同步中止}
+
+有很多产生同步异常的原因：
+
+\begin{itemize}
+  \item MMU 产生
+  \item SP 和 PC 对齐检查
+  \item 未分配的指令
+  \item 服务调用指令（SVC、SMC 和 HVC）
+\end{itemize}
+
+操作系统可以用这些异常实现一些正常功能。
+例如，在 Linux 中，一个 task 请求分配新的内存页的功能就是通过 MMU 中止机制。
+
+ARMv7-A 架构中，预取中止、数据中止和未定义异常是分开的条目。
+但是在 AArch64 中，这些异常会统一产生一个同步中止。
+异常处理函数读取 syndrome 和 FAR 寄存器获取必要的信息来区分这些异常。
+
+\paragraph*{处理同步异常}
+
+异常处理函数通过读取一些寄存器来获取异常产生的原因等信息。
+其中，\lstinline!ESR_ELn!（Exception Syndrome Register）提供异常的产生原因。
+\lstinline!FAR_ELn!（Fault Address Register）保存有关于同步指令、数据中止和对齐错误相关的出错的虚拟地址。
+
+\lstinline!ELR_ELn!（Exception Link Register）保存产生数据访问中止时的指令地址（Data Abort）。
+这通常在内存错误之后更新，但也会在其它情况下设置，比如跳转到一个非对齐的地址。
+
+如果将异常从使用 AArch32 的异常级别转移到使用 AArch64 的异常级别，那么异常将以目标异常级的方式写 FAR 寄存器，也就是说 \lstinline!FAR_ELn! 的高 32 bit 会全部设成 0。
+
+对于实现了 EL2（Hypervisor）或 EL3（Secure Kernel）的系统来说，同步异常通常由当前或者更高的异常级接管。
+异步异常可以被路由到更高异常级处理。
+\lstinline!SCR_EL3! 寄存器指定哪些异常被路由到 EL3。
+同样的，\lstinline!HCR_EL2! 指定哪些异常被路由到 EL2。
+IRQ、FIQ 和 SError 由一些单独的 bit 来独立控制。
+
+\paragraph*{系统调用}
+
+一些指令和系统函数只能在特定的异常级下执行。
+如果运行在一个较低的异常级下的代码需要采取特权操作，例如，当应用程序向内核请求功能时。
+一种方式是使用 SVC 指令，该指令允许应用程序产生一个异常。
+系统调用的参数则通过通用寄存器传入，或者编码在系统调用中。
+
+\paragraph*{EL2/EL3 的系统调用}
+
+与应用程序向 EL1（内核）请求系统调用类似，请求 EL2 和 EL3 的服务同样有相应指令，分别为 HVC 和 SMC。
+当处理器运行在 EL0 下，它无法直接向 EL2 提交服务请求，只能通过 SVC 先向内核提交请求，然后通过 EL1 下的内核来向 EL2 发起请求。
+
+运行在 EL1 下的 OS 内核可以通过 HVC 指令调用 hypervisor 服务，也可以通过 SMC 调用安全监控服务。
+如果处理器实现了 EL3，那么 EL2 能够捕获来自 EL1 的 SMC 指令。
+如果没有 EL3，那么 SMC 不会被分配并且只在当前异常级触发。
+
+同样，EL2 下的代码可以使用 SMC 调用 EL3 代码。
+如果 SVC 指令在 EL2 或 EL3 下执行，那么它仍然会同一异常级产生一个同步异常，并且异常级下的处理函数来决定如何响应。
+
+\paragraph*{未分配的指令}
+
+未分配的指令产生一个同步中止，当处理器执行以下指令时产生该类异常：
+
+\begin{itemize}
+  \item 没有分配操作码的指令
+  \item 需要更高特权级执行的指令
+  \item 禁用的指令
+  \item PSTATE.IL 字段设置后的任意指令
+\end{itemize}
+
+% -----
+\paragraph*{The Exception Syndrome Register (ESR)}
+
+\lstinline!ESR_ELn! 寄存器保存异常的信息，可由异常处理函数从中获取异常产生的原因。
+它只会在发生同步异常和 SError 异常时更新。
+它不会在产生 IRQ 或 FIQ 时更新，IRQ 和 FIQ 的状态信息保存在 GIC 的寄存器中（详情查阅 \textit{The Generic Interrupt Controller}）。
+ESR 寄存器的编码如下：
+
+\begin{description}
+  \item[31:26] 异常类，异常处理函数可用以区分异常类别（例如未分配的指令、从 MCR/MRC 到 CP15 所产生的异常、FP 操作异常、SVC、HVC、SMC、数据中止和对齐异常）。
+  \item[25] 异常指令的长度（0 代表 16-bit 指令；
+    1 代表 32-bit 指令），并且设置给特定异常类。
+  \item[24:0] 形成 Instruction Specific Syndrome (ISS) 字段，包含该类异常的信息。
+    例如：当系统调用指令（SVC、HVC 或 SMC）执行时，该字段包含指令的立即数，比如当执行 \lstinline!SVC 0x123456! 时该字段包含 0x123456。
+\end{description}
+
+\subsubsection{异常引起的执行状态和异常级的变化}
+
+异常产生时，处理器可能改变运行状态也可能保持不变。
+例如，当处理器运行在 AArch32 状态时，外部中断源可能引发中断，但是 OS 内核的中断处理函数运行在 AArch64 状态。
+
+SPSR 寄存器会保存处理器的运行状态，以便异常返回时切换回去。
+这个切换的动作是由处理器自动完成的，但是每个异常级别的运行状态的控制是通过以下方式完成的：
+
+\begin{itemize}
+  \item 硬件配置输入决定最高异常级别的初始运行状态（不一定为 EL3）。
+    但是，并没有固定，因为有 \lstinline!RMR_ELn! 寄存器可以在处理器运行时改变最高异常级的运行状态。
+    EL3 是安全监控代码，它是一个有特定运行状态的安全的小型代码块。
+  \item EL2 和 EL1 的运行状态由 \lstinline!SCR_EL3.RW! 和 \lstinline!HCR_EL2.RW! 位。
+    \lstinline!SCR_EL3.RW! 在 EL3 下配置控制 EL2 的运行状态。
+    \lstinline!HCR_EL2.RW! 在 EL2 或 EL3 下配置控制 EL1/0 的运行状态。
+  \item EL0 不会处理异常（只运行应用程序代码）。
+\end{itemize}
+
+如下图所示，考虑当应用程序正在 EL0 上运行时，发生了 IRQ 中断的情况。
+而内核的 IRQ 处理函数运行于 EL1。
+中断发生时，处理器会决定如何设置运行状态。
+它通过查看更高异常级（EL2）的控制寄存器的 RW 位。
+这个例子中它会查看 \lstinline!HCR_EL2.RW!。
+
+\Figure[caption={到 EL1 的异常}, label={fig:exception-to-el1}, width=0.4]{exception-to-el1}
+
+那么接下来还要考虑异常级别的切换。
+同样的，异常发生时异常级别可以切到更高或保持不变。
+老生常谈，EL0 不处理异常。
+
+同步异常通常由当前异常级别或更高的异常级别处理。
+然而，异步异常可以被路由到更高异常级。
+对于安全代码来说，\lstinline!SCR_EL3! 可用于指定哪些异常可以路由到 EL3。
+对于 hypervisor 代码而言，\lstinline!HCR_EL2! 可用于指定哪些异常可以路由到 EL2。
+
+在所有的路由情况下，IRQ、FIQ 和 SError 都由独立的字段来控制。
+处理器只会把异常带入到它被路由的异常级去处理。
+异常不可能到比它出发的异常级低的级别去处理。
+中断只能在其处理的异常级才能被屏蔽。
+
+将异常从 AArch32 带入到 AArch64 时，需要做一些特殊考虑。
+AArch64 处理代码可能需要访问 AArch32 的寄存器，因此架构将寄存器映射到 AArch32 上来对其进行访问。
+
+AArch32 寄存器的 R0 到 R12 对应 X0 到 X12。
+AArch32 不同模式的所有储备 SP 和 LR 寄存器对应于 X13 到 X23，储备 的 FIQ 寄存器 R8 到 R12 对应 X24 到 X29。
+这些寄存器的 \verb![63:32]! 位在 AArch32 模式下无法获取，其值为 0 或者为上次在 AArch64 下写入的值。
+架构不保证这些高位值，所以一般都以 W 寄存器去访问。
+
+\subsubsection{AArch64 的异常向量表}
+
+当异常发生时，处理器必须执行可以处理该异常的处理函数代码。
+异常处理代码保存的内存地址称作异常向量。
+ARM 架构下，异常向量存在一个表中，称为异常向量表。
+除了 EL0 外，每个异常级都有一个异常向量表。
+向量表中保存异常发生时要被执行的代码，而不是一些地址。
+不同异常的向量被放在表中的固定地址偏移上。
+分别通过向量基地址寄存器 \lstinline!VBAR_EL3!、\lstinline!VBAR_EL2! 和 \lstinline!VBAR_EL1! 设置每个表的虚拟地址。
+
+向量表中的每个条目长度为 32 指令（单个指令为 4-byte）长度。
+这相对 ARMv7 的向量表条目只有 4 byte 来说，有了重大的改变。
+对于 ARMv7 来说，一个 4-byte 的条目只能存放一个跳转类型的指令，跳转到一个真正的异常处理函数地址上。
+而 AArch64 的异常向量的空间足够大，可以直接在异常向量中直接处理异常。
+
+下表展示了一个异常向量表。
+基地址由 \lstinline!VBAR_ELn! 设置，而每个条目都在基于该地址的偏移上。
+每个表含有 16 个条目，每个条目为 128 byte（32 条指令）。
+向量表由 4 组 4 条目组成，使用哪个条目则由以下因素决定：
+
+\begin{itemize}
+  \item 异常类型（SError、FIQ、IRQ 和 同步异常）
+  \item 如果异常在同一异常级产生，那么使用栈指针（SP0 或 SPx）
+  \item 如果异常在较低的异常级产生，那么决定较低一级的执行状态（AArch64 或 AArch32）
+\end{itemize}
+
+\begin{ltblr}[caption={异常向量表}, label={tbl:exp-table}]
+  {colspec={c>{\centering\arraybackslash}X>{\centering\arraybackslash}X}}
+  \hline[1pt]
+  地址 & 异常类型 & 描述\\
+  \hline
+  VBAR\_ELn+0x000  & Synchronous & \SetCell[r=4]{c} Current EL with SP0\\
+  +0x080 & IRQ/vIRQ & \\
+  +0x100 & FIQ/vFIQ & \\
+  +0x180 & SError/vSError & \\
+  \hline
+  +0x200 & Synchronous & \SetCell[r=4]{c} Current EL with SPx\\
+  +0x280 & IRQ/vIRQ & \\
+  +0x300 & FIQ/vFIQ & \\
+  +0x380 & SError/vSError & \\
+  \hline
+  +0x400 & Synchronous & \SetCell[r=4]{c} Lower EL using AArch64\\
+  +0x480 & IRQ/vIRQ & \\
+  +0x500 & FIQ/vFIQ & \\
+  +0x580 & SError/vSError & \\
+  \hline
+  +0x600 & Synchronous & \SetCell[r=4]{c} Lower EL using AArch32\\
+  +0x680 & IRQ/vIRQ & \\
+  +0x700 & FIQ/vFIQ & \\
+  +0x780 & SError/vSError & \\
+  \hline[1pt]
+\end{ltblr}
+
+举个例子来理解上述的异常条目的选择。
+
+如果内核代码正在 EL1 下运行，而此时正好发生了一个中断 IRQ，该中断并未关联到更高的异常级（hypervisor 或 secure 环境），那么该中断也是由 EL1 下的内核代码来处理（内核此时的栈是 \lstinline!SP_EL1!，并且设置在 SPSel 字段，那么异常处理代码也使用 \lstinline!SP_EL1!）。
+所以，异常发生时的跳转地址即为 \lstinline!VBAR_EL1 + 0x280!。
+
+由于 ARMv8 中不存在 \lstinline!LDR PC, [PC, #offset]! 指令，所以程序员必须使用更多的指令才能从寄存器表中读取到目的地址。
+异常向量的间距的设计旨在避免未使用的向量对典型大小的指令高速缓存线造成高速缓存污染。
+Reset 的地址是由\textbf{设计决定的}完全独立的地址，通常是硬件固化配置。
+该地址可由 \lstinline!RVBAR_EL1/2/3! 等寄存器获取。
+
+无论当前的异常级还是较低的异常级中每个异常都有独立的异常向量的设计给 OS 或 hypervisor 带来灵活性，即可以灵活的决定较低异常级的运行状态（AArch64 还是 AArch32）。
+\lstinline!SP_ELn! 用于较低异常级产生的异常。
+但是，软件可以在异常处理代码中切换到 \lstinline!SP_EL0!。
+使用此机制有助于从处理程序的线程中访问变量值。
+
+\subsubsection{中断处理}
+
+ARM 通常使用中断（interrupt）来表示中断信号。
+在 ARM A-profile 和 R-profile 处理器上，表示外部的 IRQ 或 FIQ 中断信号。
+架构并未指定这些信号的使用方法。
+FIQ 一般保留为安全中断源。
+在早期的架构中，FIQ 和 IRQ 用于表示高中断优先级和标准中断优先级，但是 ARMv8-A 已经不是这种概念了。
+
+当处理器在 AArch64 运行状态下产生一个异常时，所有的 PSTATE 中断屏蔽字段都会被自动设置。
+这意味后面的异常都被关闭掉了。
+如果软件想要支持嵌套异常，例如运行一个更高优先级的中断打断正在处理的低级的中断，那么软件必须明确的重新使能这些中断。
+
+使用的指令如下：
+
+% \noindent
+{
+  \lstinline!MSR DAIFClr, #imm!
+}
+
+立即数是一个 4-bit 长度的字段，表示：
+
+\begin{itemize}
+  \item PSTATE.A (SError)
+  \item PSTATE.D (Debug)
+  \item PSTATE.I (IRQ)
+  \item PSTATE.F (FIQ)
+\end{itemize}
+
+\Figure[caption={C 中断处理示意}, label={fig:irq-hdl-in-c}, width=0.5]{irq-hdl-in-c}
+
+一个汇编语言编写的 IRQ 处理函数类似为：
+
+\begin{lstlisting}[
+  language={[ARM]Assembler},
+  caption={汇编 IRQ handler},
+  label={lst:asm-irq-hdl}
+]
+
+IRQ_Handler
+                          // Stack all corruptible registers
+STP X0, X1, [SP, #-16]!   // SP = SP -16
+//...
+STP X2, X3, [SP, #-16]!   // SP = SP - 16
+                          // unlike in ARMv7, there is no STM instruction and
+                          // so we may need several STP instructions
+BL read_irq_source        // a function to work out why we took an interrupt
+                          // and clear the request
+BL C_irq_handle           // the C interrupt handler
+                          // restore from stack the corruptible registers
+LDP X2, X3, [SP], #16     // S = SP + 16
+LDP X0, X1, [SP], #16     // S = SP + 16
+//...
+ERET
+\end{lstlisting}
+
+然而，从性能考虑，下面的代码会更好一些：
+
+\begin{lstlisting}[
+  language={[ARM]Assembler},
+  caption={汇编 IRQ handler (better)},
+  label={lst:asm-irq-hdl-b}
+]
+
+SUB SP, SP, #<frame_size>   // SP = SP - <frame_size>
+STP X0, X1, [SP}            // Store X0 and X1 at the base of the frame
+
+STP X2, X3, [SP]            // Store X2 and X3 at the base of the frame + 16
+//...                       // bytes more register storing
+//...
+                            // Interrupt handling
+BL read_irq_source          // a function to work out why we took an interrupt
+                            // and clear the request
+BL C_irq_handler            // the C interrupt handler
+                            // restore from stack the corruptible registers
+LDP X0, X1, [SP]            // Load X0 and X1 at the base of the frame
+LDP X2, X3, [SP]            // Load X2 and X3 at the base of the frame + 16
+//...                       // bytes more register loading
+ADD SP, SP, #<frame_size>   // Restore SP at its original value
+//...
+ERET 
+\end{lstlisting}
+
+\Figure[caption={处理嵌套中断}, label={fig:hdl-nest-irqs}, width=0.8]{hdl-nest-irqs}
+
+嵌套的处理函数需要更多代码。
+它必须将 \lstinline!SPSR_EL1! 和 \lstinline!ELR_EL1! 保存到栈上。
+处理代码中也必须在确定（以及清除）中断来源后重新使能所有 IRQ。
+然而（与 ARMv7-A 不同），用于子例程调用的链接寄存器和异常使用的链接寄存器是不同的，所以必须要避免对 LR 和 模式做任何特殊的操作。
+
+\begin{probsolu}[title={Problem and Solution \theprob}]{
+  如何处理嵌套中断？写出处理嵌套中断的代码。
+（可以从 FreeRTOS、RT-Thread 等代码中找到参考）
+  }\label{pb:how-to-hdl-nest-irqs}
+
+  经查阅，RT-Thread 在进入中断处理函数之前保存了浮点寄存器 Q0-Q31、通用寄存器 X0-X30、FPCR、FPSR、SP\_EL0、SPSR\_EL1 和 ELR\_EL1 到栈上。
+  最后将栈保存到 X0 寄存器中。
+
+  具体可查阅 RT-Thread 代码 \lstinline!aarch64/common/context_gcc.S!。
+\end{probsolu}
+
+\subsubsection{GIC} \label{sec:gic}
+
+ARM 提供了一个标准的中断控制器可用于 ARMv8-A 系统中。
+该中断控制器的编程接口定义在 GIC 架构中。
+GIC 架构定义了多个版本，本文档主要介绍 GICv2。
+ARMv8-A 处理器与 GIC 连接，例如，GIC-400 或 GIC-500 等。
+GIC 支持在多核之间路由软件产生的、私有和共享的外设中断。
+
+
+ARM 提供了一个标准的中断控制器，可以用于 ARMv8-A 系统。
+该中断控制器的编程接口在 GIC 架构中定义。
+GIC 架构规范有多个版本，本文件重点介绍第 2 版（GICv2）。
+ARMv8-A 处理器通常连接到一个 GIC，例如 GIC-400 或 GIC-500。
+通用中断控制器（GIC）支持在多核系统中路由软件生成的、私有的和共享的外围中断到各个核心。
+
+GIC 架构提供了用于管理中断源和行为的寄存器，并且（在多核系统中）可以将中断路由到各个核心。
+它使软件能够屏蔽、启用和禁用来自各个源的中断，对单个源进行优先级排序（在硬件中），并生成软件中断。
+GIC 接受系统级别断言的中断，并可以将它们信号化给每个连接的核心，可能导致触发 IRQ 或 FIQ 异常。
+
+从软件角度来看，GIC 有两个主要的功能模块：
+
+\begin{description}
+  \item[{Distributor（分发器）}] \hfill \\
+    所有系统中的中断源都连接到此模块。
+    分发器有寄存器来控制各个中断的属性，如优先级、状态、安全性、路由信息和启用状态。
+    分发器决定哪个中断被转发到核心，通过连接的
+    CPU 接口。
+  \item[{CPU Interface（CPU 接口）}] \hfill \\
+    核心通过此模块接收中断。
+    CPU 接口托管寄存器，用于屏蔽、识别和控制转发到该核心的中断状态。
+    系统中的每个核心都有一个单独的 CPU 接口。
+\end{description}
+
+中断在软件中通过一个称为中断 ID 的数字来标识。
+中断 ID 唯一对应于一个中断源。
+软件可以使用中断 ID 来识别中断源，并调用相应的处理程序来服务中断。
+呈现给软件的确切中断 ID 由系统设计决定。
+
+中断可以有多种类型：
+
+\begin{description}
+  \item[{软件生成中断（SGI）}] \hfill \\
+    这由软件通过写入一个专用的分发器寄存器（软件生成中断寄存器，GICD\_SGIR）显式生成。
+    它最常用于核间通信。
+    SGI 可以针对系统中的所有核心或选定的核心组。
+    中断 ID 0 - 15 保留给 SGI 使用。
+    用于给定中断的中断 ID 由生成该中断的软件设置。
+  \item[{私有外围中断（PPI）}] \hfill \\
+    这是一个全局外围中断，分发器可以将其路由到指定的核心或核心组。
+    中断 ID 16 - 31 保留给 PPI 使用。
+    这些中断标识对核心私有的中断源，并且与另一核心上的相同源独立，例如每核心定时器。
+  \item[{共享外围中断（SPI）}] \hfill \\
+    这是由一个外围设备生成的中断，GIC 可以将其路由到多个核心。
+    中断号 32 - 1020 用于 SPI。
+    SPI 用于从整个系统可访问的各种外围设备中发出中断信号。
+  \item[{区域特定外围中断（LPI）}] \hfill \\
+    这些是基于消息的中断，路由到特定的核心。
+    LPI 不支持 GICv2 或 GICv1。
+\end{description}
+
+中断可以是边沿触发的（当 GIC 检测到相关输入的上升沿时被认为是断言的，并且在清除之前保持断言）或电平敏感的（仅当 GIC 的相关输入为高电平时被认为是断言的）。
+
+中断可以处于几种不同的状态：
+
+\begin{itemize}
+\item
+  \textbf{非活动}：表示当前中断未被断言。
+\item
+  \textbf{待处理}：表示中断源已被断言，但正在等待由核心处理。
+  待处理的中断是候选中断，准备被转发到 CPU 接口然后再转发到核心。
+\item
+  \textbf{活动}：表示中断已被核心确认并且正在处理。
+\item
+  \textbf{活动且待处理}：描述核心正在处理中断，同时 GIC 也有来自同一源的待处理中断。
+\end{itemize}
+
+中断的优先级及其可交付的核心列表都在分发器中配置。
+外围设备向分发器断言中断时，该中断处于待处理状态（如果之前已处于活动状态，则为活动且待处理）。
+分发器确定可以交付给核心的最高优先级待处理中断，并将其转发到核心的 CPU 接口。
+在CPU 接口处，中断转而向核心发出信号，此时核心触发 FIQ 或 IRQ 异常。
+
+核心执行异常处理程序作为响应。
+处理程序必须从 CPU 接口寄存器查询中断 ID 并开始处理中断源。
+当处理完成后，处理程序必须写入 CPU 接口寄存器以报告处理结束。
+
+对于给定的中断，典型的序列是：
+
+\begin{itemize}
+\item
+  \textbf{非活动 -\textgreater{} 待处理}：当外围设备断言中断时。
+\item
+  \textbf{待处理 -\textgreater{} 活动}：当处理程序确认中断时。
+\item
+  \textbf{活动 -\textgreater{} 非活动}：当处理程序处理完中断时。
+\end{itemize}
+
+分发器提供寄存器来报告不同中断 ID 的当前状态。
+
+在多核 / 多处理器系统中，单个 GIC 可以由多个核心共享（GICv2 中最多八个核心）。
+GIC 提供寄存器来控制 SPI 目标核心或核心组的分配。
+该机制使操作系统能够在核心之间共享和分配中断，并协调活动。
+
+关于 GIC 行为的详细信息可以在各个处理器类型的技术参考手册（TRM）和 ARM 通用中断控制器架构规范中找到。
+
+\paragraph*{配置}
+
+GIC（通用中断控制器）作为内存映射外设访问。
+所有核心都可以访问通用分发器（Distributor），但 CPU 接口是分银行的，即每个核心使用相同的地址访问其自己的私有 CPU 接口。
+一个核心无法访问另一个核心的 CPU 接口。
+
+分发器有许多寄存器可以用来配置单个中断的属性。
+这些可配置的属性包括：
+
+\begin{itemize}
+\item
+  \textbf{中断优先级（GICD\_IPRIORITY）}：分发器使用这个优先级来确定下一个转发到 CPU 接口的中断。
+\item
+  \textbf{中断配置（GICD\_ICFGR）}：确定中断是电平敏感还是边沿触发。
+  对  SGI 不适用。
+\item
+  \textbf{中断目标（GICD\_ITARGETSR）}：确定中断可以转发到的核心列表。
+  仅适用于 SPI。
+\item
+  \textbf{中断启用或禁用状态（GICD\_ISENABLER 和 GICD\_ICENABLER）}：只有在分发器中启用的中断在变为待处理时才有资格被转发。
+\item
+  \textbf{中断安全性（GICD\_IGROUPR）}：确定中断是分配给安全软件还是普通软件。
+\item
+  \textbf{中断状态}。
+\end{itemize}
+
+分发器还提供优先级屏蔽，通过它可以防止低于某个优先级的中断到达核心。
+在确定是否可以将待处理中断转发到特定核心时，分发器会使用这一机制。
+
+每个核心的 CPU 接口有助于对该核心的中断控制和处理进行细粒度调节。
+
+\paragraph*{初始化}
+
+在复位时，分发器和 CPU 接口都是禁用的。
+GIC 必须在复位后进行初始化，才能将中断传递到核心。
+
+在分发器中，软件必须配置优先级、目标、安全性并启用各个中断。
+随后必须通过其控制寄存器（GICD\_CTLR）启用分发器。
+对于每个 CPU 接口，软件必须设置优先级屏蔽和抢占设置。
+每个 CPU 接口块本身也必须通过其控制寄存器（GICD\_CTLR）启用。
+这使 GIC 准备好向核心传递中断。
+
+在核心准备接收中断之前，软件需要通过在向量表中设置一个有效的中断向量，清除
+PSTATE 中的中断屏蔽位，并设置路由控制来准备核心接收中断。
+
+通过禁用分发器可以禁用系统中的整个中断机制。
+通过禁用其 CPU 接口，可以禁用向单个核心传递中断。
+也可以在分发器中禁用（或启用）个别中断。
+
+要使中断到达核心，必须启用个别中断、分发器和 CPU 接口。
+中断还需要具有足够的优先级，即高于核心的优先级屏蔽。
+
+\paragraph*{中断处理}
+
+当核心接收到中断时，它会跳转到从向量表中获得的顶级中断向量，并开始执行。
+
+顶级中断处理程序从 CPU 接口块读取中断确认寄存器，以获取中断 ID。
+除了返回中断 ID，这个读取操作还会使分发器中的中断标记为活跃状态。
+一旦知道中断 ID（识别中断源），顶级处理程序就可以调度特定设备的处理程序来服务中断。
+
+当设备特定的处理程序完成执行后，顶级处理程序会将相同的中断 ID 写入 CPU 接口块中的中断结束（EoI）寄存器，表示中断处理结束。
+除了移除活跃状态，这使最终的中断状态要么为非活跃，要么为挂起（如果状态是活跃且挂起），这也使
+CPU 接口能够将更多挂起的中断传递给核心。
+这完成了单个中断的处理。
+
+同一核心可能有多个中断等待处理，但 CPU 接口一次只能传递一个中断。
+顶级中断处理程序可以重复上述序列，直到读取到特殊的中断
+ID 值 1023，这表示在该核心没有更多挂起的中断。
+这个特殊的中断 ID 称为伪中断 ID。
+伪中断 ID 是一个保留值，不能分配给系统中的任何设备。
+当顶级处理程序读取到伪中断 ID 后，它可以完成其执行，并准备核心恢复到中断前正在执行的任务。
+
+通用中断控制器（GIC）通常管理来自多个中断源的输入，并将它们分配给 IRQ 或 FIQ 请求。
+

@@ -1,0 +1,252 @@
+\subsection{ABI}
+
+ARM 架构的 ABI（Application Binary Interface）指定了所有可执行本机代码模块都必须遵循的最基础规则，
+只有严格遵循这些规则，这些执行程序才能正确的共同工作。
+特定的编程语言（如 C++）会补充一些额外的规则。
+操作系统或执行环境（例如 Linux）也会添加一些规则以满足它们特定需求。
+不过这些额外的规则超出了 ARM 架构的 ABI。
+
+AArch64 架构有若干 ABI 组成元素：
+
+\begin{description}
+  \item[Executable and Linkable Format (ELF)]
+    AArch64 架构的 ELF 指定 object 和 执行文件的格式。
+  \item[Procedure Call Standard (PCS)]
+    AArch64 函数调用标准发行指定可以分开写出、编译并链接多少个能够一起工作的子例程。
+    它指定调用例程和被调用者之间的约定，或者一个例程和它的执行环境之间的约定。
+    例如，当调用一个例程或者栈空间分布时的要求。
+  \item[DWARF]
+    DWARF 是一个广泛使用的调试数据格式标准。
+    AArch64 的 DWARF 基于 DWARF 3.0 之上添加了一些额外规则。
+    详情查看 DWARF for the ARM 64-bit Architecture (AArch64)。
+  \item[C and C++ libraries]
+    ARM Compiler ARM C and C++ Libraries 和 Floating-Point Support User Guide 描述了 ARM C 和 C++ 库。
+  \item[C++ ABI]
+    C++ Application Binary Interface Standard for the ARM 64-bit Architecture 描述通用的 C++ ABI。
+\end{description}
+
+\subsubsection{通用寄存器中的参数}
+
+通用寄存器分成了 4 组来满足函数调用：
+
+\begin{description}
+  \item[Argument registers] 包括 X0-X7。
+    这些寄存器用于给函数传参并返回结果。
+    在函数内部和调用其它函数之间，它们可做为暂存寄存器或调用保存寄存器变量来保存函数内部的临时数值。
+    由于 AArch64 上将传参寄存器的个数增加到了 8 个，所以相比 AArch32 而言，减少了对栈的使用率，从而提升了函数调用的性能。
+  \item[Caller-saved temporary registers] 包括 X9-X15。
+    如果调用函数想要在调用其它函数之后保留这些寄存器的值，那么它必须要将调用其它函数后会受到影响的寄存器保存到自己的栈空间中。
+    被调用的函数在修改这些寄存器并返回调用函数前，不需要考虑保存和恢复它们。
+    也就是说调用函数必须保存这些寄存器，以确保寄存器的数值正确。
+  \item[Callee-saved registers] 包括 X19-X29。
+    这些寄存器是被调用函数需要保存的。
+    只要子例程确保在修改这些寄存器之前保存这些寄存器的值，并在返回调用函数之前恢复这些寄存器的值即可。
+  \item[Registers with a special purpose] 包括 X8, X16-X18, X29, X30。
+
+    \begin{itemize}
+      \item 
+        X8 是间接结果寄存器，用于传输间接结果地址。
+        例如，当一个函数返回一个大型结构体时。
+      \item 
+        % X16 and X17 are IP0 and IP1, intra-procedure-call temporary registers.
+        % These can be used by call veneers and similar code, or as temporary
+        % registers for intermediate values between subroutine calls. They are
+        % corruptible by a function. Veneers are small pieces of code which are
+        % automatically inserted by the linker, for example when the branch target is
+        % out of range of the branch instruction.
+        X16 和 X17 做为程序内调用临时寄存器 IP0 和 IP1。
+        用于调用 veneers \footnote{
+          Veneers 是一些被链接器自动插入的微小代码块，比如，当跳转目的地址超出跳转指令的适用范围时。
+        }和类似代码，或者做为子例程调用之间的临时变量保存寄存器使用。
+        这些寄存器容易被函数破坏。
+      \item 
+        X18 是平台寄存器并且保留给平台的 ABI 使用。
+        这是一个没有赋予特殊意义的平台附加临时寄存器。
+      \item 
+        X29 用作 FP（frame pointer register）。
+      \item 
+        X30 用作 LR（link register）。
+    \end{itemize}
+
+\end{description}
+
+下图展示了 64-bit X 寄存器。
+其它寄存器参数信息可以参考相关章节。
+
+\Figure[caption={ABI 中的通用寄存器}, label={fig:general-purpose-regs}, width=0.95]{general-purpose-regs}
+
+\subsubsection{间接结果地址}
+
+重申一下，X8（XR）寄存器用于传输间接结果地址。
+以下是相关例子：
+
+\begin{lstlisting}[
+  language=C,
+  caption={间接地址},
+  label={lst:indirect-result-location}
+]
+//test.c//
+struct struct_A
+{
+  int i0;
+  int i1;
+  double d0;
+  double d1;
+} AA;
+
+struct struct_A foo(int i0, int i1, double d0, double d1)
+{
+  struct struct_A A1;
+  
+  A1.i0 = i0;
+  A1.i1 = i1;
+  A1.d0 = d0;
+  A1.d1 = d1;
+  
+  return A1;
+}
+
+void bar()
+{
+  AA = foo(0, 1, 1.0, 2.0);
+}
+\end{lstlisting}
+
+下面通过以下命令获取到汇编代码：
+
+\begin{lstlisting}
+  armclang -target aarch64-arm-none-eabi -c test.c
+  fromelf-c test.o
+  # 当然，以交叉编译链 aarch64-linux-gnu-gcc 编译也是可行的，为了引述文档说明，默认使用上面的编译命令。
+  aarch64-linux-gnu-gcc -O0 -S test.c
+\end{lstlisting}
+
+\begin{Tcbox}[title={Note}]
+  为了演示该机理，上面的代码要以没有优化的选项编译代码，否则编译器可能会把相关细节优化掉。
+\end{Tcbox}
+
+\begin{lstlisting}[
+  language={[ARM]Assembler},
+]
+foo//
+  SUB SP, SP, #0x30
+  STR W0, [SP, #0x2C]
+  STR W1, [SP, #0x28]
+  STR D0, [SP, #0x20]
+  STR D1, [SP, #0x18]
+  LDR W0, [SP, #0x2C]
+  STR W0, [SP, #0]
+  LDR W0, [SP, #0x28]
+  STR W0, [SP, #4]
+  LDR W0, [SP, #0x20]
+  STR W0, [SP, #8]
+  LDR W0, [SP, #0x18]
+  STR W0, [SP, #10]
+  LDR X9, [SP, #0x0]
+  STR X9, [X8, #0]
+  LDR X9, [SP, #8]
+  STR X9, [X8, #8]
+  LDR X9, [SP, #0x10]
+  STR X9, [X8, #0x10]
+  ADD SP, SP, #0x30
+  RET
+bar//
+  STP X29, X30, [SP, #0x10]!
+  MOV X29, SP
+  SUB SP, SP, #0x20
+  ADD X8, SP, #8
+  MOV W0, WZR
+  ORR W1, WZR, #1
+  FMOV D0, #1.00000000
+  FMOV D1, #2.00000000
+  BL foo:
+  ADRP X8, {PC}, 0x78
+  ADD X8, X8, #0
+  LDR X9, [SP, #8]
+  STR X9, [X8, #0]
+  LDR X9, [SP, #0x10]
+  STR X9, [X8, #8]
+  LDR X9, [SP, #0x18]
+  STR X9, [X8, #0x10]
+  MOV SP, X29
+  LDP X20, X30, [SP], #0x10
+  RET
+\end{lstlisting}
+
+在这个例子中，结构体包含 16 个 byte。
+根据 AArch64 的 AAPCS，结构体对象会通过 XR 返回其内存地址。
+
+所产生的代码展示出：
+
+\begin{itemize}
+  \item W0, W1, D0 和 D1 用于传递整型和双精度型参数。
+  \item bar() 函数使用栈空间保存 foo() 函数 返回的结构体值，并将 sp 存入 X8 中。
+  \item 在 foo() 函数拿到地址进行后续操作之前，bar() 函数传递 X8 以及通过 W0、W1、D0 和 D1 传递其他的参数到 foo() 函数。
+  \item foo() 函数可能会破坏 X8，所以 bar() 使用 SP 获取返回结构体。
+\end{itemize}
+
+使用 X8（XR）寄存器的优势是它并未降低用以传递函数参数的寄存器可用性。
+AAPC64 的栈帧如下图所示。
+帧指针 X29 指向保存在堆栈上的上一帧指针，LR（X30）保存在上一帧指针之后。
+链上的最后一个帧指针应该设置为 0。
+栈指针必须 16 byte 对齐。
+堆栈框架的确切布局可能存在一些变化，特别是可变参数或无帧的函数。
+具体细节可以参考 AAPCS64 文档。
+
+\Figure[caption={栈帧}, label={fig:stack-frame}, width=0.4]{stack-frame}
+
+\begin{Tcbox}[title={Note}]
+  AAPCS 只指定了 FP 和 LR 寄存器块布局以及如何把这些块链到一起。
+  上图的其它内容（包括两个函数帧之间的边界的精确位置）是未定义的，这些内容由编译器自由定义。
+\end{Tcbox}
+
+图~\ref{fig:stack-frame} 说明了一个栈帧使用了两个被调函数保存的寄存器（X19 和 X20）和一个临时变量，布局如下（左边的数字代表相对于 FP 的偏移）：
+
+\begin{lstlisting}
+  40: <padding>
+  32: temp
+  24: X20
+  16: X19
+   8: LR'
+   0: FP'
+\end{lstlisting}
+
+为了维持栈指针的 16 byte 对齐，填补（padding）是必要的。
+
+\begin{lstlisting}[
+  language={[ARM]Assembler},
+]
+  function:
+  STP X29, X30, [SP, #-48]! // Push down stack pointer and store FP and LR
+  MOV X29, SP               // Set the frame pointer to the bottom of the new
+                            // frame
+  STP X19, X20, [X29, #16]  // Save X19 and X20
+
+  /*
+   * Main body of code
+   */
+
+  LDP X19, X20, [X29, #16] // Restore X19 and X29
+  LDP X29, X30, [SP], #48  // Restore FP' and LR' before setting the stack
+                           // pointer to its original position
+  RET                      // Return to caller
+\end{lstlisting}
+
+\subsubsection{NEON 和 浮点寄存器中的参数}
+
+AArch64 架构还有 32 个 NEON 和 浮点操作寄存器 V0 - V31。
+以寄存器名称的不同来表明访问数据的大小。
+
+\begin{Tcbox}[title={Note}]
+  与 AArch32 不同，AArch64 中的 128-bit 和 64-bit 视角的 NEON 和 浮点寄存器不会在较窄的视角下重叠多个寄存器，所以 q1、d1 和 s1 都是寄存器 bank 中的同一条目。
+\end{Tcbox}
+
+\Figure[caption={ABI 中的 SIMD 和浮点寄存器}, label={fig:simd-fp-reg-abi}, width=0.95]{simd-fp-reg-abi}
+
+\begin{itemize}
+  \item V0 - V7 用于函数调用的参数传递以及从函数调用中返回值。
+    在函数中，这些寄存器也会用于保存临时值（但是通常只用于函数调用）。
+  \item V8 - V15 在函数调用期间必须由被调函数保护。
+    只有低 64 bit 需要保护。
+  \item V16 - V31 不需要保护（或者可以由调用函数保护）。
+\end{itemize}

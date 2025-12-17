@@ -1,0 +1,759 @@
+\subsection{MMU}
+
+内存管理单元（MMU）的一个重要功能是使系统能够运行多个任务，作为在它们自己的私有虚拟内存空间中运行的独立程序。
+它们不需要知道系统的物理内存映射，即硬件实际使用的地址，也不需要知道可能同时执行的其他程序。
+
+\Figure[caption={内存管理单元}, label={fig:mmu}, width=0.8]{mmu}
+
+您可以为每个程序使用相同的虚拟内存地址空间。
+即使物理内存是分散的，您也可以使用连续的虚拟内存映射。
+这个虚拟地址空间与系统中实际的物理内存映射是分开的。
+您可以编写、编译和链接应用程序以在虚拟内存空间中运行。
+
+下图展示了一个示例系统，即内存的虚拟视图和物理视图。
+在单个系统中的不同处理器和设备可能具有不同的虚拟和物理地址映射。
+操作系统将 MMU 编程以在这两种内存视图之间进行转换。
+
+\Figure[caption={虚拟和物理内存}, label={fig:virt-phys-mem}, width=0.8]{virt-phys-mem}
+
+为了实现这一点，在虚拟内存系统中，硬件必须提供地址转换，即将处理器发出的虚拟地址转换为主存储器中的物理地址。
+
+虚拟地址是由您、编译器和链接器在将代码放置到内存中时使用的地址。
+物理地址是实际硬件系统使用的地址。
+
+MMU 使用虚拟地址的最高有效位来索引翻译表中的条目，并确定正在访问哪个块。
+MMU 将代码和数据的虚拟地址转换为实际系统中的物理地址。
+这种转换是在硬件中自动进行的，并且对应用程序是透明的。
+除了地址转换外，MMU 还控制每个内存区域的内存访问权限、内存排序和缓存策略。
+
+\Figure[caption={使用转换表的地址转换}, label={fig:address-translation-with-tb}, width=0.9]{address-translation-with-tb}
+
+MMU 使得任务或应用程序可以编写为不需要了解系统的物理内存映射或可能同时运行的其他程序。
+这使得您可以为每个程序使用相同的虚拟内存地址空间。
+
+它还使您可以在物理内存是分散的情况下使用连续的虚拟内存映射。
+这个虚拟地址空间与系统中实际的物理内存映射是分开的。
+应用程序被编写、编译和链接以在虚拟内存空间中运行。
+
+\subsubsection{TLB}
+
+\textit{Translation Lookaside Buffer} (TLB) 是 MMU 中最近访问的页面翻译的缓存。
+对于处理器执行的每次内存访问，MMU 会检查该翻译是否缓存于 TLB 中。
+如果请求的地址翻译在 TLB 中命中，则地址翻译会立即可用。
+
+每个 TLB 条目通常不仅包含物理地址和虚拟地址，还包括诸如内存类型、缓存策略、访问权限、地址空间 ID（ASID）和虚拟机 ID（VMID）等属性。
+如果 TLB 不包含处理器发出的虚拟地址的有效翻译，这被称为 TLB 未命中，则会执行外部翻译表遍历或查找。
+MMU 内的专用硬件使其能够读取内存中的翻译表。
+如果翻译表遍历没有导致页面错误，则新加载的翻译可以缓存到 TLB 中以备将来使用。
+TLB 的具体结构因 ARM 处理器的实现而异。
+
+如果操作系统修改了可能已缓存到 TLB 中的翻译条目，那么操作系统有责任使这些过时的 TLB 条目失效。
+
+在执行 A64 代码时，有一个 TLBI 指令，这是一个 TLB 失效指令。
+
+\lstinline!TLBI <type><level>{IS} {, <Xt>}!
+
+下面列举了 type 字段常用的选项，详情可见表~\ref{tbl:tlb-inv-inst}。
+
+\begin{description}
+  \item[ALL] All TLB entries.
+  \item[VMALL] All TLB entries. This is stage 1 for current guest OS.
+  \item[VMALLS12] All TLB entries. This is stage 1 and 2 for current guest OS.
+  \item[ASID] Entries that match ASID in Xt.
+  \item[VA] Entry for Virtual Address and ASID specified in Xt.
+  \item[VA] Entries for Virtual Address specified in Xt, with any ASID.
+\end{description}
+
+每个异常级别，即 EL3、EL2 或 EL1，都有其自己的虚拟地址空间，操作适用于对应空间。
+IS 字段指定这仅适用于内部共享条目。
+
+\begin{Tcbox}[title={Note}]
+  后续章节有更加详细的 ASID 和共享概念的介绍。
+\end{Tcbox}
+
+level 字段指定了异常级的虚拟地址空间（可以是 3、2 或 1）。
+
+\begin{ltblr}[caption={TLB 失效指令}, label={tbl:tlb-inv-inst}]
+  {colspec={c>{\centering\arraybackslash}X}}
+    \hline[1pt]
+    变种 & 描述 \\
+    \hline
+    ALLEn & TLB invalidate All, ELn. \\
+    ALLEnIS & TLB invalidate All, ELn, Inner Shareable. \\
+    ASIDE1 & TLB invalidate by ASID, EL1. \\
+    ASIDE1IS & TLB invalidate by ASID, EL1, Inner Shareable. \\
+    IPAS2E1 & TLB invalidate by IPA, Stage 2, EL1. \\
+    IPAS2E1IS & TLB invalidate by IPA, Stage 2, EL1, Inner Shareable. \\
+    IPAS2LE1IS & TLB invalidate by IPA, Stage 2, Last level, EL1, Inner Shareable. \\
+    VAAE1 & TLB invalidate by VA, All ASID, EL1. \\
+    VAAE1IS & TLB invalidate by VA, All ASID, EL1, Inner Shareable. \\
+    VAALE1IS & TLB invalidate for the Last level, by VA, All ASID, EL1, Inner Shareable. \\
+    VAEn & TLB invalidate by VA, ELn. \\
+    VAEnIS & TLB invalidate by VA, ELn, Inner Shareable. \\
+    VALEn & TLB invalidate by VA, Last level, ELn. \\
+    VALEnIS & TLB invalidate by VA, Last level, ELn, Inner Shareable. \\
+    VMALLE1 & TLB invalidate by VMID, All at stage 1, EL1. \\
+    VMALLE1IS & TLB invalidate by VMID, EL1, Inner Shareable. \\
+    VMALLS12E1 & TLB invalidate by VMID, All at Stage 1 and 2, EL1. \\
+    VMALLS12E1IS & TLB invalidate by VMID, All at Stage 1 and 2, EL1 Inner Shareable. \\
+    \hline[1pt]
+\end{ltblr}
+
+以下代码示例显示了对由内部共享内存支持的翻译表进行写入的顺序：
+
+\begin{lstcode}[language={[ARM]Assembler}]
+  // << Writes to Translation Tables >>
+  DSB ISHST  // ensure write has completed
+  TLBI ALLE1 // invalidate all TLB entries
+  DSB ISH    // ensure completion of TLB invalidation
+  ISB        // synchronize context and ensure that no instructions are
+             // fetched using the old translation
+\end{lstcode}
+
+若要改变单个条目，使用该指令：
+
+\lstinline!TLBI VAE1, X0!
+
+由 X0 提供单个条目的相关联的地址。
+
+TLB 可以容纳固定数量的条目。
+通过最小化由翻译表遍历引起的外部内存访问次数，并获得高 TLB 命中率，可以实现最佳性能。
+ARMv8-A 架构提供了一种称为连续块条目的功能，以有效利用 TLB 空间。
+翻译表块条目每个都包含一个连续位。
+当设置时，此位向 TLB 发出信号，表明它可以缓存一个单一条目，覆盖多个块的翻译。
+查找可以在由连续块覆盖的地址范围中的任何地方进行索引。
+因此，TLB 可以缓存一个条目，用于一组定义的地址范围，使得在 TLB 中存储更大范围的虚拟地址成为可能。
+
+要使用连续位功能，则使用到的连续块必须是相邻的，即它们必须对应于一段连续的虚拟地址范围。
+它们必须以对齐边界开始，具有一致的属性，并且在同一级别的翻译中指向一个连续的输出地址范围。
+所需的对齐是对于所有地址，若是 4KB 粒度，\lstinline!VA[20:16]! 必须相同，或者对于 64KB 粒度，则 \lstinline!VA[28:21]! 必须相同。
+以下是所需的连续块数量：
+
+\begin{itemize}
+  \item 4KB 粒度下，16 × 4KB 相邻块组成 64KB 条目。
+  \item 16KB 粒度下，32 × 32MB 相邻块组成 1GB 条目（二级描述符），128 × 16KB 组成 2MB 条目（三级描述符）。
+  \item 64KB 粒度下，32 × 64KB 组成 2MB 条目。
+\end{itemize}
+
+如果不满足这些条件，就会发生编程错误，可能导致 TLB 中止或查找损坏。
+此类错误的可能示例包括：
+
+\begin{itemize}
+  \item 一个或多个表条目未设置连续位。
+  \item 其中一个条目的输出指向对齐范围之外。
+\end{itemize}
+
+在 ARMv8 架构中，不正确的使用不允许权限检查在 EL0 和 EL1 之外的有效地址空间中逃逸，也不会错误地提供对 EL3 空间的访问权限。
+
+\begin{Tcbox}[title={扩展}]
+\textbf{TLB thrashing}
+
+  TLB 抖动可能会发生在工作集页数太多，而翻译后备缓冲（TLB）作为内存管理单元（MMU）的缓存，用于将虚拟地址翻译为物理地址的大小太小的情况下。
+  即使指令缓存或数据缓存没有抖动，TLB 抖动也可能发生，因为它们的缓存大小不同。
+  指令和数据被缓存在小块（缓存行）中，而不是整个页面，但地址查找是在页面级别进行的。
+  因此，即使代码和数据工作集适合缓存，如果工作集在许多页面中分散，虚拟地址工作集可能不适合 TLB，导致 TLB 抖动。
+
+  更多关于 thrashing 的概念可以参考\href{https://en.wikipedia.org/wiki/Thrashing_(computer_science)}{维基百科}。
+\end{Tcbox}
+
+\subsubsection{内核和用户的虚拟地址区分}
+
+操作系统通常会同时运行多个应用程序或任务。
+每个应用程序或任务都有自己独特的翻译表集合，内核在切换上下文以在不同任务之间切换时，会从一个翻译表集合切换到另一个。
+然而，大部分内存系统仅由内核使用，并具有固定的虚拟地址到物理地址映射，其中翻译表条目很少改变。
+ARMv8 架构提供了一些功能，以有效地处理这个需求。
+
+表的基地址在翻译表基寄存器（\lstinline!TTBR0_EL1!）和（\lstinline!TTBR1_EL1!）中指定。
+当虚拟地址（VA）的高位全为 0 时，选择 TTBR0 指向的翻译表。
+当虚拟地址的高位全为 1 时，选择 TTBR1 指向的翻译表。
+您可以启用虚拟地址标记，以排除检查中的最高八位。
+
+来自处理器的指令获取或数据访问的虚拟地址是 64 位的。
+然而，必须在单个 48 位物理地址内存映射中映射上述定义的两个区域。
+
+EL2 和 EL3 有 TTBR0，但不存在 TTBR1。
+这说明：
+
+\begin{itemize}
+  \item 如果 EL2 使用 AArch64，那么它只能使用 0x0 - 0x0000FFFF\_FFFFFFFF 范围的虚拟地址空间。
+  \item EL3 同理。
+\end{itemize}
+
+下图展示了如何将内核空间映射到内存的最高有效区域，并将与每个应用程序关联的虚拟地址空间映射到内存的最低有效区域。
+然而，这两者都映射到一个更小得多的物理地址空间。
+
+\Figure[caption={内核和应用程序的地址映射}, label={fig:kernel-app-mem-map}, width=0.9]{kernel-app-mem-map}
+
+翻译控制寄存器 \lstinline!TCR_EL1! 定义了需要检查的最高有效位的确切数量。\lstinline!TCR_EL1! 包含大小字段 \lstinline!T0SZ[5:0]! 和 \lstinline!T1SZ[5:0]!。
+字段中的整数表示必须全部为 0 或全部为 1 的最高有效位数。
+这些字段有指定的最小值和最大值，这些值随粒度大小和起始表级别而变化。
+因此，您必须始终使用这两个空间，并且在所有系统中至少需要两个翻译表。
+一个没有操作系统的简单裸机系统仍然需要一个包含仅故障条目的小上表。
+
+\Figure[caption={翻译控制配置}, label={fig:trans-tbl-ctrl-config}, width=1]{trans-tbl-ctrl-config}
+
+\lstinline!TCR_EL1! 控制 EL1 和 EL0 的其他内存管理功能。
+下图仅显示了那些控制地址范围和粒度大小的字段。
+
+\Figure[caption={翻译表控制寄存器}, label={fig:trans-tbl-ctrl-reg}, width=1]{trans-tbl-ctrl-reg}
+
+中间物理地址大小（IPS）字段控制最大输出地址大小。
+如果翻译指定的输出地址超出此范围，则访问将出错，000=32 位物理地址，101=48 位。
+两位翻译粒度（TG）字段 TG1 和 TG0 分别给出内核空间或用户空间的粒度大小，00=4KB，01=16KB，11=64KB。
+
+您可以配置用于第一次查找的翻译表级别。
+完整的翻译过程可能需要三到四级表。
+您不必实现所有级别。
+第一次查找的级别实际上由粒度大小和 \lstinline!TCR_ELn.TxSZ! 字段决定。
+您可以通过 \lstinline!TTBR0_EL1! 和 \lstinline!TTBR1_EL1! 分别配置粒度大小。
+
+\subsubsection{翻译虚拟地址到物理地址}
+
+当处理器发出用于指令获取或数据访问的 64 位虚拟地址时，MMU 硬件将虚拟地址转换为相应的物理地址。
+对于虚拟地址，最高的 16 位 \lstinline![63:47]! 必须全为 0 或 1，否则地址会触发故障。
+
+然后，最不重要的位用于在选定的部分内给出偏移量，因此 MMU 将块表条目的物理地址位与原始地址的最不重要位结合起来，生成最终地址。
+
+该架构还支持标记地址。
+在这种情况下，地址的最高八位会被忽略（视为不属于地址的一部分）。
+这意味着这些位可以用于其他用途，例如记录关于指针的信息。
+
+\Figure[caption={512MB 块大小的虚实转换}, label={fig:virt-to-phys-512MB}, width=1]{virt-to-phys-512MB}
+
+在仅涉及一级查找的简单地址翻译中，假设我们使用 64KB 粒度和 42 位虚拟地址。
+MMU 按如下方式翻译虚拟地址：
+
+\begin{enumerate}
+  \item 如果 \lstinline!VA[63:42] = 1!，则 TTBR1 用作第一级页表的基地址。
+    当 \lstinline!VA[63:42] = 0! 时，TTBR0 用作第一级页表的基地址。
+  \item 页表包含 8192 个 64 位页表条目，并使用 \lstinline!VA[41:29]! 进行索引。
+    MMU 从表中读取相关的二级页表条目。
+  \item MMU 检查页表条目的有效性以及所请求内存的可访问性。
+    假设它有效，并且允许内存访问。
+  \item 上图中，页表条目指向一个 512MB 的页面（它是一个块描述符）。
+  \item 位 \lstinline![47:29]! 取自该页表条目，并形成物理地址的位 \lstinline![47:29]!。
+  \item 因为我们有一个 512MB 的页面，所以虚拟地址的位 \lstinline![28:0]! 用于形成物理地址的位 \lstinline!PA[28:0]!。
+  \item 返回完整的物理地址 \lstinline!PA[47:0]!，以及来自页表条目的附加信息。
+\end{enumerate}
+
+在实际操作中，如此简单的翻译过程严重限制了您可以如何细分地址空间。
+与仅使用这个一级翻译表不同，一级表条目还可以指向二级页表。
+
+这样，操作系统可以将一个大的虚拟内存区域进一步划分为更小的页面。
+对于二级表，一级描述符包含二级页表的物理基地址。
+与处理器请求的虚拟地址对应的物理地址，位于二级描述符中。
+
+下图展示了从阶段 1、级别 2 开始的 64 位粒度翻译示例，用于普通的 64KB 页面。
+
+\Figure[caption={64KB 页大小的虚实转换}, label={fig:virt-to-phys-64KB}, width=1]{virt-to-phys-64KB}
+
+每个二级表都与一个或多个一级条目关联。
+您可以有多个一级描述符指向同一个二级表，这意味着您可以将多个虚拟位置别名为同一个物理地址。
+
+上图描述了两级查找的情况。
+同样，这假设使用 64KB 的粒度和 42 位虚拟地址空间。
+
+\begin{enumerate}
+\item
+  如果 VA{[}63:42{]} = 1，则 TTBR1 用于第一级页表的基地址。
+  当 VA{[}63:42{]}
+  = 0 时，TTBR0 用于第一级页表的基地址。
+\item
+  页表包含 8192 个 64 位页表条目，通过 VA{[}41:29{]}进行索引。
+  MMU 从表中读取相关的二级页表条目。
+\item
+  MMU 检查二级页表条目的有效性以及请求的内存访问是否被允许。
+  假设它是有效的，则允许内存访问。
+\item
+  在上图中，二级页表条目指向三级页表的地址（它是一个表描述符）。
+\item
+  从二级页表条目中取出位{[}47:16{]}，形成三级页表的基地址。
+\item
+  VA 的位{[}28:16{]}用于索引三级页表条目。
+  MMU 从表中读取相关的三级页表条目。
+\item
+  MMU 检查三级页表条目的有效性以及请求的内存访问是否被允许。
+  假设它是有效的，则允许内存访问。
+\item
+  在上图中，三级页表条目指向一个 64KB 的页（它是一个页描述符）。
+\item
+  从三级页表条目中取出位{[}47:16{]}并用来形成 PA{[}47:16{]}。
+\item
+  由于我们有一个 64KB 的页，VA{[}15:0{]}被用来形成 PA{[}15:0{]}。
+\item
+  返回完整的 PA{[}47:0{]}以及页表条目中的附加信息。
+\end{enumerate}
+
+\paragraph*{安全和非安全地址}
+
+在理论上，安全和非安全物理地址空间是相互独立且并行存在的。
+一个系统可以被设计为拥有两个完全独立的内存系统。
+然而，大多数实际系统将安全和非安全视为访问控制的属性。
+正常（非安全）世界只能访问非安全物理地址空间。
+安全世界可以访问两个物理地址空间。
+这一切都通过翻译表进行控制。
+
+\Figure[caption={物理地址空间}, label={fig:phys-addr-space}, width=0.9]{phys-addr-space}
+
+这也会带来缓存一致性的问题。
+例如，技术上讲，安全的 0x8000 和非安全的 0x8000 是不同的物理地址，它们可以同时存在于缓存中。
+
+在一个安全和非安全内存位于不同位置的系统中，不会有问题。
+但更有可能的是，它们位于相同位置。
+理想情况下，内存系统应阻止安全访问非安全内存和非安全访问安全内存。
+在实际操作中，大多数系统只阻止非安全访问安全内存。
+这意味着你可能会在缓存中两次出现相同的物理内存，一次是安全的，一次是非安全的。
+这始终是编程错误。
+为了避免这种情况，安全世界必须始终使用非安全访问来访问非安全内存。
+
+\paragraph*{配置并使能 MMU}
+
+对系统寄存器的写入控制着 MMU（内存管理单元）的操作，它们是会改变上下文的事件，并且它们之间没有顺序要求。
+在发生上下文同步事件之前，这些事件的结果不能保证会被看到（参见下一章节的屏障部分）。
+
+\begin{lstcode}
+  MSR TTBR0_EL1, X0  // Set TTBR0
+  MSR TTBR1_EL1, X1  // Set TTBR1
+  MSR TCR_EL1, X2    // Set TCR
+  ISB                // The ISB forces these changes to be seen before /
+                     // the MMU is enabled.
+  MRS X0, SCTLR_EL1  // Read System Control Register configuration data
+  ORR X0, X0, #1     // Set [M] bit and enable the MMU.
+  MSR SCTLR_EL1, X0  // Write System Control Register configuration data
+  ISB                // The ISB forces these changes to be seen by the /
+                     // next instruction
+\end{lstcode}
+
+这与平面映射（flat mapping）的要求无关，平面映射是为了确保我们知道在写入 SCTLR\_EL1.M 后直接执行的是哪条指令。
+如果我们看到了写入的结果，那么在使用新的转换机制时执行的指令是 VA+4 处的指令。
+如果我们没有看到写入的结果，那么仍然是在 VA+4 处的指令，但此时的 VA 等于 PA。
+ISB 在这里无济于事，因为除非我们进行平面映射，否则无法保证它是下一个执行的指令。
+
+当第一级 MMU 被禁用时，对于非安全的 EL0 和 EL1 访问，如果 HCR\_EL2.DC 位被设置为启用数据缓存，默认的内存类型为正常非共享的、内部写回读写分配、外部写回读写分配。
+
+\paragraph*{内存管理单元禁用时的操作}
+
+当第一级 MMU 被禁用时，对于非安全的 EL0 和 EL1 访问，如果 HCR\_EL2.DC 位被设置为启用数据缓存，默认的内存类型为正常非共享的、内部写回读写分配、外部写回读写分配。
+
+\subsubsection{ARMv8-A 中的翻译表}
+
+ARMv8-A 架构支持三种不同的翻译表格式：
+
+\begin{itemize}
+\item
+  ARMv8-A AArch64 长描述符格式。
+\item
+  ARMv7-A 长描述符格式，例如用于 ARMv7-A 架构的大物理地址扩展（LPAE），在例如 ARM Cortex-A15 处理器中可以找到。
+\item
+  ARMv7-A 短描述符格式。
+\end{itemize}
+
+在 AArch32 状态下，可以使用现有的 ARMv7-A 长描述符和短描述符格式来运行现有的客户（guest）操作系统和应用代码，而无需修改。
+ARMv7-A 短描述符只能在 EL0 和 EL1 的第一级翻译中使用。
+因此，不能被管理程序或安全监控代码使用。
+
+在 AArch64 执行状态下，始终使用 ARMv8-A 长描述符格式。
+这与带有大物理地址扩展的 ARMv7-A 长描述符格式非常相似。
+它使用相同的 64 位长描述符格式，但做了一些更改。
+它引入了一个新的第 0 级表索引，使用与第 1 级表相同的描述符格式。
+支持高达 48 位的输入和输出地址。
+输入虚拟地址现在来自 64 位寄存器。
+然而，由于架构不支持完整的 64 位寻址，地址的第 63 到 48 位必须全部相同，即全部为 0 或全部为 1，或者顶部的八位可以用于虚拟地址标记。
+
+AArch64 支持三种不同的翻译粒度。
+这些粒度定义了翻译表最低级别的块大小，并控制使用的翻译表大小。
+较大的粒度大小减少了所需的页表级别数量，这在使用管理程序提供虚拟化的系统中可能成为一个需要重要考虑的因素。
+
+支持的粒度大小有 4KB、16KB 和 64KB，具体支持哪种粒度由实现定义。
+创建页表的代码可以读取系统寄存器 ID\_AA64MMFR0\_EL1，以确定支持哪些大小。
+Cortex-A53 处理器支持这三种大小，但某些处理器的早期版本（如 Cortex-A57）不支持 16KB 粒度大小。
+可以在翻译控制寄存器（TCR\_EL1）中为每个翻译表配置大小。
+
+\paragraph{AArch64 描述符格式}
+
+描述符格式可以在所有级别的表中使用，从第 0 级到第 3 级。
+第 0 级描述符只能输出第 1 级表的地址。
+第 3 级描述符不能指向另一个表，只能输出块地址。
+因此，第 3 级表的格式略有不同。
+
+如下图所示，表描述符类型由条目的位 1:0 标识，可以指向：
+
+\begin{itemize}
+\item
+  下一级表的地址，此情况下内存可以进一步细分为更小的块。
+\item
+  可变大小的内存块的地址。
+\item
+  表条目，可以标记为故障（Fault）或无效（Invalid）。
+\end{itemize}
+
+\Figure[caption={描述符类型}, label={fig:tbl-desc-type}, width=1]{tbl-desc-type}
+
+\begin{Tcbox}[title={Note}]
+  为了显示清晰，上图没有标注字段的宽度信息。
+\end{Tcbox}
+
+\paragraph{翻译表粒度大小的影响}
+
+三种不同大小的粒度会影响所需的翻译表数量和大小。
+
+\begin{Tcbox}[title={Note}]
+在所有情况下，如果虚拟地址（VA）输入范围限制在 42 位，可以省略第 0 级表。
+根据可能的虚拟地址范围，甚至可以减少更多级别。
+例如，对于 4KB 粒度，如果 TTBCR 设置为使低地址仅跨越 1GB，那么第 0 级和第 1 级是不需要的，翻译从第 2 级开始，向下到第 3 级以获得 4KB 页。
+\end{Tcbox}
+
+\subparagraph*{4KB}
+当使用 4KB 粒度大小时，硬件可以使用四级查找过程。
+48 位地址的每一级翻译包含 9 个地址位，即每级有 512 个条目，最后的 12 个位用于选择 4KB 块内的字节，这些位直接来自原始地址。
+
+具体过程如下：
+
+\begin{itemize}
+  \item
+  \textbf{第 0 级（L0）}：
+    虚拟地址的位 47:39 用来索引 512 条目的 L0 表。
+    每个条目覆盖 512GB 范围，并指向一个 L1 表。
+  \item
+  \textbf{第 1 级（L1）}：
+    在 512 条目的 L1 表中，位 38:30 作为索引选择一个条目，每个条目指向一个 1GB 块或一个 L2 表。
+  \item
+  \textbf{第 2 级（L2）}：
+    位 29:21 索引到一个 512 条目的 L2 表中，每个条目指向一个 2MB 块或下一级表（L3 表）。
+  \item
+  \textbf{第 3 级（L3）}：
+    最后，位 20:12 索引到一个 512 条目的 L3 表中，每个条目指向一个 4KB 块。
+\end{itemize}
+
+\Figure[caption={4KB 粒度}, label={fig:4KB-granule-tbl}, width=1]{4KB-granule-tbl}
+
+\subparagraph*{16KB}
+
+当使用 16KB 粒度大小时，硬件可以使用四级查找过程。
+48 位地址的每一级翻译包含 11 个地址位，即每级有 2048 个条目，最后的 14 个位用于选择 4KB 块内的字节，这些位直接来自原始地址。
+
+具体过程如下：
+
+\begin{itemize}
+  \item
+    \textbf{第 0 级（L0）}：
+    虚拟地址的第 47 位用于从两个条目的 L0 表中选择一个描述符。
+    每个条目覆盖 128TB 范围，并指向一个 L1 表。
+  \item
+    \textbf{第 1 级（L1）}：
+    在 2048 条目的 L1 表中，位 46:36 作为索引选择一个条目，每个条目指向一个 L2 表。
+  \item
+    \textbf{第 2 级（L2）}：
+    位 35:25 索引到一个 2048 条目的 L2 表中，每个条目指向一个 32MB 块或下一级表（L3 表）。
+  \item
+    \textbf{第 3 级（L3）}：
+    最后，位 24:14 索引到一个 2048 条目的 L3 表中，每个条目指向一个 16KB 块。
+\end{itemize}
+
+\Figure[caption={16KB 粒度}, label={fig:16KB-granule-tbl}, width=1]{16KB-granule-tbl}
+
+\subparagraph*{64KB}
+
+当使用 64KB 粒度大小时，硬件可以使用三级查找过程。
+第 1 级表只包含 64 个条目。
+
+具体过程如下：
+
+\begin{itemize}
+  \item
+    \textbf{第 1 级（L1）}：
+
+    虚拟地址的位 47:42 用于从 64 个条目的 L1 表中选择一个描述符。
+    每个条目覆盖 4TB 范围，并指向一个 L2 表。
+  \item
+    \textbf{第 2 级（L2）}：
+    在 8192 个条目的 L2 表中，位 41:29 作为索引选择一个条目，每个条目指向一个 512MB 块或下一级表（L3 表）。
+  \item
+    \textbf{第 3 级（L3）}：
+    在 8192 个条目的 L3 表中，最后，位 28:16 用作索引，每个条目指向一个 64KB 块。
+\end{itemize}
+
+\Figure[caption={64KB 粒度}, label={fig:64KB-granule-tbl}, width=0.8]{64KB-granule-tbl}
+
+\paragraph{Cache 配置}
+
+MMU（内存管理单元）使用翻译表和翻译寄存器来控制哪些内存位置是可缓存的。
+MMU 控制着缓存策略、内存属性、访问权限，并提供虚拟地址到物理地址的转换。
+
+\Figure[caption={内存总线和 Cache}, label={fig:mem-bus-and-cache}, width=0.5]{mem-bus-and-cache}
+
+软件配置通过系统寄存器进行，其中一些列在 ARMv8 寄存器章节中。
+在某些设计中，外部存储系统可能包含进一步的特定于实现的外部存储器缓存。
+
+\paragraph{Cache 策略}
+
+MMU 翻译表还为内存系统中的每个块定义了缓存策略。
+被定义为“Normal”的内存区域可能被标记为可缓存或不可缓存。
+翻译表条目的位{[}4:2{]}指向内存属性间接寄存器（MAIR）中的八种内存属性编码之一。
+然后，内存属性编码指定了在访问该内存时要使用的缓存策略。
+这些是对处理器的提示，具体实现中是否支持所有缓存策略以及哪些缓存数据被视为一致，这是由实现定义的。
+内存区域可以根据其共享性属性来定义。
+
+\subsubsection{翻译表配置}
+
+除了在 TLB 中存储单个翻译之外，你还可以配置 MMU 将翻译表存储在可缓存的内存中。
+这通常比总是从外部存储器中读取表要快得多。
+TCR\_EL1 具有额外的字段来控制这一点。
+这些额外的字段指定了 TTBR0 和 TTBR1 的翻译表的缓存性和共享性。
+相关字段称为 SH0/1 共享性、IRGN0/1 内部可缓存性和 ORGN0/1 外部可缓存性。
+下表显示了缓存性的允许设置。
+
+\begin{stblr}
+  {缓存属性配置}
+  {cacheability-settings}
+  {>{\centering\arraybackslash}X>{\centering\arraybackslash}X}
+  \hline[1pt]
+  TTBR0/TTBR1 的 IRGN/ORGN 位 & 缓存属性 \\
+  \hline
+  00 & Normal memory, Inner Non-cacheable \\
+  01 & Normal memory, Inner Write-Back Write-Allocate Cacheable \\
+  02 & Normal memory, Inner Write-Through Cacheable \\
+  03 & Normal memory, Inner Write-Back no Write-Allocate Cacheable \\
+  \hline[1pt]
+\end{stblr}
+
+与内存共享性相关的对应表与翻译表遍历相关联。
+对于设备或强顺序内存区域，该值将被忽略。
+
+\begin{stblr}
+  {内存共享性}
+  {mem-sh}
+  {cc}
+  \hline[1pt]
+  SH0 bits{[}13:12{]} & 共享性 \\
+  \hline
+  00 & Non-shareable \\
+  01 & UNPREDICTABLE \\
+  10 & Outer shareable \\
+  11 & Inner shareable \\
+  \hline[1pt]
+\end{stblr}
+
+在 TCR\_EL1 中指定的属性必须与存储翻译表的虚拟内存区域中指定的属性相同。
+缓存翻译表是正常的默认行为。
+
+\paragraph*{虚拟地址标记（tagging）}
+
+Translation Control Register（TCR\_ELn）具有一个额外的字段称为 Top Byte Ignore（TBI），提供了标记寻址支持。
+通用寄存器的宽度为 64 位，但地址的最高 16 位必须全部为 0xFFFF 或 0x0000。
+任何尝试使用不同的位值都会触发错误。
+
+当启用标记寻址支持时，虚拟地址的最高八位（即{[}63:56{]}）将被处理器忽略。
+它内部将位{[}55{]}设置为将地址扩展为 64 位格式的符号位。
+虚拟地址的最高八位可以用于传递数据。
+这些位在寻址和翻译错误时被忽略。
+TCR\_EL1 具有 EL0 和 EL1 的单独启用位。
+ARM 不指定或强制标记寻址的特定用例。
+
+一个可能的用例是支持面向对象编程语言。
+除了具有指向对象的指针外，可能还需要保持一个引用计数，用于跟踪引用对象的引用数或指针数或句柄数，以便垃圾自动收集代码可以释放不再使用的引用对象。
+这个引用计数可以作为标记地址的一部分存储，而不是在一个单独的表中存储，从而加速创建或销毁对象的过程。
+
+\subsubsection{EL2 和 EL3 的地址转换}
+
+ARMv8-A 架构的虚拟化扩展引入了第二阶段的转换。
+当系统中存在管理程序时，可能存在一个或多个客操作系统。
+这些继续使用之前描述的 TTBRn\_EL1，并且 MMU 操作看起来没有变化。
+
+管理程序必须执行一些额外的转换步骤，以在不同的客操作系统之间共享物理内存系统的两级过程。
+在第一阶段，虚拟地址（VA）被转换为中间物理地址（IPA）。
+这通常在操作系统控制之下。
+由管理程序控制的第二阶段然后对 IPA 进行转换，将其转换为最终的物理地址（PA）。
+
+管理程序和安全监控还具有自己的一组第一级转换表，用于其自身的代码和数据，直接将 VA 映射到 PA。
+
+\Figure[caption={两级转换过程}, label={fig:two-stage-trans-process}, width=1]{two-stage-trans-process}
+
+第二阶段的转换，即将中间物理地址转换为物理地址，使用管理程序控制的额外一组表。
+必须通过写入管理程序配置寄存器 HCR\_EL2 来显式启用这些表。
+此过程仅适用于非安全的 EL1/0 访问。
+
+这些第二阶段转换表的基址在虚拟化转换表基址寄存器 VTTBR0\_EL2 中指定。
+它指定了一个单一连续的地址空间位于内存底部。
+支持的地址空间大小在虚拟化转换控制寄存器 VTCR\_EL2 的 TSZ{[}5:0{]}字段中指定。
+
+该寄存器的 TG 字段指定了粒度大小，而 SL0 字段控制第一级表查找。
+任何超出定义的地址范围的访问都会引发转换错误。
+
+\Figure[caption={最大 IPA 空间}, label={fig:max-ipa-space}, width=0.4]{max-ipa-space}
+
+管理程序 EL2 和安全监控 EL3 具有它们自己的第一级表，直接将虚拟地址映射到物理地址空间。
+这些表的基址分别在 TTBR0\_EL2 和 TTBR0\_EL3 中指定，从而在内存底部启用一个可变大小的单一连续地址空间。
+TG 字段指定了粒度大小，SL0 字段控制了第一级表查找。
+任何超出定义的地址范围的访问都会引发转换错误。
+
+\Figure[caption={最大虚拟地址空间}, label={fig:max-virt-addr-space}, width=0.4]{max-virt-addr-space}
+
+安全监控 EL3 具有自己专用的翻译表。
+表的基址在 TTBR0\_EL3 中指定，并通过 TCR\_EL3 进行配置。
+翻译表能够访问安全和非安全物理地址。
+TTBR0\_EL3 仅在安全监控 EL3 模式下使用，而不是由可信内核本身使用。
+当过渡到安全世界完成后，可信内核使用 EL1 转换，即由 TTBR0\_EL1 和 TTBR1\_EL1 指向的翻译表。
+由于在 AArch64 中这些寄存器没有进行分行操作，安全监控代码必须为安全世界配置新的表，并保存和恢复 TTBR0\_EL1 和 TTBR1\_EL1 的副本。
+
+在安全状态下，与非安全状态下的正常操作相比，EL1 转换模式的行为有所不同。
+第二阶段的转换被禁用，EL1 转换模式现在能够指向安全或非安全物理地址。
+安全世界中没有虚拟化，因此 IPA 始终与最终 PA 相同。
+
+TLB 中的条目标记为安全或非安全，因此在安全和正常世界之间转换时永远不需要 TLB 维护。
+
+\subsubsection{访问权限}
+
+访问权限通过翻译表条目进行控制。
+访问权限控制区域是否可读、可写，或二者兼而有之，并且可以分别设置为 EL0 以供非特权访问，以及为 EL1、EL2 和 EL3 以供特权访问，如下表所示。
+
+\begin{stblr}
+  {访问权限}
+  {access-permissions}
+  {ccc}
+  \hline[1pt]
+  AP & Unprivileged (EL0) & Privileged (EL1/2/3) \\
+  \hline
+  00 & No access & Read and write \\
+  01 & Read and write & Read and write \\
+  10 & No access & Read-only \\
+  11 &  Read-only &  Read-only \\
+  \hline[1pt]
+\end{stblr}
+
+操作系统内核运行在执行级别 EL1。
+它定义了翻译表映射，这些映射被内核自身和在 EL0 运行的应用程序使用。
+区分非特权和特权访问权限是必要的，因为内核为其自身的代码和应用程序指定了不同的权限。
+运行在执行级别 EL2 的管理程序和安全监控 EL3 仅具有用于自身使用的翻译方案，因此在权限上没有特权和非特权的分割。
+
+另一种访问权限是可执行属性。
+块可以标记为可执行或不可执行（Execute Never (XN)）。
+您可以分别设置非特权执行不允许（UXN）和特权执行不允许（PXN）属性，并使用这些属性来防止，例如，应用程序代码以内核特权运行，或尝试在非特权状态下执行内核代码。
+设置这些属性可以防止处理器对内存位置进行推测性指令获取，并确保推测性指令获取不会意外访问可能受到此类访问影响的位置，例如先进先出（FIFO）页面替换队列。
+因此，设备区域必须始终标记为不可执行。
+
+\Figure[caption={设备区域}, label={fig:device-regions}, width=0.3]{device-regions}
+
+您可以使用 SCTLR 寄存器中的以下位配置处理器将可写区域视为不可执行：
+
+\begin{description}
+  \item[SCTLR\_EL1.WXN] 在 EL0 可写的区域在 EL0 和 EL1 被视为 XN。
+  在 EL1 可写的区域在 EL1 被视为 XN。
+  \item[SCTLR\_EL2 和 3.WXN] 在 ELn 可写的区域在 ELn 被视为 XN。
+  \item[SCTLR.UWXN] 在 EL0 可写的区域在 EL1 被视为 XN。
+  仅适用于 AArch32。
+\end{description}
+
+SCTLR\_ELn 的位可以缓存在 TLB 条目中。
+因此，更改 SCTLR 中的位可能不会影响已经存在于 TLB 中的条目。
+在修改这些位时，需要进行 TLB 失效和 ISB 序列。
+
+\subsubsection{操作系统对转换表描述符的使用}
+
+描述符中的另一个内存属性位是访问标志（AF），指示块条目何时被首次使用。
+
+\begin{itemize}
+  \item AF = 0：此块条目尚未被使用。
+  \item AF = 1：此块条目已被使用。
+\end{itemize}
+
+操作系统使用访问标志位来跟踪哪些页面正在使用。
+软件管理此标志。
+当页面首次创建时，其条目的 AF 设置为 0。
+当代码首次访问页面时，如果其 AF 为 0，则触发 MMU 故障。
+页面故障处理程序记录此页面现在正在使用，并手动设置表条目中的 AF 位。
+例如，Linux 内核在 ARM64 上使用{[}AF{]}位用于 PTE\_AF（Linux 内核对 AArch64 的名称），用于检查页面是否曾经被访问过。
+这影响了一些内核内存管理选择。
+例如，当必须将页面交换出内存时，不太可能交换出正在积极使用的页面。
+
+描述符的位{[}58:55{]}被标记为保留给软件使用，可用于在翻译表中记录特定于操作系统的信息。
+例如，Linux 内核使用其中一个位将条目标记为干净或脏。
+脏状态记录页面是否已写入。
+如果将页面稍后交换出内存，干净的页面可以简单地丢弃，但脏的页面必须首先保存其内容。
+
+\Figure[caption={转换表描述符}, label={fig:trans-tbl-desc}, width=1]{trans-tbl-desc}
+
+请参阅下一章“内存排序”以获取有关指定内存类型及其缓存性和共享性属性的其他内存属性的信息。
+
+\subsubsection{安全性和 MMU}
+
+ARMv8-A 架构定义了两种安全状态，安全和非安全。
+它还定义了两个物理地址空间：安全和非安全，以使正常世界只能访问非安全物理地址空间。
+安全世界可以访问安全和非安全物理地址空间。
+
+在非安全状态下，翻译表中的 NS 位和 NSTable 位被忽略。
+只能访问非安全内存。
+在安全状态下，NS 位和 NSTable 位控制虚拟地址是否转换为安全或非安全物理地址。
+您可以使用 SCR\_EL3.CIF 来防止安全世界从任何转换为非安全物理地址的虚拟地址执行。
+此外，当在安全世界中时，您可以使用 SCR.CIF 位来控制是否可以对非安全物理内存进行安全指令获取。
+
+\subsubsection{上下文切换}
+
+实现 ARMv8-A 架构的处理器通常用于运行具有许多并发运行的应用程序或任务的复杂操作系统的系统中。
+每个进程都有自己独特的翻译表，驻留在物理内存中。
+当应用程序启动时，操作系统会为其分配一组翻译表条目，将应用程序使用的代码和数据映射到物理内存中。
+这些表随后可以被内核修改，例如，用于映射额外的空间，并且在应用程序不再运行时会被删除。
+
+因此，在内存系统中可能存在多个任务。
+内核调度程序定期将执行从一个任务转移到另一个任务。
+这称为上下文切换，需要内核保存与进程关联的所有执行状态，并将要运行的进程的状态恢复到原始状态。
+内核还将转换表条目切换到要运行的下一个进程的条目。
+当前未运行的任务的内存完全受到正在运行的任务的保护。
+
+在不同的操作系统中，需要保存和恢复的内容各不相同，但是典型的进程上下文切换包括保存或恢复以下一些或全部元素：
+
+\begin{itemize}
+  \item 通用寄存器 X0-X30。
+  \item 高级 SIMD 和浮点寄存器 V0-V31。
+  \item 一些状态寄存器。
+  \item TTBR0\_EL1 和 TTBR1\_EL1。
+  \item 线程进程 ID（TPIDxxx）寄存器。
+  \item 地址空间 ID（ASID）。
+\end{itemize}
+
+对于 EL0 和 EL1，有两个翻译表。
+TTBR0\_EL1 提供底部虚拟地址空间的翻译，通常是应用程序空间，而 TTBR1\_EL1 涵盖顶部虚拟地址空间，通常是内核空间。
+这种分割意味着操作系统映射不必在每个任务的翻译表中复制。
+
+翻译表条目包含一个非全局（nG）位。
+如果对于特定页面设置了 nG 位，则它与特定任务或应用程序相关联。
+如果该位标记为 0，则该条目是全局的，并适用于所有任务。
+
+对于非全局条目，在更新 TLB 并将条目标记为非全局时，除了常规的转换信息外，还会在 TLB 条目中存储一个值。
+该值称为地址空间 ID（ASID），由操作系统分配给每个单独的任务。
+后续的 TLB 查找仅在当前 ASID 与存储在条目中的 ASID 匹配时才匹配该条目。
+这允许对于特定页面标记为非全局的多个有效 TLB 条目存在，但具有不同的 ASID 值。
+换句话说，我们在上下文切换时不一定需要刷新 TLB。
+
+在 AArch64 中，此 ASID 值可以由 TCR\_EL1.AS 位控制为 8 位或 16 位值。
+当前 ASID 值由 TTBR0\_EL1 或 TTBR1\_EL1 指定。
+TCR\_EL1 控制哪个 TTBR 保存 ASID，但通常是 TTBR0\_EL1，因为这对应于应用程序空间。
+
+\begin{Tcbox}[title={Note}]
+  将 ASID 的当前值存储在翻译表寄存器中意味着您可以在单条指令中原子地修改翻译表和 ASID。
+  与 ARMv7-A 架构相比，这简化了在更改表和 ASID 时的过程。
+\end{Tcbox}
+
+此外，ARMv8-A 架构为操作系统软件提供了线程 ID 寄存器。
+这些寄存器在硬件上没有意义，通常由线程库用作每个线程数据的基址。
+这通常称为线程局部存储（TLS）。
+例如，pthread 库使用此功能并包含以下寄存器：
+
+\begin{itemize}
+\item
+  用户读写线程 ID 寄存器（TPIDR\_EL0）。
+\item
+  用户只读线程 ID 寄存器（TPIDRRO\_EL0）。
+\item
+  线程 ID 寄存器，仅特权访问（TPIDR\_EL1）。
+\end{itemize}
+
+\subsubsection{具有用户权限的内核访问}
+
+有些指令允许在 EL1 执行的代码（例如，操作系统）以 EL0 或应用程序权限执行内存访问。
+例如，这可以用于解引用与系统调用一起提供的指针，并使操作系统能够检查只访问应用程序可访问的数据。
+这可以通过使用 LDTR 或 STTR 指令实现。
+当在 EL1 执行时，这些指令执行加载或存储，就好像在 EL0 执行一样。
+在所有其他异常级别上，LDTR 和 STTR 的行为与常规的 LDR 或 STR 指令相同。
+有通常大小和有符号和无符号变体作为正常的加载和存储指令，但是偏移量较小，并且索引选项受限。
+
