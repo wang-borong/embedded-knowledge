@@ -189,7 +189,7 @@ V_{out} = V_{ref} \left(1 + \frac{R_1}{R_2}\right) \label{eq:ldo-output}
 
   \item \textbf{静态电流（Quiescent Current）$I_Q$}
     \begin{itemize}
-      \item 定义：无负载时 LDO 自身消耗的电流
+      \item 定义：LDO 为内部控制电路消耗、且未送往负载的电流；测试条件和是否包含关断电流应以数据手册为准
       \item 影响轻载效率，低功耗应用要求 $I_Q$ 小
     \end{itemize}
 
@@ -227,7 +227,7 @@ LDO 的效率为：
 LDO 适用于以下场景：
 \begin{itemize}
   \item 低噪声要求的应用（如模拟电路供电）
-  \item 小电流应用（< 1 A）
+  \item 输出电流和热耗散处于器件、封装与散热条件允许的范围；并不存在统一的 1 A 分界线
   \item 压差较小的应用
   \item 需要快速响应的应用
   \item 成本敏感的应用
@@ -838,7 +838,7 @@ ADC 将模拟信号转换为数字信号。
   \item \textbf{采样率（Sampling Rate）}
     \begin{itemize}
       \item ADC 每秒采样的次数
-      \item 根据奈奎斯特定理，采样率应至少为信号最高频率的 2 倍
+      \item 对严格带限信号，采样率必须高于最高频率的 2 倍；工程系统还需留出模拟抗混叠滤波器的过渡带
     \end{itemize}
 
   \item \textbf{量化误差}
@@ -914,9 +914,8 @@ ADC 将模拟信号转换为数字信号。
   \item \textbf{并行接口}：速度快，但引脚多
   \item \textbf{串行接口}：引脚少，但速度较慢
     \begin{itemize}
-      \item SPI
-      \item I2C
-      \item 串行外设接口（Serial Peripheral Interface）
+      \item SPI、I2C 等低中速控制接口
+      \item LVDS、JESD204 等高速串行接口
     \end{itemize}
 \end{enumerate}
 

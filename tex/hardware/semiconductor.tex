@@ -356,13 +356,13 @@ BJT 有三种工作模式，由两个 PN 结的偏置状态决定：
 \begin{align}
 I_E &= I_B + I_C \label{eq:bjt-current-sum} \\
 I_C &= \beta I_B \label{eq:bjt-current-gain} \\
-I_E &= (\beta + 1) I_B = \alpha I_C \label{eq:bjt-emitter-current}
+I_E &= (\beta + 1) I_B, \qquad I_C = \alpha I_E \label{eq:bjt-emitter-current}
 \end{align}
 
 其中：
 \begin{itemize}
   \item $\beta$：共发射极电流放大系数，典型值 50--300
-  \item $\alpha = \frac{\beta}{\beta + 1}$：共基极电流放大系数，接近 1（通常 0.95--0.99）
+  \item $\alpha = \frac{\beta}{\beta + 1}$：共基极电流放大系数，接近 1（例如 $\beta=100$ 时约为 0.990）
 \end{itemize}
 
 \subsection{BJT 的伏安特性}
@@ -395,7 +395,7 @@ I_B = I_{S,B} \left(e^{V_{BE}/(nV_T)} - 1\right) \label{eq:bjt-base-current}
 
 静态工作点的选择对放大器的性能至关重要：
 \begin{itemize}
-  \item Q 点应位于放大区中央，以获得最大动态范围
+  \item Q 点应根据电源、负载线、所需摆幅、失真和功耗选择；“位于中央”只适用于部分对称摆幅设计
   \item Q 点应稳定，不受温度等因素影响
   \item Q 点应满足功耗要求
 \end{itemize}
@@ -423,12 +423,12 @@ I_B = I_{S,B} \left(e^{V_{BE}/(nV_T)} - 1\right) \label{eq:bjt-base-current}
   \item 假设 BJT 工作于放大模式（$V_{BE} \approx 0.7$ V，$I_C = \beta I_B$）
   \item 应用基尔霍夫定律列写方程
   \item 求解得到静态工作点
-  \item 验证 BJT 确实工作于放大模式（$V_{CE} > V_{CE,sat} \approx 0.2$ V）
+  \item 验证 BJT 确实工作于放大模式：基极--发射极结正向偏置、基极--集电极结反向偏置，且器件未进入饱和区（通常 $V_{CE} > V_{CE,sat}$）
 \end{enumerate}
 
 \subsection{BJT 的小信号模型}
 
-\subsubsection{混合 $\pi$ 模型}
+\subsubsection{混合 \texorpdfstring{$\pi$}{pi} 模型}
 
 在低频小信号情况下，BJT 可以用混合 $\pi$ 模型表示，主要参数包括：
 
@@ -439,7 +439,7 @@ I_B = I_{S,B} \left(e^{V_{BE}/(nV_T)} - 1\right) \label{eq:bjt-base-current}
   \item $C_{\pi}$、$C_{\mu}$：结电容（高频时考虑）
 \end{itemize}
 
-\subsubsection{简化 $h$ 参数模型}
+\subsubsection{简化 \texorpdfstring{$h$}{h} 参数模型}
 
 在低频分析中，常使用简化的 $h$ 参数模型：
 
@@ -808,7 +808,7 @@ I_D = k_n \left[(V_{GS} - V_{TH})V_{DS} - \frac{V_{DS}^2}{2}\right] \label{eq:mo
 
 \begin{itemize}
   \item \textbf{输入阻抗极高}：栅极与沟道之间由氧化物绝缘，直流输入电流几乎为零
-  \item \textbf{功耗低}：静态功耗极低，适合大规模集成
+  \item \textbf{栅极静态电流低}：但开关栅电容需要动态充放电，数字 CMOS 还存在短路电流和随工艺显著增加的漏电功耗
   \item \textbf{易于集成}：制造工艺简单，适合大规模生产
   \item \textbf{开关速度快}：适合数字电路应用
   \item \textbf{跨导较低}：模拟应用时增益不如 BJT
@@ -833,7 +833,7 @@ MOSFET 用于构建放大器、电流源、开关等模拟电路。
 CMOS（Complementary MOS）技术将 NMOS 和 PMOS 互补使用，具有以下优点：
 
 \begin{itemize}
-  \item 静态功耗极低（只有动态功耗）
+  \item 理想稳态下无直流通路，但真实 CMOS 同时存在动态功耗、短路功耗和漏电功耗
   \item 噪声容限大
   \item 工作电压范围宽
   \item 集成度高

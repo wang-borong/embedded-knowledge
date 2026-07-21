@@ -72,7 +72,7 @@ This is most problematic for caches that have low associativity.
 在这种类型的 Cache 组织方式下，Cache 被分成许多大小相同的块，这些块就是 \textit{way}。
 那么内存地址便可以映射到 way，而不是 line 上。
 可以使用地址中的索引字段继续选择特定的 line，但是此时它指向的是每个 way 中的单独 line。
-通常，L1 Cache 中有 2 - 4 路，Contex-A57 则有 3-way 的 L1 I-Cache。
+通常，L1 Cache 中有 2 - 4 路，Cortex-A57 则有 3-way 的 L1 I-Cache。
 而 L2 Cache 通常有 16 路。
 
 外部的 L3 Cache 的大小更大，所以有更多路，因此有更高的关联性。

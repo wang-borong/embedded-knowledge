@@ -1,14 +1,14 @@
 \subsection{寄存器}
 
-AArch64 64 位通用寄存器（X0-X30），也可以只使用低 32 位（W0-W30）用于 A32 状态。
-从 W 寄存器读取时，忽略相应 X 寄存器高 32 位，并保持其它不变。
+AArch64 有 31 个 64 位通用寄存器 X0--X30；W0--W30 是同一寄存器低 32 位的 AArch64 视图，
+并不是“A32 状态下的寄存器”。从 W 寄存器读取时只取得相应 X 寄存器的低 32 位。
 写入 W 寄存器时，将 X 寄存器的高 32 位设置为零。
 也就是说，将 0xFFFFFFFF 写入 W0 会将 X0 设置为 0x00000000FFFFFFFF。
 
 另外还有一些特殊寄存器：
 \begin{itemize}
-  \item Zero 寄存器，注意并没有所谓的 31 号寄存器（X31/W31），编号为 31 的寄存器就是零寄存器。
-    当访问零寄存器时，所有写操作都被忽略，所有读操作返回 0。
+  \item 编码值 31 根据指令上下文表示零寄存器 XZR/WZR 或栈指针 SP/WSP，并不存在可独立保存数据的 X31/W31。
+    对零寄存器的写操作被忽略，读操作返回 0。
   \item PC 寄存器（Program Counter）。
   \item SP 寄存器（SP/WSP）。
     注意 A64 下的 SP 并不加前缀 X。
@@ -122,8 +122,8 @@ EL0 异常级具有最低的权限，并且只有极少数的系统系统器可�
 
 \paragraph*{系统控制寄存器 SCTLR}
 
-系统控制寄存器是一个很重要的系统寄存器，用于控制内存、配置系统能力和提供处理器核的状态信息。
-这个寄存器在 EL0 下拥有更多的可获取 bit，更高的异常级则更少。
+系统控制寄存器用于控制对应异常级及其管理范围内的内存系统、对齐检查、缓存和指令行为。
+AArch64 没有 SCTLR\_EL0；SCTLR\_EL1、SCTLR\_EL2 和 SCTLR\_EL3 的字段集合会随架构版本和已实现扩展变化。
 
 % npx bit-field -i <json> --fontsize=9 > figures/<bit_field>.svg
 \Figure[caption={SCTLR BIT FIELD EL1}, label={fig:sctlr-bit-field-el1}, width=1]{sctlr-bit-field-el1}
@@ -136,7 +136,7 @@ EL0 异常级具有最低的权限，并且只有极少数的系统系统器可�
       \item[0] 小端 
       \item[1] 大端
     \end{description}
-  \item[EOE] EL0 下 Explicit data 访问字节序
+  \item[E0E] EL0 下显式数据访问的字节序
     \begin{description}
       \item[0] 小端 
       \item[1] 大端
@@ -149,7 +149,7 @@ EL0 异常级具有最低的权限，并且只有极少数的系统系统器可�
   \item[nTWE] 不陷入 WFE，此标志为 1 表示 WFE 作为普通指令执行。
   \item[nTWI] 不陷入 WFI, 此标志为 1 表示 WFI 作为普通指令执行
   \item[UCT] 此标志为 1 时，开启 AArch64 的 EL0 下对 CTR\_EL0 寄存器访问权限。
-  \item[DZE] EL0 下对 DC AVA 指令的访问权限。
+  \item[DZE] EL0 下对 DC ZVA 指令的访问权限。
     \begin{description}
       \item[0] 禁止访问
       \item[1] 允许访问
@@ -214,7 +214,7 @@ EL1 中其他位，SCTLR\_EL1.E0E 控制 EL0 的数据大小端的设置。
   \item
     \textbf{v0-v7}: 用于传递浮点参数和返回值。
   \item
-    \textbf{v8-v15}: 临时寄存器，用于浮点和SIMD操作。
+    \textbf{v8-v15}: 被调用者必须保存低 64 位；高 64 位不要求跨调用保持。
   \item
-    \textbf{v16-v31}: 被调用者保存的寄存器，需要在函数调用之间保持其值。
+    \textbf{v16-v31}: 调用者保存，可由被调用函数自由破坏。
 \end{itemize}

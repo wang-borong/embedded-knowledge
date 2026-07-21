@@ -41,10 +41,10 @@ FPGA 的发展历程：
 
 \subsubsection{什么是 FPGA}
 
-FPGA 是一种半定制电路，特点：
+FPGA 是由可配置逻辑、布线、存储器、DSP 和 I/O 等资源组成的现场可编程器件，特点包括：
 \begin{itemize}
   \item 可编程：用户可以通过编程配置逻辑功能
-  \item 可重复编程：可以多次修改和更新
+  \item 配置方式取决于工艺：SRAM 和部分 Flash FPGA 可重复配置，反熔丝 FPGA 通常只能编程一次
   \item 并行处理：天然支持并行计算
   \item 灵活性高：可以实现各种数字逻辑功能
 \end{itemize}
@@ -579,9 +579,12 @@ end
 \paragraph{阻塞赋值与非阻塞赋值}
 
 \begin{itemize}
-  \item \textbf{阻塞赋值（=）}：用于组合逻辑，立即执行
-  \item \textbf{非阻塞赋值（<=）}：用于时序逻辑，在时钟边沿更新
+  \item \textbf{阻塞赋值（=）}：通常用于组合过程，按过程语句顺序更新仿真变量
+  \item \textbf{非阻塞赋值（<=）}：通常用于边沿触发时序过程，在当前时间步结束时统一更新
 \end{itemize}
+
+SystemVerilog 项目优先使用 \texttt{always\_comb}、\texttt{always\_ff} 和明确的数据类型，
+让工具检查敏感列表、单驱动和组合逻辑完整赋值；无论使用哪种语法，都应避免锁存器、竞争和仿真/综合不一致。
 
 \subsubsection{常用设计模式}
 
@@ -939,17 +942,19 @@ set_output_delay -clock clk -min 1.0 [get_ports data_out]
 建立时间必须满足：
 
 \begin{equation}
-T_{clk} \geq T_{co} + T_{logic} + T_{routing} + T_{setup} - T_{skew} \label{eq:setup-time}
+T_{clk} \geq T_{co,max} + T_{logic,max} + T_{routing,max} + T_{setup}
+  + T_{uncertainty} - T_{skew} \label{eq:fpga-setup-time}
 \end{equation}
 
 其中：
 \begin{itemize}
   \item $T_{clk}$：时钟周期
-  \item $T_{co}$：时钟到输出延迟
-  \item $T_{logic}$：组合逻辑延迟
-  \item $T_{routing}$：布线延迟
+  \item $T_{co,max}$：最慢时钟到输出延迟
+  \item $T_{logic,max}$：最慢组合逻辑延迟
+  \item $T_{routing,max}$：最慢布线延迟
   \item $T_{setup}$：建立时间
-  \item $T_{skew}$：时钟偏移
+  \item $T_{uncertainty}$：抖动、模型裕量等时钟不确定度
+  \item $T_{skew}$：捕获时钟相对发射时钟的偏移；这里正值有利于建立检查
 \end{itemize}
 
 \subsubsection{保持时间检查}
@@ -957,8 +962,12 @@ T_{clk} \geq T_{co} + T_{logic} + T_{routing} + T_{setup} - T_{skew} \label{eq:s
 保持时间必须满足：
 
 \begin{equation}
-T_{hold} \leq T_{co} + T_{logic} + T_{routing} - T_{skew} \label{eq:hold-time}
+T_{co,min} + T_{logic,min} + T_{routing,min}
+  \geq T_{hold} + T_{skew} + T_{uncertainty,hold} \label{eq:fpga-hold-time}
 \end{equation}
+
+保持检查使用最快数据路径，且与建立检查对偏移的敏感方向相反。
+实际 FPGA 静态时序分析还会考虑时钟关系、片上变化、抖动、例外路径和工具采用的器件角模型。
 
 \subsubsection{时序裕量}
 
@@ -1008,14 +1017,14 @@ T_{hold} \leq T_{co} + T_{logic} + T_{routing} - T_{skew} \label{eq:hold-time}
   \item \textbf{同步复位}
     \begin{itemize}
       \item 复位信号在时钟边沿有效
-      \item 推荐使用
+      \item 便于静态时序分析，但是否优先使用取决于 FPGA 架构、器件启动行为和设计复位策略
       \item 易于时序分析
     \end{itemize}
 
   \item \textbf{异步复位}
     \begin{itemize}
       \item 复位信号立即有效
-      \item 需要复位同步器
+      \item 异步置位、同步释放是常见做法；释放路径必须分别针对每个时钟域处理
       \item 用于上电复位
     \end{itemize}
 \end{enumerate}
@@ -1053,7 +1062,7 @@ end
 \begin{enumerate}
   \item \textbf{双触发器同步器}
     \begin{itemize}
-      \item 用于单比特信号
+      \item 用于变化速度足够慢、可被目标时钟采样到的单比特电平；窄脉冲需要脉冲展宽、toggle 或握手方案
       \item 两级触发器
     \end{itemize}
 
@@ -1071,8 +1080,8 @@ end
 
   \item \textbf{格雷码}
     \begin{itemize}
-      \item 用于计数器
-      \item 单比特变化
+      \item 常用于异步 FIFO 指针等跨域计数值
+      \item 相邻编码只改变一个 bit，但仍需逐位同步、约束跨域偏斜并按协议比较
     \end{itemize}
 \end{enumerate}
 

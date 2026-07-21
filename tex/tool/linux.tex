@@ -4,14 +4,15 @@
 
 \subsection{系统安装（Arch）}
 
+Arch Linux 是滚动发行版，包名、桌面环境和输入法集成方式会变化。
+以下命令用于说明配置思路，执行前应核对 ArchWiki 与当前仓库包名；Wayland 原生应用通常不需要为所有工具包强制设置 X11 输入法环境变量。
+
 \BlockDesc{输入法}
 
 通过如下命令安装 fcitx5 输入法：
 
 \begin{lstcode}[numbers=none]
-  sudo pacman -S fcitx5 fcitx5-pinyin-moegirl \
-        fcitx5-configtool fcitx5-gtk \
-        fcitx5-qt fcitx5-chinese-addons
+  sudo pacman -S fcitx5-im fcitx5-chinese-addons
 \end{lstcode}
 
 安装完 fcitx5 输入法需要配置添加中文拼音输入。
@@ -19,7 +20,8 @@
 
 \BlockDesc{配置环境变量，解决有些桌面应用无法调出 fcitx5 的问题}
 
-将如下环境变量配置到 \lstinline{/etc/environment} 中。
+仅在桌面环境或特定 XWayland/X11 应用无法自动选择 Fcitx 5 时，再按对应工具包配置环境变量；
+不建议不加区分地复制到所有 Wayland 会话。
 
 \begin{lstcode}[numbers=none]
   GTK_IM_MODULE=fcitx
@@ -612,11 +614,9 @@ WantedBy=multi-user.target
 \begin{lstcode}[numbers=none]
   # 查看网络接口
   ip addr
-  ifconfig
 
   # 查看路由表
   ip route
-  route -n
 
   # 配置 IP 地址
   sudo ip addr add 192.168.1.100/24 dev eth0
@@ -626,7 +626,6 @@ WantedBy=multi-user.target
   sudo ip link set eth0 down
 
   # 查看网络连接
-  netstat -tulpn
   ss -tulpn
 \end{lstcode}
 
@@ -649,15 +648,27 @@ WantedBy=multi-user.target
   host domain
 
   # 查看网络统计
-  netstat -s
   ss -s
 
   # 抓包
   sudo tcpdump -i eth0
-  sudo wireshark
+  wireshark  # 通过发行版提供的抓包组或 capabilities 授权，不要以 root 运行完整 GUI
 \end{lstcode}
 
 \subsubsection{防火墙配置}
+
+现代 Linux 内核的统一包过滤接口是 nftables。firewalld 等前端通常也使用 nftables 后端；
+\texttt{iptables} 命令在许多发行版中由兼容层提供，维护旧系统时仍可能遇到。
+
+\BlockDesc{使用 nftables}
+
+\begin{lstcode}[numbers=none]
+  sudo nft list ruleset
+  sudo nft add table inet filter
+  sudo nft 'add chain inet filter input { type filter hook input priority 0; policy drop; }'
+  sudo nft add rule inet filter input ct state established,related accept
+  sudo nft add rule inet filter input tcp dport 80 accept
+\end{lstcode}
 
 \BlockDesc{使用 firewalld}
 
@@ -680,7 +691,7 @@ WantedBy=multi-user.target
   sudo firewall-cmd --list-all
 \end{lstcode}
 
-\BlockDesc{使用 iptables}
+\BlockDesc{兼容旧环境的 iptables}
 
 \begin{lstcode}[numbers=none]
   # 查看规则

@@ -56,13 +56,14 @@
 
 \subsubsection{虚短（Virtual Short）}
 
-由于开环增益无穷大，当运算放大器工作在线性区时，两个输入端之间的电压差为零：
+在理想模型、负反馈闭环且输出未饱和时，极大的开环增益使两个输入端的电压差近似为零：
 
 \begin{equation}
 V_+ - V_- = 0 \quad \text{或} \quad V_+ = V_- \label{eq:virtual-short}
 \end{equation}
 
-这称为"虚短"，意味着两个输入端可以视为短路，但实际上没有电流流过。
+这称为“虚短”。它只表示电压近似相等，两个输入端并未真正短接；
+实际器件仍有输入偏置电流、失调电压和有限的共模输入范围。
 
 \subsubsection{虚断（Virtual Open）}
 
@@ -119,7 +120,8 @@ I_{OS} = |I_{B+} - I_{B-}| \label{eq:input-offset-current}
 共模抑制比（Common-Mode Rejection Ratio，CMRR）定义为：
 
 \begin{equation}
-CMRR = \frac{A_{DM}}{A_{CM}} = 20\log\left(\frac{A_{DM}}{A_{CM}}\right) \text{ dB} \label{eq:cmrr}
+CMRR = \left|\frac{A_{DM}}{A_{CM}}\right|, \qquad
+CMRR_{dB} = 20\log_{10}(CMRR) \label{eq:cmrr}
 \end{equation}
 
 其中 $A_{DM}$ 是差模增益，$A_{CM}$ 是共模增益。CMRR 典型值在 60--120 dB 之间。
@@ -129,10 +131,11 @@ CMRR = \frac{A_{DM}}{A_{CM}} = 20\log\left(\frac{A_{DM}}{A_{CM}}\right) \text{ d
 电源抑制比（Power Supply Rejection Ratio，PSRR）定义为：
 
 \begin{equation}
-PSRR = 20\log\left(\frac{A_{OL}}{\Delta V_{out}/\Delta V_{supply}}\right) \text{ dB} \label{eq:psrr}
+PSRR_{dB} = 20\log_{10}\left|\frac{\Delta V_{supply}}{\Delta V_{OS}}\right| \label{eq:psrr}
 \end{equation}
 
-PSRR 表示运算放大器对电源电压变化的抑制能力，典型值在 60--100 dB 之间。
+这里使用输入等效失调变化 $\Delta V_{OS}$ 定义 PSRR。
+部分数据手册采用 $\mu$V/V 或相反符号的 dB 表达，比较器件前必须确认厂商定义和测试频率。
 
 \subsubsection{带宽和压摆率}
 
@@ -728,15 +731,19 @@ H(s) = -RCs \label{eq:differentiator-transfer}
 
 比较器（Comparator）用于比较两个电压的大小。虽然可以使用运算放大器作为比较器，但专用的比较器具有更好的性能。
 
-比较器的输出：
+比较器的逻辑关系为：
 \begin{itemize}
   \item 当 $V_+ > V_-$ 时，输出高电平
   \item 当 $V_+ < V_-$ 时，输出低电平
 \end{itemize}
 
+实际高、低电平由输出级决定；开漏/开集电极比较器需要外部上拉，
+而普通运算放大器还可能存在输入共模限制、饱和恢复慢和不允许差分过压等问题，不能默认替代专用比较器。
+
 \subsection{仪表放大器}
 
-仪表放大器（Instrumentation Amplifier）由三个运算放大器组成，具有高输入阻抗、高共模抑制比等特点，常用于信号调理。
+经典仪表放大器常采用三个运算放大器，但集成器件也可能使用其他内部结构。
+其关键特性是高输入阻抗、精确可设增益和高共模抑制比，常用于桥式传感器和小信号调理。
 
 \section{运算放大器的应用技巧}
 
@@ -758,7 +765,8 @@ H(s) = -RCs \label{eq:differentiator-transfer}
 
 \subsubsection{偏置设置}
 
-单电源应用时，需要将输入和输出偏置到电源电压的中点（$V_{CC}/2$）。
+单电源交流信号通常需要设置直流工作点，但不一定等于 $V_{CC}/2$；
+应根据输入共模范围、输出摆幅、负载、ADC 满量程和所需动态范围选择偏置。
 
 \subsubsection{交流耦合}
 
@@ -768,7 +776,8 @@ H(s) = -RCs \label{eq:differentiator-transfer}
 
 \subsubsection{电源去耦}
 
-在运算放大器的电源引脚附近添加去耦电容（通常 0.1 $\mu$F 陶瓷电容 + 10 $\mu$F 电解电容），减小电源噪声。
+在每个电源引脚附近放置低寄生去耦电容，并按数据手册和电源网络阻抗决定容值及是否增加储能电容；
+0.1 $\mu$F 加数 $\mu$F 只是常见起点，不是适用于所有高速或精密运放的固定组合。
 
 \subsubsection{旁路电容}
 
@@ -800,7 +809,8 @@ H(s) = -RCs \label{eq:differentiator-transfer}
 
 \subsubsection{输入失调电压测试}
 
-将两个输入端短接并接地，测量输出电压 $V_{out}$，则：
+输入失调测试应把器件置于稳定、已知噪声增益的闭环中，并保证输入共模范围和输出摆幅有效。
+扣除电阻误差、偏置电流和测试系统失调后，可近似得到：
 
 \begin{equation}
 V_{OS} = \frac{V_{out}}{A_{CL}} \label{eq:test-vos}

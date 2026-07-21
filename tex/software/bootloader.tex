@@ -4,6 +4,9 @@ Bootloader（引导加载程序）是系统启动过程中的关键组件，负�
 在嵌入式系统和通用计算系统中，Bootloader 的设计和实现直接影响系统的启动速度、安全性和可靠性。
 本章深入探讨 Bootloader 的工作原理、主流实现以及开发实践。
 
+启动链高度依赖 SoC、固件接口和安全策略。本章中的地址和命令是教学示例；
+实际产品必须以芯片启动手册、板级内存布局、镜像认证格式和目标版本的 U-Boot/UEFI 文档为准。
+
 \section{Bootloader 基础}
 
 \subsection{Bootloader 的作用}
@@ -58,14 +61,14 @@ Bootloader 是系统启动的第一个软件组件，其主要职责包括：
     \begin{itemize}
       \item CPU 从固定地址（Reset Vector）开始执行
       \item 在 x86 架构中，CPU 从 0xFFFFFFF0 开始执行
-      \item 在 ARM 架构中，通常从 0x00000000 或 0xFFFF0000 开始执行
-      \item 在 RISC-V 架构中，从设备树或配置指定的地址开始执行
+      \item Arm A-profile 的复位入口和复位时最高异常级由具体实现与 SoC 决定，不能假设固定为 0x00000000 或 0xFFFF0000
+      \item RISC-V 的复位 PC 由具体 hart/平台定义；设备树是固件随后传递给软件的硬件描述，不决定复位地址
     \end{itemize}
 
   \item \textbf{ROM Bootloader（第一阶段）}
     \begin{itemize}
       \item CPU 内置的只读引导代码
-      \item 初始化最基本的硬件（时钟、内存控制器）
+      \item 初始化能够装载下一阶段所需的最小硬件；完整 DRAM 初始化常由片上 SRAM 中的后续阶段完成
       \item 从预定义位置加载下一阶段 Bootloader
       \item 在 x86 系统中，这是 BIOS 或 UEFI 固件
       \item 在 ARM 系统中，可能是 BootROM 或 ARM Trusted Firmware
@@ -109,8 +112,8 @@ ARM 架构的启动流程具有特殊性，特别是在 ARMv8-A 架构中：
 \begin{enumerate}
   \item \textbf{EL3 阶段（Secure Monitor）}
     \begin{itemize}
-      \item CPU 从 EL3（最高特权级）开始执行
-      \item ARM Trusted Firmware（ATF）在此阶段运行
+      \item 处理器从实现规定的最高已实现异常级和安全状态复位，不保证所有平台都以相同方式进入 EL3
+      \item 采用 Trusted Firmware-A（TF-A）的平台通常由其 BL31 运行时固件驻留在 EL3
       \item 初始化安全世界（Secure World）和非安全世界（Non-Secure World）
       \item 配置系统安全状态
     \end{itemize}

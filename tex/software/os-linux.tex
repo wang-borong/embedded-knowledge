@@ -3,6 +3,10 @@
 操作系统（Operating System, OS）是计算机系统中最重要的系统软件，它管理计算机硬件资源，为应用程序提供运行环境。
 本章将深入探讨操作系统的基本原理，以及 Linux 内核的实现细节和应用开发技术。
 
+截至 2026 年 7 月，kernel.org 的稳定版本线已经进入 Linux 7.1，
+同时 6.18、6.12、6.6、6.1、5.15 和 5.10 等长期维护线仍可能出现在嵌入式产品中。
+本章优先描述跨版本稳定的接口与原理；涉及内核内部数据结构时，应对照目标源码树和对应版本文档。
+
 \section{OS 原理}
 
 操作系统是计算机硬件和应用程序之间的中间层，它提供了资源管理、进程管理、内存管理、文件系统、网络通信等核心功能。
@@ -40,7 +44,9 @@
   \item 访问位（Accessed bit）：用于页面置换算法
 \end{itemize}
 
-多级页表用于减少页表占用的内存空间。例如，在 x86-64 架构中，使用四级页表：
+多级页表用于减少页表占用的内存空间。例如，x86-64 Linux 通常使用四级页表，
+并可在硬件与内核配置支持时启用五级分页。Linux 使用统一的页表层级抽象，
+未被硬件使用的中间层会被折叠：
 \begin{itemize}
   \item Page Global Directory (PGD)
   \item Page Upper Directory (PUD)
@@ -1295,7 +1301,7 @@ CAN 消息格式：
 以太网驱动需要实现：
 \begin{itemize}
   \item 网卡初始化和配置
-  \item 数据包发送（hard\_start\_xmit）
+  \item 数据包发送（现代驱动通常实现 \texttt{net\_device\_ops.ndo\_start\_xmit}）
   \item 数据包接收（中断处理）
   \item 统计信息收集
   \item 链路状态管理
@@ -1303,9 +1309,9 @@ CAN 消息格式：
 
 网络接口操作：
 \begin{itemize}
-  \item \texttt{ifconfig}：配置网络接口
+  \item \texttt{ip}：通过 rtnetlink 配置地址、链路和路由的首选工具
+  \item \texttt{ifconfig}：net-tools 提供的传统命令，仅用于维护旧环境
   \item \texttt{ethtool}：查看和配置网卡参数
-  \item \texttt{ip}：现代网络配置工具
 \end{itemize}
 
 \subsubsection{USB}

@@ -290,7 +290,7 @@
 
 \subsection{PCB 材料参数}
 
-\subsubsection{介电常数（$\epsilon_r$）}
+\subsubsection{介电常数（\texorpdfstring{$\epsilon_r$}{epsilon-r}）}
 
 介电常数影响信号传播速度和特性阻抗：
 
@@ -300,7 +300,7 @@ v = \frac{c}{\sqrt{\epsilon_r}} \label{eq:signal-velocity}
 
 其中 $c$ 是光速。
 
-\subsubsection{损耗角正切（$\tan \delta$）}
+\subsubsection{损耗角正切（\texorpdfstring{$\tan \delta$}{tan delta}）}
 
 损耗角正切表示介质的损耗特性，影响信号衰减：
 
@@ -447,7 +447,8 @@ v = \frac{c}{\sqrt{\epsilon_r}} \label{eq:signal-velocity}
   \item 可制造性
 \end{itemize}
 
-载流能力估算（基于 IPC-2221）：
+下面的 IPC-2221 经验式可用于早期粗估，但不应作为最终温升保证。
+IPC-2152、实际铜面、相邻导体、板厚、环境温度和气流会显著改变结果：
 
 \begin{equation}
 I = k \Delta T^{0.44} A^{0.725} \label{eq:trace-current}
@@ -470,7 +471,7 @@ I = k \Delta T^{0.44} A^{0.725} \label{eq:trace-current}
   \item 成本
 \end{itemize}
 
-最小间距通常为：
+以下数字仅用于展示量级；最终最小间距必须由工作电压、污染等级、安规爬电距离、串扰目标和板厂能力共同确定：
 \begin{itemize}
   \item 信号线：3--4 mil（0.075--0.1 mm）
   \item 电源线：根据电压等级确定
@@ -689,9 +690,14 @@ Z_{diff} = 2 Z_0 (1 - k) \label{eq:differential-impedance}
 数字信号必须满足建立时间（Setup Time）和保持时间（Hold Time）要求：
 
 \begin{align}
-t_{setup} &< t_{clk} - t_{delay} - t_{skew} \label{eq:setup-time} \\
-t_{hold} &< t_{delay} - t_{skew} \label{eq:hold-time}
+t_{data,max} + t_{setup} + t_{uncertainty} &< t_{capture} - t_{launch} \label{eq:pcb-setup-time} \\
+t_{data,min} - t_{hold} - t_{uncertainty} &> t_{capture} - t_{launch} \label{eq:pcb-hold-time}
 \end{align}
+
+其中 $t_{data,max/min}$ 是包含器件时钟到输出延迟、封装与 PCB 走线延迟的最慢/最快数据路径，
+$t_{capture}-t_{launch}$ 表示捕获时钟相对发射时钟的到达时间差。
+实际约束必须采用收发器数据手册给出的最坏情况参数，并计入抖动、占空比失真和板级偏差；
+上式用于表达检查关系，不能替代具体接口的时序预算。
 
 \subsubsection{时钟抖动}
 

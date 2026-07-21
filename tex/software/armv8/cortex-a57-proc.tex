@@ -1,21 +1,71 @@
-\subsection{Contex-A57 处理器}
+\subsection{Cortex-A57 处理器}
 
-目前 ARM 处理器已经更新到 X2，但是对于学习它的体系架构来说，A57 或 A53 已经足够适用，也足够经典。
-我们将手册中的框架图拿过来感性的认识处理器的内部结构。
+现代 Arm Cortex 与 Neoverse 产品已经远超 Cortex-A57 所处的代际，
+但 A57 是较早、资料完整的乱序 Armv8-A 核，适合用来理解经典 AArch64 实现。
+本节讨论的是 Cortex-A57 的具体微架构，而不是所有 Armv8-A 处理器的通用属性。
 
-Cortex‑A57 处理器 Cortex‑A57 处理器面向移动和企业计算应用，包括计算密集型 64 位应用，例如高端计算机、平板电脑和服务器产品。
-它可以与 Cortex‑A53 处理器一起使用到 ARM big.LITTLE 配置中，兼顾性能和功耗。
+Cortex-A57 面向移动和企业计算应用，可与 Cortex-A53 组成早期 Arm big.LITTLE 系统，
+在性能与功耗之间进行任务迁移或异构调度。
 
 Cortex‑A57 处理器具有与其他处理器的高速缓存一致性互操作性，包括用于 GPU 计算的 ARM Mali™ 系列图形处理单元 (GPU)，并为高性能企业应用程序提供可选的可靠性和可扩展性功能。
 它提供了比 ARMv7 架构的 Cortex‑A15 处理器更高的性能，并具有更高的能效水平。
-加密扩展使加密算法的性能比上一代处理器提高 10 倍以上。
+可选密码扩展可显著加速部分算法，但实际收益依赖具体实现与工作负载。
 
-\Figure[caption={Contex-A57}, label={fig:contex-a57}, width=0.7]{A57}
+\begin{figure}[htbp]
+  \centering
+  \resizebox{0.72\textwidth}{!}{%
+    \begin{tikzpicture}[
+      font=\sffamily\small,
+      block/.style={draw=booknavy, rounded corners=2mm, fill=bookpaper,
+        align=center, minimum height=0.72cm},
+      unit/.style={block, fill=white, minimum height=1.15cm},
+      cluster/.style={draw=booknavy, rounded corners=2mm, fill=bookline,
+        minimum width=8.4cm, minimum height=5.0cm}
+    ]
+      \fill[bookblue!55, rounded corners=3mm] (0,0) rectangle (10.2,10.9);
+      \node[block, minimum width=9.5cm] at (5.1,10.35)
+        {CoreSight multicore debug and trace};
+      \node[block, minimum width=9.5cm] at (5.1,9.45)
+        {Generic Interrupt Controller};
 
-Cortex‑A57 处理器完全实现了 ARMv8‑A 架构。
+      \node[cluster] at (5.75,6.55) {};
+      \node[cluster] at (5.4,6.25) {};
+      \node[cluster] at (5.05,5.95) {};
+      \node[cluster, fill=bookpaper!80!bookline] at (4.7,5.65) {};
+      \node[font=\sffamily\scriptsize\bfseries, anchor=east] at (8.72,4.05)
+        {Cores 0--3};
+
+      \node[unit, minimum width=4.6cm, minimum height=2.75cm] at (3.25,6.75)
+        {Cortex-A57\\out-of-order core};
+      \node[unit, minimum width=2.25cm, minimum height=1.3cm] at (6.9,7.5)
+        {Advanced SIMD\\and crypto};
+      \node[unit, minimum width=2.25cm, minimum height=1.05cm] at (6.9,6.0)
+        {Floating-point\\unit};
+      \node[unit, minimum width=2.25cm, minimum height=1.05cm] at (6.9,4.65)
+        {Memory\\protection unit};
+      \node[unit, minimum width=2.15cm, minimum height=1.05cm] at (1.95,4.65)
+        {L1 instruction\\cache};
+      \node[unit, minimum width=2.15cm, minimum height=1.05cm] at (4.3,4.65)
+        {L1 data cache\\with ECC};
+      \node[unit, minimum width=4.5cm, minimum height=0.75cm] at (3.25,3.55)
+        {Performance Monitor Unit};
+
+      \node[block, minimum width=1.9cm] at (1.45,2.25) {SCU};
+      \node[block, minimum width=1.9cm] at (3.65,2.25) {ACP};
+      \node[block, minimum width=5.0cm] at (7.3,2.25)
+        {Integrated shared L2 cache with ECC};
+      \node[block, minimum width=9.5cm, minimum height=0.8cm] at (5.1,0.85)
+        {AMBA 4 ACE coherent interface};
+    \end{tikzpicture}%
+  }
+  \caption{Cortex-A57 集群结构（教学简图）}
+  \label{fig:cortex-a57}
+\end{figure}
+
+Cortex-A57 实现 Armv8.0-A，并支持 AArch64 和 AArch32 执行状态。
 它支持多核操作，在单个集群中具有一到四核多处理器。
-通过 AMBA5 CHI 或 AMBA 4 ACE 技术，可以实现多个一致的 SMP 集群。
-可通过 CoreSight 技术进程调试和跟踪。
+该核采用 AMBA 4 ACE 一致性接口；系统级互连是否使用其他协议取决于具体 SoC。
+CoreSight 组件可用于调试和跟踪。
 
 Cortex‑A57 处理器具有以下特性：
 

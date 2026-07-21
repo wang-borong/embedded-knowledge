@@ -1,0 +1,13 @@
+[project]
+entry = "main.tex"
+from = "latex"
+to = "pdf"
+target = "embedded-knowledge"
+
+[build]
+outdir = "build"
+outputs = ["pdf"]
+latex_backend = "latexmk"
+
+[tools]
+latex_engine = "xelatex"

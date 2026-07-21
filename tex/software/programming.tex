@@ -821,18 +821,22 @@ typedef struct {
 
   \item \textbf{使用 volatile}
     \begin{itemize}
-      \item \texttt{volatile} 关键字防止编译器优化
-      \item 确保每次访问都实际读取/写入寄存器
-      \item 对硬件寄存器访问至关重要
+      \item \texttt{volatile} 使每次抽象机访问都成为可观察副作用，适合声明具有读写副作用的 MMIO 寄存器
+      \item 它不提供原子性、线程同步或处理器内存顺序，也不能代替设备访问 API 和屏障
+      \item 寄存器宽度、对齐、保留位、读改写副作用和端序必须以芯片手册为准
     \end{itemize}
 
   \item \textbf{内存屏障}
     \begin{lstlisting}[language=C]
-      // 内存屏障确保内存访问顺序
-      __sync_synchronize();          // GCC 内置函数
-      __dsb();                       // ARM 数据同步屏障
-      __dmb();                       // ARM 数据内存屏障
+      // 具体 API 取决于裸机 SDK、编译器或操作系统。
+      atomic_thread_fence(memory_order_seq_cst); // C11 线程内存序
+      __DMB();                       // CMSIS: 数据内存屏障
+      __DSB();                       // CMSIS: 数据同步屏障
     \end{lstlisting}
+
+    C11 原子栅栏面向语言内存模型，不一定具有设备寄存器访问所需的全部语义；
+    Linux 驱动应使用 \texttt{readl/writel}、\texttt{dma\_rmb/wmb} 等内核接口，
+    裸机代码则使用芯片 SDK 或编译器明确支持的架构屏障。
 \end{enumerate}
 
 \subsubsection{位操作}
@@ -843,9 +847,9 @@ typedef struct {
 
 \begin{lstlisting}[language=C]
 // 设置位
-#define SET_BIT(reg, bit)    ((reg) |= (1 << (bit)))
-#define CLEAR_BIT(reg, bit)  ((reg) &= ~(1 << (bit)))
-#define TOGGLE_BIT(reg, bit) ((reg) ^= (1 << (bit)))
+#define SET_BIT(reg, bit)    ((reg) |= (UINT32_C(1) << (bit)))
+#define CLEAR_BIT(reg, bit)  ((reg) &= ~(UINT32_C(1) << (bit)))
+#define TOGGLE_BIT(reg, bit) ((reg) ^= (UINT32_C(1) << (bit)))
 #define READ_BIT(reg, bit)   (((reg) >> (bit)) & 1)
 
 // 设置位域
@@ -1369,7 +1373,8 @@ close(fd);
 \section{Rust 编程}
 
 Rust 是一种系统编程语言，专注于安全性、并发性和性能。
-它通过所有权系统在编译时防止内存安全问题。
+安全 Rust 通过所有权、借用和类型系统在编译期排除大量内存安全与数据竞争问题；
+\texttt{unsafe} 代码、FFI、硬件交互和并发协议仍需要人工维护额外的不变量。
 
 \subsection{Rust 基础}
 
@@ -1377,9 +1382,9 @@ Rust 是一种系统编程语言，专注于安全性、并发性和性能。
 
 Rust 的主要特点：
 \begin{itemize}
-  \item 内存安全：编译时检查，无需垃圾回收
+  \item 内存安全：安全 Rust 通过编译时检查管理生命周期，无需垃圾回收
   \item 零成本抽象：高级特性不带来运行时开销
-  \item 并发安全：防止数据竞争
+  \item 并发安全：类型系统可防止安全 Rust 中的数据竞争，但不能自动防止死锁、活锁或业务逻辑竞态
   \item 模式匹配：强大的模式匹配系统
   \item 类型系统：强大的类型系统和类型推断
 \end{itemize}

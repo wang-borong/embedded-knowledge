@@ -1,0 +1,197 @@
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{embedded-book}[2026/07/21 v1.0 Embedded Knowledge book theme]
+
+\RequirePackage{xcolor}
+\RequirePackage{tikz}
+\RequirePackage{geometry}
+\RequirePackage{fancyhdr}
+\RequirePackage{caption}
+\RequirePackage{microtype}
+% Latin Modern Mono lacks a bold-italic face. Declare the documented
+% bold-slanted fallback explicitly so listings do not emit a font warning.
+\DeclareFontShape{TU}{lmtt}{bx}{it}{<->ssub*lmtt/b/sl}{}
+
+\definecolor{booknavy}{HTML}{0B1F33}
+\definecolor{bookblue}{HTML}{176B87}
+\definecolor{bookteal}{HTML}{00A6A6}
+\definecolor{bookcyan}{HTML}{59D8D8}
+\definecolor{bookorange}{HTML}{F4A261}
+\definecolor{bookink}{HTML}{243447}
+\definecolor{bookmuted}{HTML}{657789}
+\definecolor{bookpaper}{HTML}{F5F7F9}
+\definecolor{bookline}{HTML}{D8E1E8}
+
+\colorlet{basis-color}{bookteal}
+\color{bookink}
+
+\geometry{
+  a4paper,
+  top=25mm,
+  bottom=25mm,
+  inner=27mm,
+  outer=23mm,
+  headheight=16pt,
+  headsep=8mm,
+  footskip=13mm
+}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=bookblue,
+  citecolor=bookteal,
+  urlcolor=bookblue,
+  pdfborder={0 0 0},
+  pdftitle={嵌入式知识体系总结},
+  pdfauthor={王伯榕},
+  pdfsubject={嵌入式系统、处理器架构、Linux、硬件与工程工具}
+}
+
+\ctexset{
+  chapter={
+    format=\Huge\bfseries\color{booknavy},
+    nameformat=\Large\sffamily\bfseries\color{bookteal},
+    numberformat=\fontsize{42}{46}\selectfont\sffamily\bfseries\color{bookteal},
+    titleformat=\sffamily\bfseries,
+    beforeskip=8pt,
+    afterskip=34pt
+  },
+  section={format=\Large\sffamily\bfseries\color{bookblue}},
+  subsection={format=\large\sffamily\bfseries\color{booknavy}},
+  subsubsection={format=\normalsize\sffamily\bfseries\color{bookblue}}
+}
+
+\setlength{\parindent}{2em}
+\setlength{\parskip}{0.12em}
+\setlength{\emergencystretch}{2em}
+
+\captionsetup{
+  font=small,
+  labelfont={bf,color=bookblue},
+  textfont={color=bookink},
+  margin=1.5em,
+  skip=8pt
+}
+
+\fancyhf{}
+\fancyhead[R]{\small\color{bookmuted}\rightmark}
+\fancyfoot[C]{\small\color{bookteal}\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\headrule}{\hbox to\headwidth{\color{bookline}\leaders\hrule height \headrulewidth\hfill}}
+\pagestyle{fancy}
+\fancypagestyle{plain}{
+  \fancyhf{}
+  \fancyfoot[C]{\small\color{bookteal}\thepage}
+  \renewcommand{\headrulewidth}{0pt}
+}
+
+\AtBeginDocument{%
+  \lstset{
+    basicstyle=\zihao{-5}\ttfamily,
+    backgroundcolor=\color{bookpaper},
+    frame=single,
+    rulecolor=\color{bookline},
+    framerule=0.4pt,
+    framesep=6pt,
+    xleftmargin=0.8em,
+    xrightmargin=0.4em,
+    aboveskip=0.9em,
+    belowskip=0.9em,
+    breaklines=true,
+    breakatwhitespace=false,
+    showstringspaces=false,
+    columns=fullflexible,
+    keepspaces=true
+  }%
+}
+
+\newcommand{\booksubtitle}[1]{\gdef\embeddedbooksubtitle{#1}}
+\newcommand{\bookedition}[1]{\gdef\embeddedbookedition{#1}}
+\newcommand{\embeddedbooksubtitle}{从电路、处理器架构到 Linux 系统工程}
+\newcommand{\embeddedbookedition}{持续更新版}
+
+\makeatletter
+\renewcommand{\maketitle}{%
+  \begin{titlepage}
+    \thispagestyle{empty}
+    \begin{tikzpicture}[remember picture,overlay]
+      \fill[booknavy] (current page.south west) rectangle (current page.north east);
+      \fill[bookteal]
+        ([xshift=0mm,yshift=-25mm]current page.north west)
+        rectangle
+        ([xshift=8mm,yshift=-175mm]current page.north west);
+
+      % A quiet engineering grid and traces suggest boards, buses and memory.
+      \foreach \x in {0,...,9}{
+        \draw[bookcyan,opacity=0.08,line width=0.35pt]
+          ([xshift=95mm+10mm*\x,yshift=-22mm]current page.north west) --
+          ([xshift=95mm+10mm*\x,yshift=-270mm]current page.north west);
+      }
+      \foreach \y in {0,...,24}{
+        \draw[bookcyan,opacity=0.08,line width=0.35pt]
+          ([xshift=95mm,yshift=-22mm-10mm*\y]current page.north west) --
+          ([xshift=205mm,yshift=-22mm-10mm*\y]current page.north west);
+      }
+
+      \draw[bookcyan,opacity=0.7,line width=1.2pt]
+        ([xshift=119mm,yshift=-91mm]current page.north west) -- ++(16mm,0) -- ++(0,-18mm) -- ++(18mm,0);
+      \draw[bookorange,opacity=0.9,line width=1.2pt]
+        ([xshift=105mm,yshift=-173mm]current page.north west) -- ++(22mm,0) -- ++(0,19mm) -- ++(24mm,0);
+      \draw[bookcyan,opacity=0.55,line width=1.2pt]
+        ([xshift=151mm,yshift=-205mm]current page.north west) -- ++(18mm,0) -- ++(0,24mm) -- ++(20mm,0);
+      \foreach \p in {
+        ([xshift=119mm,yshift=-91mm]current page.north west),
+        ([xshift=153mm,yshift=-109mm]current page.north west),
+        ([xshift=105mm,yshift=-173mm]current page.north west),
+        ([xshift=151mm,yshift=-154mm]current page.north west),
+        ([xshift=151mm,yshift=-205mm]current page.north west),
+        ([xshift=189mm,yshift=-181mm]current page.north west)
+      }{\fill[bookorange] \p circle (1.5mm);}
+
+      \node[
+        draw=bookcyan,
+        fill=booknavy,
+        line width=1.2pt,
+        rounded corners=3mm,
+        minimum width=54mm,
+        minimum height=54mm
+      ] (soc) at ([xshift=154mm,yshift=-132mm]current page.north west) {};
+      \node[font=\sffamily\bfseries\Large,text=bookcyan] at (soc) {SoC};
+      \foreach \a in {-22,-14,-6,6,14,22}{
+        \draw[bookcyan,line width=0.9pt] ([xshift=\a mm]soc.north) -- ++(0,5mm);
+        \draw[bookcyan,line width=0.9pt] ([xshift=\a mm]soc.south) -- ++(0,-5mm);
+        \draw[bookcyan,line width=0.9pt] ([yshift=\a mm]soc.east) -- ++(5mm,0);
+        \draw[bookcyan,line width=0.9pt] ([yshift=\a mm]soc.west) -- ++(-5mm,0);
+      }
+
+      \node[anchor=north west,text=bookcyan,font=\sffamily\bfseries\small]
+        at ([xshift=24mm,yshift=-30mm]current page.north west)
+        {EMBEDDED SYSTEMS · ARCHITECTURE · ENGINEERING};
+      \node[anchor=north west,text=white,text width=130mm,font=\sffamily\bfseries\fontsize{34}{44}\selectfont]
+        at ([xshift=24mm,yshift=-58mm]current page.north west)
+        {\@title};
+      \node[anchor=north west,text=bookcyan,text width=105mm,font=\sffamily\fontsize{16}{24}\selectfont]
+        at ([xshift=25mm,yshift=-112mm]current page.north west)
+        {\embeddedbooksubtitle};
+
+      \draw[bookorange,line width=2pt]
+        ([xshift=25mm,yshift=-154mm]current page.north west) -- ++(42mm,0);
+      \node[anchor=north west,text=white,font=\sffamily\bfseries\large]
+        at ([xshift=25mm,yshift=-164mm]current page.north west)
+        {\@author};
+      \node[anchor=north west,text=bookcyan,font=\sffamily\small]
+        at ([xshift=25mm,yshift=-179mm]current page.north west)
+        {\embeddedbookedition};
+
+      \node[anchor=south west,text=bookmuted,font=\sffamily\small]
+        at ([xshift=24mm,yshift=22mm]current page.south west)
+        {\@date};
+      \node[anchor=south east,text=bookcyan,font=\ttfamily\small]
+        at ([xshift=-20mm,yshift=22mm]current page.south east)
+        {knowledge / practice / verification};
+    \end{tikzpicture}
+  \end{titlepage}
+  \clearpage
+}
+\makeatother
+
+\endinput

@@ -353,7 +353,8 @@ PWM 参数：
 
 \section{I2C/I3C}
 
-I2C（Inter-Integrated Circuit）是一种串行通信总线，广泛用于连接低速外设。I3C（Improved Inter-Integrated Circuit）是 I2C 的改进版本。
+I2C（Inter-Integrated Circuit）是一种串行通信总线，广泛用于连接低速外设。
+I3C 是由 MIPI Alliance 制定、借鉴 I2C 电气与寻址模型的新一代总线规范，并不是简单把 I2C 时钟提高后的同一协议。
 
 \subsection{I2C 基础}
 
@@ -363,15 +364,15 @@ I2C（Inter-Integrated Circuit）是一种串行通信总线，广泛用于连�
   \item 两线制：SDA（数据线）和 SCL（时钟线）
   \item 多主多从：支持多个主设备和从设备
   \item 地址寻址：每个从设备有唯一地址
-  \item 低速通信：标准模式 100 kHz，快速模式 400 kHz，高速模式 3.4 MHz
+  \item 常见速率包括 Standard-mode 100 kbit/s、Fast-mode 400 kbit/s、Fast-mode Plus 1 Mbit/s 和 High-speed mode 3.4 Mbit/s；支持范围取决于控制器与器件
   \item 开漏输出：需要上拉电阻
 \end{itemize}
 
 \subsubsection{电气特性}
 
 \begin{itemize}
-  \item 电压电平：通常 3.3 V 或 5 V
-  \item 上拉电阻：通常 2.2--10 k$\Omega$
+  \item 电压电平由器件 I/O 规范决定，除 3.3 V/5 V 外也常见 1.8 V 等电平
+  \item 上拉电阻必须根据电源、电容、上升时间和器件灌电流能力计算，2.2--10 k$\Omega$ 只能作为低速短总线的经验起点
   \item 总线电容：限制总线长度和设备数量
   \item 开漏输出：线与逻辑
 \end{itemize}
@@ -465,13 +466,13 @@ I3C 相对于 I2C 的改进：
 \begin{enumerate}
   \item \textbf{更高的速度}
     \begin{itemize}
-      \item 标准数据速率：12.5 MHz
-      \item 高速数据速率：25 MHz
+      \item SDR 模式的 SCL 最高通常为 12.5 MHz，对应的有效数据率受帧开销影响
+      \item HDR-DDR、HDR-TSP、HDR-TSL 等模式具有不同编码和速率，必须按具体 I3C 规范版本与器件能力协商
     \end{itemize}
 
   \item \textbf{动态地址分配}
     \begin{itemize}
-      \item 支持热插拔
+      \item 支持 Hot-Join 机制；它有明确的总线状态和器件要求，不等同于任意带电插拔
       \item 自动地址分配
     \end{itemize}
 
@@ -483,8 +484,8 @@ I3C 相对于 I2C 的改进：
 
   \item \textbf{向后兼容}
     \begin{itemize}
-      \item 兼容 I2C 设备
-      \item 可以在同一总线上混合使用
+      \item 可在受约束的 mixed bus 上连接部分 I2C 目标设备
+      \item 混合使用会限制推挽阶段、时钟伸展和速率，需检查 I2C 器件是否满足 I3C mixed-bus 要求
     \end{itemize}
 
   \item \textbf{改进的错误检测}
@@ -618,7 +619,7 @@ SPI 有四种工作模式，由时钟极性（CPOL）和时钟相位（CPHA）�
 \begin{itemize}
   \item 4 条数据线：IO0、IO1、IO2、IO3
   \item 可以是输入或输出
-  \item 传输速度是标准 SPI 的 4 倍
+  \item 每个数据节拍最多传输 4 bit；端到端吞吐还受命令、地址、dummy cycle、时钟频率和 SDR/DDR 模式影响
   \item 常用于 Flash 存储器接口
 \end{itemize}
 
@@ -634,13 +635,13 @@ SPI 有四种工作模式，由时钟极性（CPOL）和时钟相位（CPHA）�
   \item \textbf{双线模式}
     \begin{itemize}
       \item IO0 和 IO1 同时用于输入输出
-      \item 速度是标准 SPI 的 2 倍
+      \item 数据阶段每个时钟最多传输 2 bit
     \end{itemize}
 
   \item \textbf{四线模式}
     \begin{itemize}
       \item 所有 4 条线同时用于数据传输
-      \item 速度是标准 SPI 的 4 倍
+      \item 数据阶段每个时钟最多传输 4 bit
     \end{itemize}
 \end{enumerate}
 
@@ -680,8 +681,8 @@ RS232、RS422 和 RS485 是常用的串行通信标准，用于工业控制和�
 \begin{enumerate}
   \item \textbf{直连}
     \begin{itemize}
-      \item 交叉连接 TXD 和 RXD
-      \item 用于 DTE 和 DCE 之间
+      \item DTE 与 DCE 之间通常使用按连接器定义直通的串口电缆
+      \item TXD/RXD 的交叉关系由 DTE/DCE 引脚角色本身提供
     \end{itemize}
 
   \item \textbf{空 Modem}
@@ -716,7 +717,7 @@ RS232、RS422 和 RS485 是常用的串行通信标准，用于工业控制和�
 \begin{itemize}
   \item 差分电压：±2--±6 V
   \item 共模电压范围：-7--+12 V
-  \item 输入阻抗：≥ 4 k$\Omega$
+  \item 输入阻抗：$\geq 4\,\mathrm{k}\Omega$
   \item 输出电流：±150 mA
 \end{itemize}
 
@@ -726,11 +727,11 @@ RS232、RS422 和 RS485 是常用的串行通信标准，用于工业控制和�
 
 \begin{itemize}
   \item 差分信号
-  \item 多点通信（多主多从）
+  \item 多点物理层，可有多个驱动器，但半双工总线上同一时刻只能有一个驱动器发送
   \item 传输距离：可达 1200 米
   \item 传输速率：可达 10 Mbps（短距离）
   \item 半双工或全双工
-  \item 最常用的工业总线
+  \item RS-485 只规定电气层；多主仲裁、地址、帧格式和重试由 Modbus 等上层协议定义
 \end{itemize}
 
 \subsubsection{信号定义}
@@ -916,7 +917,7 @@ CAN 使用非破坏性仲裁机制：
 \subsubsection{基本特性}
 
 \begin{itemize}
-  \item 基于 CSMA/CD（载波监听多路访问/冲突检测）
+  \item 早期共享介质、半双工以太网使用 CSMA/CD；现代交换式全双工链路不进行冲突检测
   \item 星型拓扑（使用交换机）
   \item 高速通信：10 Mbps、100 Mbps、1 Gbps、10 Gbps
   \item 标准化：IEEE 802.3
@@ -1017,10 +1018,10 @@ CAN 使用非破坏性仲裁机制：
       \item SuperSpeed+：20 Gbps（USB 3.2 Gen 2x2）
     \end{itemize}
 
-  \item \textbf{USB 4}
+  \item \textbf{USB4}
     \begin{itemize}
-      \item 最高 40 Gbps
-      \item 基于 Thunderbolt 3
+      \item USB4 1.0 支持最高 40 Gbit/s；USB4 2.0 支持 80 Gbit/s 对称链路，并定义可选的 120/40 Gbit/s 非对称模式
+      \item 采用基于隧道的数据传输架构，可承载 USB、DisplayPort 和可选的 PCIe 流量；具体能力由主机、线缆和设备共同决定
     \end{itemize}
 \end{enumerate}
 
@@ -1029,7 +1030,7 @@ CAN 使用非破坏性仲裁机制：
 \begin{enumerate}
   \item \textbf{Type-A}：标准 USB 接口
   \item \textbf{Type-B}：设备端接口
-  \item \textbf{Type-C}：可逆接口，支持 USB 3.1+ 和 Power Delivery
+  \item \textbf{Type-C}：可逆连接器；仅有 Type-C 外形并不保证 USB 3.x/USB4、DisplayPort Alt Mode 或 USB Power Delivery 能力
   \item \textbf{Mini-USB}：小型设备
   \item \textbf{Micro-USB}：更小型设备
 \end{enumerate}
@@ -1143,10 +1144,10 @@ PCI 设备有 256 字节的配置空间，用于设备识别和配置。
 
 \begin{itemize}
   \item 串行点对点连接
-  \item 高速通信：每通道 2.5 Gbps（Gen 1）到 32 Gbps（Gen 5）
+  \item 高速通信：Gen 1 到 Gen 5 的符号率为每通道 2.5--32 GT/s，后续代际继续提高速率
   \item 可扩展：x1、x2、x4、x8、x16 通道
   \item 全双工通信
-  \item 向后兼容 PCI 软件
+  \item 保留与 PCI 相近的配置和枚举软件模型，但物理层与并行 PCI 不兼容
 \end{itemize}
 
 \subsubsection{PCIe 架构}
@@ -1188,36 +1189,50 @@ PCI 设备有 256 字节的配置空间，用于设备识别和配置。
 \begin{enumerate}
   \item \textbf{PCIe 1.0}
     \begin{itemize}
-      \item 每通道 2.5 Gbps
+      \item 每通道 2.5 GT/s
       \item 编码效率 80\%
       \item 有效带宽 2 Gbps/通道
     \end{itemize}
 
   \item \textbf{PCIe 2.0}
     \begin{itemize}
-      \item 每通道 5 Gbps
+      \item 每通道 5 GT/s
       \item 有效带宽 4 Gbps/通道
     \end{itemize}
 
   \item \textbf{PCIe 3.0}
     \begin{itemize}
-      \item 每通道 8 Gbps
+      \item 每通道 8 GT/s
       \item 128b/130b 编码
       \item 有效带宽 7.877 Gbps/通道
     \end{itemize}
 
   \item \textbf{PCIe 4.0}
     \begin{itemize}
-      \item 每通道 16 Gbps
+      \item 每通道 16 GT/s
       \item 有效带宽 15.754 Gbps/通道
     \end{itemize}
 
   \item \textbf{PCIe 5.0}
     \begin{itemize}
-      \item 每通道 32 Gbps
+      \item 每通道 32 GT/s
       \item 有效带宽 31.508 Gbps/通道
     \end{itemize}
+
+  \item \textbf{PCIe 6.0}
+    \begin{itemize}
+      \item 每通道 64 GT/s，采用 PAM4、FLIT 模式和前向纠错
+      \item 编码与协议开销不能再用 Gen 3--5 的 128b/130b 比例直接估算
+    \end{itemize}
+
+  \item \textbf{PCIe 7.0}
+    \begin{itemize}
+      \item 每通道 128 GT/s，延续 PAM4 与 FLIT 架构
+      \item 是否可用取决于控制器、板级信道、连接器和器件代际
+    \end{itemize}
 \end{enumerate}
+
+以上带宽均按单方向、单通道描述；链路为全双工，实际载荷吞吐还要扣除数据链路层与事务层开销。
 
 \subsubsection{PCIe 应用}
 

@@ -336,7 +336,8 @@ ISB 会刷新流水线，从缓存或内存重新获取指令，并确保在 ISB
 这并不意味着在每个修改处理器寄存器的指令之后都需要一个 ISB。
 例如，对 PSTATE 字段、ELRs、SPs 和 SPSRs 的读写相对于其他指令按程序顺序执行。
 
-以下示例展示了如何在 AArch64 中启用浮点单元和 NEON，这可以通过写入 CPACR\_EL1 寄存器的第{[}20{]}位来实现。
+以下示例展示了如何在 AArch64 EL1 中允许 EL0/EL1 使用浮点与 Advanced SIMD，
+方法是设置 CPACR\_EL1.FPEN 字段（bit 21:20）。
 ISB 是一个上下文同步事件，保证在任何后续或 NEON 指令执行之前启用操作已经完成。
 
 \begin{lstlisting}
@@ -473,4 +474,3 @@ LDNP X2, X1, [X0]
 \item
   [完整系统] 在完整系统上的操作会影响系统中的所有观察者。
 \end{description}
-

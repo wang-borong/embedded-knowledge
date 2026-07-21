@@ -1,4 +1,7 @@
-RISC-V 是一个开源的指令集架构（ISA），由加州大学伯克利分校开发。RISC-V 具有模块化、可扩展、无专利限制等特点，在学术界和工业界都得到了广泛关注。
+RISC-V 起源于加州大学伯克利分校，目前由 RISC-V International 维护开放标准。
+其基础 ISA 与标准扩展采用模块化设计，规范可公开实现；具体处理器核、SoC IP、扩展和软件仍可能具有各自的许可证或专利约束。
+本节以公开的非特权与特权架构规范为依据\cite{riscvspec,riscvpri}，只介绍常用子集，
+不应把这里的列表视为对当前全部标准扩展的枚举。
 
 \subsection{Privileged Architecture}
 
@@ -6,7 +9,8 @@ RISC-V 特权架构定义了系统级的功能，包括异常处理、内存管�
 
 \subsubsection{特权级别}
 
-RISC-V 定义了多个特权级别（模式）：
+特权架构定义 M、S、U 三类基本模式，其中 M-mode 是特权架构实现必须具备的模式，
+S-mode 和 U-mode 是否存在取决于实现与目标平台：
 
 \begin{enumerate}
   \item \textbf{用户模式（User Mode，U-Mode）}
@@ -30,11 +34,11 @@ RISC-V 定义了多个特权级别（模式）：
       \item 最低级别的硬件访问
     \end{itemize}
 
-  \item \textbf{Hypervisor 模式（H-Mode）}
+  \item \textbf{Hypervisor 扩展（H Extension）}
     \begin{itemize}
-      \item 可选的特权级别
-      \item 用于虚拟化
-      \item 在 S-Mode 和 M-Mode 之间
+      \item 它不是位于 S-mode 与 M-mode 之间的独立“H-mode”
+      \item 扩展后的 S-mode 作为 HS-mode 运行宿主 Hypervisor
+      \item 客户机使用虚拟化的 VS-mode/VU-mode，并可使用两阶段地址转换
     \end{itemize}
 \end{enumerate}
 
@@ -61,8 +65,6 @@ RISC-V 使用控制状态寄存器来管理系统状态：
 
 \begin{itemize}
   \item \textbf{sstatus}：监管者状态寄存器
-  \item \textbf{sedeleg}：监管者异常委托寄存器
-  \item \textbf{sideleg}：监管者中断委托寄存器
   \item \textbf{sie}：监管者中断使能寄存器
   \item \textbf{stvec}：监管者陷阱向量基址寄存器
   \item \textbf{sepc}：监管者异常程序计数器
@@ -84,15 +86,18 @@ RISC-V 定义了多种异常类型：
   \item 断点
   \item 加载地址未对齐
   \item 加载访问错误
-  \item 存储地址未对齐
-  \item 存储访问错误
+  \item 存储/原子操作地址未对齐
+  \item 存储/原子操作访问错误
   \item 用户模式环境调用
   \item 监管者模式环境调用
   \item 机器模式环境调用
   \item 指令页错误
   \item 加载页错误
-  \item 存储页错误
+  \item 存储/原子操作页错误
 \end{itemize}
+
+异常编号及可选异常会随扩展变化，例如 Hypervisor 扩展还定义客户机页错误；
+软件必须依据目标规范版本和已实现扩展解释 \texttt{mcause/scause}。
 
 \paragraph{中断类型}
 
@@ -129,6 +134,15 @@ RISC-V 支持多种中断：
   \item 4 KB 页大小
   \item 四级页表
   \item 大型系统使用
+\end{itemize}
+
+\paragraph{Sv57（57 位虚拟内存）}
+
+\begin{itemize}
+  \item 57 位规范虚拟地址
+  \item 4 KB 基础页大小
+  \item 五级页表
+  \item 是否实现由平台与处理器决定
 \end{itemize}
 
 \paragraph{页表项（PTE）}
@@ -169,8 +183,9 @@ RISC-V 非特权 ISA 定义了用户程序可以使用的指令。
 \begin{itemize}
   \item 扩展 RV32I 到 64 位
   \item 64 位寄存器
-  \item 64 位地址空间
-  \item 额外的 64 位运算指令
+  \item XLEN 为 64，通用寄存器宽度为 64 位
+  \item 实际实现的物理与虚拟地址位数可以小于 64 位
+  \item 提供面向 32 位字运算的 \texttt{*W} 指令
 \end{itemize}
 
 \subsubsection{标准扩展}
@@ -218,6 +233,9 @@ RISC-V 非特权 ISA 定义了用户程序可以使用的指令。
   \item 提高代码密度
 \end{itemize}
 
+现代通用软件平台通常还依赖 \texttt{Zicsr}、\texttt{Zifencei} 等扩展；
+位操作（B）、向量（V）、加密及众多 \texttt{Z*} 扩展需要根据目标平台配置文件单独确认。
+
 \subsubsection{寄存器约定}
 
 \paragraph{通用寄存器用途}
@@ -243,7 +261,7 @@ RISC-V 非特权 ISA 定义了用户程序可以使用的指令。
 
 \begin{itemize}
   \item 前 8 个整数参数通过 a0--a7 传递
-  \item 前 8 个浮点参数通过 f0--f7 传递
+  \item 在硬浮点 ABI 中，前 8 个浮点参数通过 fa0--fa7（f10--f17）传递
   \item 更多参数通过栈传递
 \end{itemize}
 
@@ -251,7 +269,7 @@ RISC-V 非特权 ISA 定义了用户程序可以使用的指令。
 
 \begin{itemize}
   \item 整数返回值通过 a0 传递
-  \item 浮点返回值通过 f0 传递
+  \item 在硬浮点 ABI 中，浮点返回值通过 fa0--fa1（f10--f11）传递
   \item 大结构体通过内存传递
 \end{itemize}
 
@@ -277,31 +295,31 @@ RISC-V 非特权 ISA 定义了用户程序可以使用的指令。
   \item \textbf{寄存器}
     \begin{itemize}
       \item 最快，容量最小（几十到几百字节）
-      \item CPU 内部，访问延迟：0 周期
+      \item 位于处理器核心内部；相关指令的结果延迟通常至少为一个流水线周期，并非“0 周期”
     \end{itemize}
 
   \item \textbf{L1 缓存}
     \begin{itemize}
       \item 很快，容量小（32--64 KB）
-      \item CPU 内部，访问延迟：1--3 周期
+      \item 通常位于核心内部；命中延迟依具体微架构而定
     \end{itemize}
 
   \item \textbf{L2 缓存}
     \begin{itemize}
       \item 较快，容量中等（256 KB--1 MB）
-      \item CPU 内部或外部，访问延迟：10--20 周期
+      \item 通常位于芯片内部，可为私有或共享缓存；延迟依具体实现而定
     \end{itemize}
 
   \item \textbf{L3 缓存}
     \begin{itemize}
       \item 中等速度，容量较大（几 MB 到几十 MB）
-      \item 多核共享，访问延迟：20--40 周期
+      \item 常见于高性能多核处理器，但许多嵌入式 SoC 不实现 L3
     \end{itemize}
 
   \item \textbf{主内存（DRAM）}
     \begin{itemize}
       \item 较慢，容量大（几 GB 到几 TB）
-      \item 访问延迟：100--300 周期
+      \item 延迟受到内存类型、频率、控制器、排队和 NUMA 拓扑影响
     \end{itemize}
 
   \item \textbf{辅助存储（SSD/HDD）}
@@ -320,13 +338,13 @@ RISC-V 非特权 ISA 定义了用户程序可以使用的指令。
     \hline
     存储类型 & 容量 & 访问时间 \\
     \hline
-    寄存器 & 几十字节 & 0 周期 \\
-    L1 缓存 & 32--64 KB & 1--3 周期 \\
-    L2 缓存 & 256 KB--1 MB & 10--20 周期 \\
-    L3 缓存 & 几 MB--几十 MB & 20--40 周期 \\
-    主内存 & 几 GB--几 TB & 100--300 周期 \\
-    SSD & 几百 GB--几 TB & 数万周期 \\
-    HDD & 几 TB--几十 TB & 数百万周期 \\
+    寄存器 & 与 ISA/实现相关 & 指令相关的流水线延迟 \\
+    L1 缓存 & 数十 KB（常见） & 数个核心周期（常见） \\
+    L2 缓存 & 数百 KB 到数 MB & 数十周期量级（常见） \\
+    L3/系统缓存 & 可选，数 MB 以上 & 高于 L2，且受共享竞争影响 \\
+    主内存 & 平台相关 & 通常为数十到数百 ns \\
+    SSD & 平台相关 & 通常为数十 $\mu$s 以上 \\
+    HDD & 平台相关 & 通常为 ms 量级 \\
     \hline
   \end{tabular}
 \end{table}
@@ -346,13 +364,13 @@ RISC-V 非特权 ISA 定义了用户程序可以使用的指令。
 平均内存访问时间：
 
 \begin{equation}
-T_{avg} = T_{hit} \times H + T_{miss} \times (1 - H) \label{eq:avg-access-time}
+T_{avg} = T_{hit} + (1-H) \times T_{\text{miss penalty}} \label{eq:avg-access-time}
 \end{equation}
 
 其中：
 \begin{itemize}
   \item $T_{hit}$：缓存命中时间
-  \item $T_{miss}$：缓存未命中时间（包括访问内存的时间）
+  \item $T_{\text{miss penalty}}$：未命中后相对于命中路径额外增加的代价
   \item $H$：缓存命中率
 \end{itemize}
 
@@ -373,8 +391,11 @@ T_{avg} = T_{hit} \times H + T_{miss} \times (1 - H) \label{eq:avg-access-time}
 内存的理论带宽：
 
 \begin{equation}
-\text{带宽} = \text{数据宽度} \times \text{频率} \times \text{通道数} \label{eq:memory-bandwidth}
+\text{带宽} = \text{每次传输字节数} \times \text{每秒传输次数} \times \text{通道数} \label{eq:memory-bandwidth}
 \end{equation}
+
+DDR 存储器应使用有效数据传输率（MT/s），而不是简单使用时钟频率；
+协议开销、读写切换、刷新、Bank 冲突和控制器效率会使持续带宽低于理论值。
 
 \subsubsection{实际带宽}
 
@@ -506,9 +527,9 @@ T_{avg} = T_{hit} \times H + T_{miss} \times (1 - H) \label{eq:avg-access-time}
 \subsubsection{内存屏障}
 
 \begin{itemize}
-  \item 确保内存操作的顺序
-  \item 防止编译器优化导致的问题
-  \item 保证多线程程序的正确性
+  \item 编译器屏障约束编译器重排，处理器内存屏障约束硬件可观察顺序，两者不能混为一谈
+  \item 多线程程序优先使用语言和操作系统提供的原子操作、锁及内存序接口
+  \item 屏障只在与缓存一致性、设备内存属性和通信协议正确配合时才保证预期行为
 \end{itemize}
 
 \subsection{内存分配}
@@ -575,4 +596,3 @@ T_{avg} = T_{hit} \times H + T_{miss} \times (1 - H) \label{eq:avg-access-time}
 \end{itemize}
 
 理解这些内容对于编写高性能程序至关重要。
-

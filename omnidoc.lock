@@ -1,0 +1,1638 @@
+lock_version = 4
+omnidoc_version = "1.5.1"
+
+[library]
+version = "1.2.0"
+revision = "8f5d2341bead537c3cc00d99b7e8035f1105ae62"
+manifest_digest = "blake3:e6a5dded07c001d8a77f85e8a3df6e9fdb23f3b87bce0986553ce9b2eef1e4b2"
+checksums_digest = "blake3:b68283b13c997e4f55f294b6f064908e9a503dfd04cddbf7ceebecdf995be4f6"
+digest = "blake3:4de898db2d0b866bfc1acaa8ed2623648a28bfaf2f88c1ed8bc355b36cc71345"
+
+[toolchain]
+latex_engine = "XeTeX 3.141592653-2.6-0.999998 (TeX Live 2026/Arch Linux)"
+pandoc = "pandoc 3.10"
+pandoc_crossref = "pandoc-crossref v0.3.24 git commit UNKNOWN (UNKNOWN) built with Pandoc v3.9.0.2, pandoc-types v1.23.1.1 and GHC 9.8.4"
+tex_kpathsea = "kpathsea version 6.4.2"
+
+[targets.pdf]
+input_digest = "blake3:4fab4e031cd0aed5b613b32fdc8e23ae4ae42325583d42ddb1f5f6abf1473928"
+dependencies = [
+    ".omnidoc.toml",
+    "figure/16KB-granule-tbl.png",
+    "figure/2-way-set-associative-cache.png",
+    "figure/32KB-4-way-D-Cache.png",
+    "figure/4KB-granule-tbl.png",
+    "figure/555-astable-seq.png",
+    "figure/555-astable.png",
+    "figure/555-monostable.png",
+    "figure/64KB-granule-tbl.png",
+    "figure/CCI-snoop-req.png",
+    "figure/NEON-long-insts.png",
+    "figure/NEON-narrow-insts.png",
+    "figure/NEON-wide-insts.png",
+    "figure/PCI-config-space.pdf",
+    "figure/Zener_diode_voltage_regulator.png",
+    "figure/across-all-lanes-op.png",
+    "figure/address-translation-with-tb.png",
+    "figure/basic-cache-arrangement.png",
+    "figure/bl-system.png",
+    "figure/broadcast-cache-op-to-other-cores.png",
+    "figure/bus-master-coherency-domains.png",
+    "figure/cache-coherency-groups.png",
+    "figure/cache-coherency-logic.png",
+    "figure/cache-discovery.png",
+    "figure/cache-terminology.png",
+    "figure/cacheable-properties-of-memory.png",
+    "figure/cpu-migration.png",
+    "figure/debug-linux-kernel-ds-5.png",
+    "figure/device-regions.png",
+    "figure/divisions-of-the-d-regs.png",
+    "figure/divisions-of-the-v-regs.png",
+    "figure/ds-5-trace.png",
+    "figure/exception-flow.png",
+    "figure/exception-handling.png",
+    "figure/exception-to-el1.png",
+    "figure/exp-mobi-app-proc-with-corelink-ip.png",
+    "figure/force-mig.png",
+    "figure/fp-reg-div.png",
+    "figure/general-purpose-regs.png",
+    "figure/hdl-nest-irqs.png",
+    "figure/inner-outer-sh-domains.png",
+    "figure/insert-an-element-into-a-vector.png",
+    "figure/interaction-with-sec-ext.png",
+    "figure/irq-hdl-in-c.png",
+    "figure/kernel-app-mem-map.png",
+    "figure/max-ipa-space.png",
+    "figure/max-virt-addr-space.png",
+    "figure/mem-bus-and-cache.png",
+    "figure/migration-thresholds.png",
+    "figure/mmu.png",
+    "figure/moving-a-scalar-to-a-lane.png",
+    "figure/multi-cluster-system.png",
+    "figure/non-sec-int.png",
+    "figure/one-way-barriers.png",
+    "figure/pairwise-op.png",
+    "figure/phys-addr-space.png",
+    "figure/s1-blk-mem-attr.png",
+    "figure/saddl2-inst.png",
+    "figure/saddw2-inst.png",
+    "figure/sctlr-bit-field-el1.pdf",
+    "figure/sctlr-bit-field-el23.pdf",
+    "figure/sec-int.png",
+    "figure/sec-model-when-el3-a32.png",
+    "figure/sec-model-when-el3-a64.png",
+    "figure/shift-ops.png",
+    "figure/simd-fp-reg-abi.png",
+    "figure/stack-frame.png",
+    "figure/state_changing.png",
+    "figure/tbl-desc-type.png",
+    "figure/thread-call-stack-ds-5.png",
+    "figure/trans-tbl-ctrl-config.png",
+    "figure/trans-tbl-ctrl-reg.png",
+    "figure/trans-tbl-desc.png",
+    "figure/two-stage-trans-process.png",
+    "figure/type-encoding.png",
+    "figure/typical-big-little-sys.png",
+    "figure/virt-phys-mem.png",
+    "figure/virt-to-phys-512MB.png",
+    "figure/virt-to-phys-64KB.png",
+    "figure/wake-mig-on-big-core.png",
+    "figure/wake-mig-on-lit-core.png",
+    "figure/xtn2-inst.png",
+    "figures/aarch32-spsr.pdf",
+    "figures/aarch64-spsr.pdf",
+    "main.tex",
+    "tex/embedded-book.sty",
+    "tex/hardware/circuit-basis.tex",
+    "tex/hardware/fpga.tex",
+    "tex/hardware/ic.tex",
+    "tex/hardware/opamp.tex",
+    "tex/hardware/pcb.tex",
+    "tex/hardware/peripheral-protocols.tex",
+    "tex/hardware/semiconductor.tex",
+    "tex/part-hardware.tex",
+    "tex/part-software.tex",
+    "tex/part-tool.tex",
+    "tex/preface.tex",
+    "tex/software/armv8.tex",
+    "tex/software/armv8/a64-isa.tex",
+    "tex/software/armv8/abi.tex",
+    "tex/software/armv8/armv8-basic.tex",
+    "tex/software/armv8/armv8-models.tex",
+    "tex/software/armv8/big-little-tec.tex",
+    "tex/software/armv8/cache.tex",
+    "tex/software/armv8/cortex-a57-proc.tex",
+    "tex/software/armv8/debug.tex",
+    "tex/software/armv8/exception.tex",
+    "tex/software/armv8/float-neon.tex",
+    "tex/software/armv8/isa-in-nutshell.tex",
+    "tex/software/armv8/memory-ordering.tex",
+    "tex/software/armv8/mmu.tex",
+    "tex/software/armv8/multi-core-processors.tex",
+    "tex/software/armv8/power-management.tex",
+    "tex/software/armv8/regs.tex",
+    "tex/software/armv8/security.tex",
+    "tex/software/bootloader.tex",
+    "tex/software/ds-algo.tex",
+    "tex/software/micro-architecture.tex",
+    "tex/software/os-linux.tex",
+    "tex/software/programming.tex",
+    "tex/software/risc-v.tex",
+    "tex/tool/linux.tex",
+    "tex/tool/pcb.tex",
+]
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:.local/share/omnidoc/image/2753_color.png"
+resolved_from = "omnidoc-libs"
+digest = "blake3:a9e30f02bf7619af554cf737e2025284c97019f72d370cfe2bab321ea79cc07e"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:.local/share/omnidoc/image/2757_color.png"
+resolved_from = "omnidoc-libs"
+digest = "blake3:4a37641bd7eda38891827167ded1c818ef37a8ec137393963de036337ed30449"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/map/fontname/texfonts.map"
+resolved_from = "external"
+digest = "blake3:543f900178941121cb3f0b30f3fd6edc2489ab25e5b13f487d877b2a4a811071"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/adobe/symbol/psyr.tfm"
+resolved_from = "external"
+digest = "blake3:9ec36bcc5dbf96084ba01136b1190b7453d832cf3c1498433854769fd9b5d316"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/adobe/zapfding/pzdr.tfm"
+resolved_from = "external"
+digest = "blake3:2a2e5303670fa6b95daf01148b79567560fdb8db0999455e55a7ecf7bc2b2507"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/public/amsfonts/cmextra/cmbsy5.tfm"
+resolved_from = "external"
+digest = "blake3:1ac264667392eb6082cf3897f0bc3e6280bb0c068533e3e4de1710ed5f695539"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/public/amsfonts/cmextra/cmbsy7.tfm"
+resolved_from = "external"
+digest = "blake3:edd0b90f14e03c9a3a9c5fd0d9f78309bc5aa921a9d6a859ee37f383586fd7aa"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/public/amsfonts/cmextra/cmex7.tfm"
+resolved_from = "external"
+digest = "blake3:261d50cf783a900635517824694bee54cc12c6182c6397034c7ed863ef6b1913"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/public/amsfonts/cmextra/cmex8.tfm"
+resolved_from = "external"
+digest = "blake3:2d53a2d2936873d9e4c4ed39fd174cf0d8863ed420268e2147ffbfeb00379195"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/public/amsfonts/cmextra/cmex9.tfm"
+resolved_from = "external"
+digest = "blake3:f35a34ac817a738a22f1c96b9192859d4b28f8a4332ec764c76d8a37f8171072"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/public/amsfonts/cmextra/cmmib5.tfm"
+resolved_from = "external"
+digest = "blake3:3bf02140f80570040283e5321ec49847c29668baa39c58669a594447c16f714d"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/public/amsfonts/cmextra/cmmib7.tfm"
+resolved_from = "external"
+digest = "blake3:46eff15f161ee3cee94b1143a19bc172f8801c923877891eca8393ddfb21d8ad"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/public/amsfonts/symbols/msam10.tfm"
+resolved_from = "external"
+digest = "blake3:a2ab6a94c09e3f43d0979f4732251ab5546c2d4a5328de0e108c0e2654465840"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/public/amsfonts/symbols/msam5.tfm"
+resolved_from = "external"
+digest = "blake3:63e684758bf9c73663514eec23fd6f6fc618caa559bd4b150b6d6f7a39933183"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/public/amsfonts/symbols/msam7.tfm"
+resolved_from = "external"
+digest = "blake3:47442736cd13ca6c4b6a25a2974b4603d9c7d57282849d41ca34060ae1fac874"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/public/amsfonts/symbols/msbm10.tfm"
+resolved_from = "external"
+digest = "blake3:8f3d4432c389b739b8259dd0265f2c03dd7328eec8616125f5c7ed9b61f28b5e"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/public/amsfonts/symbols/msbm5.tfm"
+resolved_from = "external"
+digest = "blake3:3f8202284209c54f1be5f477814ebe5d6426517bca00171b33f9ede3ec26a781"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/public/amsfonts/symbols/msbm7.tfm"
+resolved_from = "external"
+digest = "blake3:b295a9646ddb16c36e9dca3af4363ab14076f3032b1ca50cd21b01889ea1f9bf"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/public/cm/cmbsy10.tfm"
+resolved_from = "external"
+digest = "blake3:e69056c92e5b84b40bf78c8ef44575b63455f919191b1f75f7141f2463eedfee"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/public/cm/cmbx10.tfm"
+resolved_from = "external"
+digest = "blake3:0dd9a6215d3abaa857c0d6a70290cf97fda658d09fe67c838f3dfb385cbf2830"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/public/cm/cmbx12.tfm"
+resolved_from = "external"
+digest = "blake3:3e0b3aa9bfb14630a6e2291e1d13471f315ad8052b58cdbe5ee19d5726b91a13"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/public/cm/cmbx5.tfm"
+resolved_from = "external"
+digest = "blake3:7d1da7e183a9ec77826f19ea0fc2274b8536a0c51a5c5f38da4479304090bc5d"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/public/cm/cmbx6.tfm"
+resolved_from = "external"
+digest = "blake3:1b87e6eb37fec1ecc6d439a46256fc7b1cc58a23b293408f69c1a39b3f75c637"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/public/cm/cmbx7.tfm"
+resolved_from = "external"
+digest = "blake3:e046baac0523d1960ec35fb3c6426743bac9da3e8a238160c7939b361c06f2df"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/public/cm/cmbx8.tfm"
+resolved_from = "external"
+digest = "blake3:45e53d42452aada2fc5290279d0a9180e4ff4b3dcab34aac679897008aee9b79"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/public/cm/cmbx9.tfm"
+resolved_from = "external"
+digest = "blake3:83a49453cbafc47e825baa84d68234d4582959e4974c240c7ab25ea6e2f15eab"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/public/cm/cmex10.tfm"
+resolved_from = "external"
+digest = "blake3:59b85465836d1281fca8dd839a8bcf88d3f77b95c34cab333da8a7b979b59e8b"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/public/cm/cmmi10.tfm"
+resolved_from = "external"
+digest = "blake3:f7e11404812bc482ac4cc45cc0a2af02c56564f36fdb72b734fb011adb6088bd"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/public/cm/cmmi12.tfm"
+resolved_from = "external"
+digest = "blake3:9ca22c0d2b6d19bde694df657b3171aeb5f2b2acf4840c3c703a64da48d5597e"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/public/cm/cmmi6.tfm"
+resolved_from = "external"
+digest = "blake3:120767494d8e881fd8099b7e28ce2da464b5b8e2bb9f309133de993346cd07a0"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/public/cm/cmmi7.tfm"
+resolved_from = "external"
+digest = "blake3:0812c20f138b25c783527a44cd6f65d77a32fce338716cb946321d0ec044cf58"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/public/cm/cmmi8.tfm"
+resolved_from = "external"
+digest = "blake3:c4e8de0d1afd925e8211ab6f66563aa8f2d8b60535cb14cd5b6572767933de76"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/public/cm/cmmi9.tfm"
+resolved_from = "external"
+digest = "blake3:1127ead5ec064603ebe956f47f5a38878d42124dc86aeddc0143cd4d0636f838"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/public/cm/cmmib10.tfm"
+resolved_from = "external"
+digest = "blake3:a0c1c7598217d76d819a22965b0e7606e83ddc080f76242f5d947c0ec2ad2867"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/public/cm/cmr10.tfm"
+resolved_from = "external"
+digest = "blake3:e487fae16ce9194236d7fafbf4e2c2ac3a1735b588354881955eae3fe96d797c"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/public/cm/cmr12.tfm"
+resolved_from = "external"
+digest = "blake3:71204d4b2ba6e02b45ffff001add539749b03eba6e21d6549682f96a9f2a1495"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/public/cm/cmr6.tfm"
+resolved_from = "external"
+digest = "blake3:070549fb2fc605486f18badc8fc7b71e89d59e68689d1aa27f5a39633bc5decd"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/public/cm/cmr7.tfm"
+resolved_from = "external"
+digest = "blake3:beaf931e7ce58f777591873dc2b32d91db933d605a7ca26d1f8aff0c63fafc2c"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/public/cm/cmr8.tfm"
+resolved_from = "external"
+digest = "blake3:6f6a681847b68771423a5dcdc07dc1a1283dd4acbaceb360ae39117e736eba65"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/public/cm/cmr9.tfm"
+resolved_from = "external"
+digest = "blake3:8b5b90ac1b4d70a17d0b8eecac42f234e1125b65220ef11f2131898455546c01"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/public/cm/cmsy10.tfm"
+resolved_from = "external"
+digest = "blake3:fad7f8e2a452ffa745c89b009b67eb879ad55ab296023e7d5a6bdea2f851ca36"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/public/cm/cmsy6.tfm"
+resolved_from = "external"
+digest = "blake3:2cf017846227538e80632a5c3bdb86752d603e7ca25eb36d7463bedffa4fd436"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/public/cm/cmsy7.tfm"
+resolved_from = "external"
+digest = "blake3:c202966970d7601d6f28ec1af1b7c9da946bf15f55272f5e6f37e7381afebd56"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/public/cm/cmsy8.tfm"
+resolved_from = "external"
+digest = "blake3:fe89fb3f4e542fabc853bc89c26d05ad398df996479bb2a335cf19db73784917"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:fonts/tfm/public/cm/cmsy9.tfm"
+resolved_from = "external"
+digest = "blake3:a4bae89f51436a441a6c7d2932b12e329b2060e6758baf1de4fa5b081e6aaefc"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/bigintcalc/bigintcalc.sty"
+resolved_from = "external"
+digest = "blake3:f5a267cd233fbf6aa7a754ef10daf0f8aad204af1d99cbc41a62bd5d44322bde"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/bitset/bitset.sty"
+resolved_from = "external"
+digest = "blake3:79947847783352c1d44f2a47e4aab4e669c8875bc5b5efeb5f34d8f8f112de21"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/circuitikz/pgfcirc.defines.tex"
+resolved_from = "external"
+digest = "blake3:55c5377064321f4f11498ec7b145857c9614f62e97e287ea6dfd4ace38735482"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/circuitikz/pgfcircbipoles.tex"
+resolved_from = "external"
+digest = "blake3:a831b1f36c860185b1ca12728b228927a480a5b5e04214367532aef55117d119"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/circuitikz/pgfcirccurrent.tex"
+resolved_from = "external"
+digest = "blake3:1ff349fbf222defd1be18042dd536f7ed76c5913ef904ef5e5f006a385a9da96"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/circuitikz/pgfcircflow.tex"
+resolved_from = "external"
+digest = "blake3:6f41b05c837d43ae0bf9dd08636890b90433e187d356758996f8bfb70cc7bf9a"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/circuitikz/pgfcirclabel.tex"
+resolved_from = "external"
+digest = "blake3:e593246eb0334c6b8e3031392095b0aafddd44191fdf0374d257d22ec7528cc6"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/circuitikz/pgfcircmonopoles.tex"
+resolved_from = "external"
+digest = "blake3:0492e6b61eb107100919299d0811bfd1cfa5c93faf78a55fa5a2b9820818f005"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/circuitikz/pgfcircmultipoles.tex"
+resolved_from = "external"
+digest = "blake3:b7821b5ded51c967742a3ca8d9ef97f8b76386c4d1b15e65b49e77b791e1af45"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/circuitikz/pgfcircpath.tex"
+resolved_from = "external"
+digest = "blake3:a7251f55f9331e68730232d14987b25fa2eaacd0a1e01a8505fafac79d58b17c"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/circuitikz/pgfcircquadpoles.tex"
+resolved_from = "external"
+digest = "blake3:a021a3738a18d9c463f507e3739845e38e6200b26c6835f6f51af33a90bf6132"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/circuitikz/pgfcircshapes.tex"
+resolved_from = "external"
+digest = "blake3:2419b6e0cdc888ae03f993d51dbc3beb26d9ece7ee6e230f972fc10213ba3562"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/circuitikz/pgfcirctripoles.tex"
+resolved_from = "external"
+digest = "blake3:dcce3b77a13ca1e2fe8360c2b27604beefbb3f0762330c90b60b249f21d4685b"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/circuitikz/pgfcircutils.tex"
+resolved_from = "external"
+digest = "blake3:f0efc27984439c10636b68eb7415585215caf29c639763671ed740d19a48ec23"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/circuitikz/pgfcircvoltage.tex"
+resolved_from = "external"
+digest = "blake3:bfecf4ad480b197dead2e62d698fb91e2e5fbe9ea01ee78436f2af4c017a2cbf"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/gettitlestring/gettitlestring.sty"
+resolved_from = "external"
+digest = "blake3:1caec43e9c8f0393593177b94199d5105cd9f5a1a029289d6a53067b9dc1c59c"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/iftex/iftex.sty"
+resolved_from = "external"
+digest = "blake3:98961ab3af160a0361d26ff5b25fcb5ca3bfce01ecfc947e5b49b32064c4b2c1"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/iftex/ifvtex.sty"
+resolved_from = "external"
+digest = "blake3:0f4ded579c91b8de28d454f44cf578bf7048413270f2192810964a2f1a748daa"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/infwarerr/infwarerr.sty"
+resolved_from = "external"
+digest = "blake3:ee8e2e351821aa46f6e6b6c2d7aed744773d3a3e2f5729980be7316428a46091"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/intcalc/intcalc.sty"
+resolved_from = "external"
+digest = "blake3:d4729467ad03b6cdb2c206bb9751482b0da0b2e2453cc3acb6a3668fdac43e8c"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/kvdefinekeys/kvdefinekeys.sty"
+resolved_from = "external"
+digest = "blake3:61a46228112a0d3974fdd06179ca34a3f98fbeedad65e6991c830f6a7e0cdfb4"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/ltxcmds/ltxcmds.sty"
+resolved_from = "external"
+digest = "blake3:40d1d38e4ee279bb2861093d58cb796cf318ddc5241c7160cc11fb2568b3a03a"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pdfescape/pdfescape.sty"
+resolved_from = "external"
+digest = "blake3:fa07552bce967f2d3cd1c7f0a03b7727520a6980548d4aa3ea8a6e36cc32b7d5"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pdftexcmds/pdftexcmds.sty"
+resolved_from = "external"
+digest = "blake3:fce15f816602af245ace2b95d953f518f9be03c9c4eb92b7c9cdab3797b791c2"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/basiclayer/pgfcore.code.tex"
+resolved_from = "external"
+digest = "blake3:b9cbeabd3269ccdea4414a2b297f525fbc86a65a9c7a5c8bd9c8d8de45a15bae"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/basiclayer/pgfcorearrows.code.tex"
+resolved_from = "external"
+digest = "blake3:d75bd07229c552698775fb76030bee9e6622b0127aad5169283ebad494c33f52"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/basiclayer/pgfcoreexternal.code.tex"
+resolved_from = "external"
+digest = "blake3:535b04ea69f65cb5dc3ff71c8e30c13acad8c6aac853c3fe8ac6dbdaa77b42cb"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/basiclayer/pgfcoregraphicstate.code.tex"
+resolved_from = "external"
+digest = "blake3:6927441f47a0f38af34bd5fe0ae74adadf64b76df0f2906abb885122add169ef"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/basiclayer/pgfcoreimage.code.tex"
+resolved_from = "external"
+digest = "blake3:cbd5a74eb090569a33100fbcf973efc459f33d13e6455054b4ebf301c68f1587"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/basiclayer/pgfcorelayers.code.tex"
+resolved_from = "external"
+digest = "blake3:dcf3743b90d687cba4a8f966d69dcc35cba4257a10a8f1f052014b6973050e5f"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/basiclayer/pgfcoreobjects.code.tex"
+resolved_from = "external"
+digest = "blake3:7fe9475c4c257f570d1b47983c3d6621d33856f588f6b9883ecfe04798b7052c"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/basiclayer/pgfcorepathconstruct.code.tex"
+resolved_from = "external"
+digest = "blake3:5259f9b873a243e6da0abc3a26b48bce98616dd2c22dca3eaaaf90ff6a644d96"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/basiclayer/pgfcorepathprocessing.code.tex"
+resolved_from = "external"
+digest = "blake3:126ddf43c586d123a815794cc48c582c1b6dfadbc6881178b0ee2b9908d4e722"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/basiclayer/pgfcorepathusage.code.tex"
+resolved_from = "external"
+digest = "blake3:e639942c443d8984fdcbd4bf68271a8a04dca20a6444602e634c601875770420"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/basiclayer/pgfcorepatterns.code.tex"
+resolved_from = "external"
+digest = "blake3:e374a30667097ac07c17725805abb56a51d1714c0bbca989f309318dbc29febd"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/basiclayer/pgfcorepoints.code.tex"
+resolved_from = "external"
+digest = "blake3:7df4ec7a3e208881e67f07367ceffd7b99eb978b7e287f4fa0e72d5b0af419e4"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/basiclayer/pgfcorequick.code.tex"
+resolved_from = "external"
+digest = "blake3:804ae0c42bc5da5552a52195c91c11eb41455d5d933ba559ee2bcb0bd25e50a6"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/basiclayer/pgfcorerdf.code.tex"
+resolved_from = "external"
+digest = "blake3:54dbf98fc9542fb52cdd3986cede3f66d8868824ccf1b34cfa5e1cf1e2cf7c52"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/basiclayer/pgfcorescopes.code.tex"
+resolved_from = "external"
+digest = "blake3:7a22ded84116d69126ec076ff633672cf0f345851103c093382214e55c923cdb"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/basiclayer/pgfcoreshade.code.tex"
+resolved_from = "external"
+digest = "blake3:a45ec432faf003c9493ebe5e6d1f9b88379e053af333e647d009eba2b00471ce"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/basiclayer/pgfcoretransformations.code.tex"
+resolved_from = "external"
+digest = "blake3:26d0693090a3793aa3a5adcf39570630f8ca826b9720b97a17b24b6b1c48852d"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/basiclayer/pgfcoretransparency.code.tex"
+resolved_from = "external"
+digest = "blake3:a78bd3879560475f6d93c0e47c1c7adde361099890a45e545b5d3333e62069c5"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/frontendlayer/tikz/libraries/tikzlibrarybending.code.tex"
+resolved_from = "external"
+digest = "blake3:46390228da03698ce3c5ad205e0cb72304cfb34d5f397a2316f9b423eba1be2b"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/frontendlayer/tikz/libraries/tikzlibrarycalc.code.tex"
+resolved_from = "external"
+digest = "blake3:caadd6b8a374be4aef8bb31114488fdccea2a98bbfa4fe3b6f549b8739a64c85"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/frontendlayer/tikz/libraries/tikzlibraryfadings.code.tex"
+resolved_from = "external"
+digest = "blake3:c0738d8b4dbf5667fb54f4c354dc7c8eded708167fb82a775966f78efc1d7e7a"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/frontendlayer/tikz/libraries/tikzlibraryfpu.code.tex"
+resolved_from = "external"
+digest = "blake3:1d3c6320a2454db6c33a195665a3a1f6e3eaa743d06a754ebb801e0f7dd9a71c"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/frontendlayer/tikz/libraries/tikzlibraryshadows.code.tex"
+resolved_from = "external"
+digest = "blake3:3a45be03c57de8db94737d0c873b7d012bd407aa958ff7e24da689fe8c54f8a0"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/frontendlayer/tikz/libraries/tikzlibrarytopaths.code.tex"
+resolved_from = "external"
+digest = "blake3:a267630b66b137da7414d891752b0c511e58f23a71a56f6a8ea5e75f5bd49361"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/frontendlayer/tikz/tikz.code.tex"
+resolved_from = "external"
+digest = "blake3:10ef0a672bcc9608b1d2e776412d638d81be7878270083a611f468082579e18f"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/libraries/pgflibraryarrows.meta.code.tex"
+resolved_from = "external"
+digest = "blake3:6b7fd40f239cf7f512f05eff6f35ea09a59cfc9745b5be7cb4298bb1f02db481"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/libraries/pgflibrarycurvilinear.code.tex"
+resolved_from = "external"
+digest = "blake3:b34e8a129689c4c222c41a760943b0806e9df8c11d526b2d9a9d07d371dfca8c"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/libraries/pgflibraryfadings.code.tex"
+resolved_from = "external"
+digest = "blake3:06a478a2d70c2b5f19b12d92aa691ecd67fb64ef3b4eb7c91dc24a7418baeba9"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/libraries/pgflibraryfpu.code.tex"
+resolved_from = "external"
+digest = "blake3:16f1920a49151d97f254a02e2dd26a75e347e9b9e6615a6d4ea052995b3be9d1"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/libraries/pgflibraryplothandlers.code.tex"
+resolved_from = "external"
+digest = "blake3:c777241b4f8b66b3de7901f1ad70bcc6d185ddfa7a18bbe344632ff1584f48a3"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/math/pgfint.code.tex"
+resolved_from = "external"
+digest = "blake3:5b117b2be752950c3378079f46afded837cb43857329f4987be98d691fc1f90e"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/math/pgfmath.code.tex"
+resolved_from = "external"
+digest = "blake3:3775256e5f1748f93ffe9a78e69cf4c16f1e285089ca80f5287c0a3bb06cbfaf"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/math/pgfmathcalc.code.tex"
+resolved_from = "external"
+digest = "blake3:a8fa4b7c9c394b8d726d4bae38474e130300bc59af175adadcd98b1694072dd3"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/math/pgfmathfloat.code.tex"
+resolved_from = "external"
+digest = "blake3:86fb3139db6f0ffba5d30a3fd71b89b1195bd5336f149adada46e495b8a1bcfd"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/math/pgfmathfunctions.base.code.tex"
+resolved_from = "external"
+digest = "blake3:b53564d0086f23a8a649e4bbfbb6c1aea458bee205b52705cb2846d4653e5e08"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/math/pgfmathfunctions.basic.code.tex"
+resolved_from = "external"
+digest = "blake3:786c34ce963d8f33cb3e9a42eb81f7fa6481f386e287094b52e48a0767662982"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/math/pgfmathfunctions.code.tex"
+resolved_from = "external"
+digest = "blake3:c075dba49b3b12ce2b56078ae4024ff5579e7b73b65fb266dfb8829d0a327405"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/math/pgfmathfunctions.comparison.code.tex"
+resolved_from = "external"
+digest = "blake3:25040cc84cf76b16c8a6a40356a256400b90188e419349de2fedec33afbc4aef"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/math/pgfmathfunctions.integerarithmetics.code.tex"
+resolved_from = "external"
+digest = "blake3:1b708226c935f590eb2989095911f480b23ae76a9543a3415461dc36b6177e51"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/math/pgfmathfunctions.misc.code.tex"
+resolved_from = "external"
+digest = "blake3:d4780698619f4b0746f72c001594633d75f4e5d8748993b10b236bf9dd1792a7"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/math/pgfmathfunctions.random.code.tex"
+resolved_from = "external"
+digest = "blake3:20164ed14f6215c4b778148161ceddd07eccabb79af2656ac96502b7407b6903"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/math/pgfmathfunctions.round.code.tex"
+resolved_from = "external"
+digest = "blake3:a1c39f359f18db407bffaf66e01f78c8da26d324dca4365c5a28808bffadb938"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/math/pgfmathfunctions.trigonometric.code.tex"
+resolved_from = "external"
+digest = "blake3:7e5d7de834de2ba88f7b04a3f555b95abf7d2db7820da27d68199c7054dd34a0"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/math/pgfmathparser.code.tex"
+resolved_from = "external"
+digest = "blake3:1ff24d67e402713c08fcefa9a686df06e70d123922879d187a4daf5a3f5cc0a1"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/math/pgfmathutil.code.tex"
+resolved_from = "external"
+digest = "blake3:7b96becae934b01e3d7d768adb1488ada2edb3b112475236e7660a1aa55fef44"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/modules/pgfmodulebending.code.tex"
+resolved_from = "external"
+digest = "blake3:eb32d735398975946a1cf28ae6e658a7b535a701ce8bbe23ce243d65bbc88f68"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/modules/pgfmodulematrix.code.tex"
+resolved_from = "external"
+digest = "blake3:b459a0efa09e4940e18deb64dde7626055bbc5d74b1a26e043b6eeb38289f40a"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/modules/pgfmodulenonlineartransformations.code.tex"
+resolved_from = "external"
+digest = "blake3:045799926cb222fa5a1c75daacfa32b3e4d1fc796eeb1a6131ea91ef3b8e0def"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/modules/pgfmoduleplot.code.tex"
+resolved_from = "external"
+digest = "blake3:4e8b42989b2dee770d604126ac5d9b54ad75248972a9e62f6d3627c53ddb3b12"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/modules/pgfmoduleshapes.code.tex"
+resolved_from = "external"
+digest = "blake3:0719b417e43dcf3d07707813d1facf032c1b6ba35fe6cad34dcaf717f5d2bdbe"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/pgf.revision.tex"
+resolved_from = "external"
+digest = "blake3:b18914fcea4f6e30110b9b34032637c54314f2bc1c09ee067dd4b9c3503298fb"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/systemlayer/pgf.cfg"
+resolved_from = "external"
+digest = "blake3:33f085552f994d1d92e0a3639045bfe24f76f8ca310729ef4251bd59e6d05ec0"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/systemlayer/pgfsys-common-pdf.def"
+resolved_from = "external"
+digest = "blake3:f4ccaf2f737ffb36a3530eccc4b3c048ab655cbae01c1c8080a2b32176f6c63b"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/systemlayer/pgfsys-dvipdfmx.def"
+resolved_from = "external"
+digest = "blake3:4a6a0936754b501ea1d4ee86831966abea455a05bace7f575c0af9abd2cfac72"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/systemlayer/pgfsys-xetex.def"
+resolved_from = "external"
+digest = "blake3:4c56196259dc2c9bcbc22ce227e0206a183653aceecbbd1df9af2aefe8cc29b8"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/systemlayer/pgfsys.code.tex"
+resolved_from = "external"
+digest = "blake3:c569ceff72aa5c301a4b4d2efd0eb7c89370f9c889c1faaf104a777be54369bb"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/systemlayer/pgfsysprotocol.code.tex"
+resolved_from = "external"
+digest = "blake3:4fd24c5d55828a62d361330b0f0df534e41947875e68cd4ce90a9db405fb583e"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/systemlayer/pgfsyssoftpath.code.tex"
+resolved_from = "external"
+digest = "blake3:d66f884f40ecaa1f13435557952146de7e78a29b609ec75dafdf2ecd8e87eb61"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/utilities/pgffor.code.tex"
+resolved_from = "external"
+digest = "blake3:91c95db05197a58a20eea5425007d9db47d8d19fb8203f47d05fcda07bb38553"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/utilities/pgfkeys.code.tex"
+resolved_from = "external"
+digest = "blake3:41fc90f6e3b45a59d5258cfbf9da16c94610fe70b396da3cc574b16b4f2dff2b"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/utilities/pgfkeyslibraryfiltered.code.tex"
+resolved_from = "external"
+digest = "blake3:0a640c369a65bf28476bfab7a4753fe97244482255c05ee6d0b2abcc119e2611"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/utilities/pgfrcs.code.tex"
+resolved_from = "external"
+digest = "blake3:6f336e416fbb7b243a7780aa974f38316a5b2b4b571d808059319277022055f1"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/utilities/pgfutil-common.tex"
+resolved_from = "external"
+digest = "blake3:e29f1cb5da19b9c1619a4c27b4c3bb2e4d1b08c88e0603463e129163bccb0f92"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/utilities/pgfutil-latex.def"
+resolved_from = "external"
+digest = "blake3:b9669c370b2aafaae876e4d9c222e9b4db977aeb603e5d78895d805905077d44"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/stringenc/stringenc.sty"
+resolved_from = "external"
+digest = "blake3:ec1070fa013100be6e05dabad706b5b9e0efbb974c84ab0a355e4990985eed3a"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/unicode-data/UnicodeData.txt"
+resolved_from = "external"
+digest = "blake3:257589ca2ebb66b202cc6f7f6f944b7c1939c32bf696009fbc4bea5b78a85ce4"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/uniquecounter/uniquecounter.sty"
+resolved_from = "external"
+digest = "blake3:2cd6498224ad5a8ce208f3eba52f37c0bed874f099faa6c014bd6ceb5cc916e0"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/amscls/amsthm.sty"
+resolved_from = "external"
+digest = "blake3:b3bed8a22132abd05bb63d1ab3f238c2cb8ef0f7bb90cd20239157a971caa003"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/amsfonts/amsfonts.sty"
+resolved_from = "external"
+digest = "blake3:d4b15f9f833815d5ee3541b131674b317171dad802721bf63ada8a96b9d3ed99"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/amsfonts/amssymb.sty"
+resolved_from = "external"
+digest = "blake3:52d66248ba865c052b4c678b54b1f0a14e0d3c8d2feca0d721290b1f635cd202"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/amsfonts/umsa.fd"
+resolved_from = "external"
+digest = "blake3:4bdce33b5618e492f0f3e0e04700731211e5acc98d4774b381b1bef0157dc16c"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/amsfonts/umsb.fd"
+resolved_from = "external"
+digest = "blake3:9d050cd97b17f96599baf7238f142b274685a967507355705855136dc4eeb462"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/amsmath/amsbsy.sty"
+resolved_from = "external"
+digest = "blake3:d49b1274f598cc6b30e89866057cf700a9e6d3ba114281457ff3a21873c1a88e"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/amsmath/amsgen.sty"
+resolved_from = "external"
+digest = "blake3:1404eb798408fbafb4ff4a24700150972c117a712916b9a03e73ce300e5115cd"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/amsmath/amsmath.sty"
+resolved_from = "external"
+digest = "blake3:034cd55adaf63f73a10a012851be075e48ee6c7a48fdca419f46ee18c91318dd"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/amsmath/amsopn.sty"
+resolved_from = "external"
+digest = "blake3:a4ba66bfb8950f3253ec3e2ab258b824fc9630370ecb9f7243ccb57687d711e1"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/amsmath/amstext.sty"
+resolved_from = "external"
+digest = "blake3:86990a5c8e058ed54a039c5215088f7e6af494fc43bdfe50125069db6576a5d5"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/base/bk10.clo"
+resolved_from = "external"
+digest = "blake3:5fa7688c4983fc56742b75274560cc6eae557083b8242872758b7a324b17fa3f"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/base/book.cls"
+resolved_from = "external"
+digest = "blake3:d6cb0b92816008277e75aa6ec93f042773223c7b2cf78d929439553715933be0"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/base/fix-cm.sty"
+resolved_from = "external"
+digest = "blake3:a3aa2008f8b65107e7db45f18c6147f981e2e4ea07ecd46dd84eb81eb63b65cb"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/base/fontenc.sty"
+resolved_from = "external"
+digest = "blake3:5d92d81c835564d7454e3675adceef0044d7a70a2114c5255512de2f96554b84"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/base/ifthen.sty"
+resolved_from = "external"
+digest = "blake3:48fde2ed07e81b1fd877b71f1fc5398d89b086af70f60f51b45dc2f3269e8a32"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/base/ts1enc.def"
+resolved_from = "external"
+digest = "blake3:9dd330aa7faa952cbcb63ab4dbcc375cc9e4fd54b17098a7fa54c8b2016dabe8"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/bbding/bbding.sty"
+resolved_from = "external"
+digest = "blake3:c4178eafea4e34c566d6ad1bebb0f442b76ec3aa041c84ea03080353701f031f"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/biblatex/bbx/numeric.bbx"
+resolved_from = "external"
+digest = "blake3:b6a16c15ccf7d243ddacc1b8c20e38a6067d1dafc5da2a44261187f815dd49a6"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/biblatex/bbx/standard.bbx"
+resolved_from = "external"
+digest = "blake3:828b764ab985117e9a0bc5a70cc226add6393d08890e6774b9de0e40c1b8d767"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/biblatex/biblatex.cfg"
+resolved_from = "external"
+digest = "blake3:eaf3d4240b839878cb368ce754b9bee5e734f29f58a87c5f668484f13a74606a"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/biblatex/biblatex.def"
+resolved_from = "external"
+digest = "blake3:5a68dcf2fb7b3c9889fbae347b5d7cf66e509676b395573ae72fb0ad4666721f"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/biblatex/biblatex.sty"
+resolved_from = "external"
+digest = "blake3:abdece47452da2b2540482504ee8fec5e204a7272dde70ecfe32d5f5718158ff"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/biblatex/blx-case-expl3.sty"
+resolved_from = "external"
+digest = "blake3:82f8c27034e167267a0a052a22e28d476ba7facbd37fc13984d8410a65b13522"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/biblatex/blx-compat.def"
+resolved_from = "external"
+digest = "blake3:f6ed7691369968163967fd8b859029eff6572ec874334e4c40815e1e90492d1e"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/biblatex/blx-dm.def"
+resolved_from = "external"
+digest = "blake3:246b0d618da7e992391ba30d9766ff169b6502bfef4dee7f9f965c581c3a4a93"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/biblatex/blx-unicode.def"
+resolved_from = "external"
+digest = "blake3:2638f9f6f9418aea432daaa6cb371cad95b0a938e0f7db636c8e03842d1e298f"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/biblatex/cbx/numeric.cbx"
+resolved_from = "external"
+digest = "blake3:5424f09b36f2eb3b77a20b84fbe2f56906d14e2bac6b7467bf983051b26fe72c"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/biblatex/lbx/english.lbx"
+resolved_from = "external"
+digest = "blake3:e02a23770af3dcda615b1aa93dc7f5259eca806d90f6ceeefc9ce158f40ab613"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/bookmark/bkm-dvipdfm.def"
+resolved_from = "external"
+digest = "blake3:a3a6a3ecc0283b7fafc816ba70009ec8786f79f4812e4e28e7b8b857441239c7"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/bookmark/bookmark.sty"
+resolved_from = "external"
+digest = "blake3:57458d1dda5632ff547132ff71e864ba5dcc8ed1b3b3950913dc7301b11d492d"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/booktabs/booktabs.sty"
+resolved_from = "external"
+digest = "blake3:3b8ff02f3d5003cd8b57a62a076c1952ee7adee9e8e655fd1a710ac5a41c6260"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/caption/caption.sty"
+resolved_from = "external"
+digest = "blake3:0e4370c726379de092d16613fe58e8430e61c4c72228a34a11c8eb96733ee20a"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/caption/caption3.sty"
+resolved_from = "external"
+digest = "blake3:33dc8f9947db5764736ea68e27ee710358f63a46e9aca9e97621600f560199a4"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/caption/subcaption.sty"
+resolved_from = "external"
+digest = "blake3:6b5d299021380560bff38d96e04d12ebc2231352780e0fafec1d3e1585325b5d"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/circuitikz/circuitikz.sty"
+resolved_from = "external"
+digest = "blake3:edc1993b89e49380f019b015f9681148855232c08f620c3fb4c4316345fdca02"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/cjk/texinput/CJKfntef.sty"
+resolved_from = "external"
+digest = "blake3:ce9094f9f80cb7c45dfd6427ada7079727cb0096be7e9f146e6132fb3568c2f1"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/colortbl/colortbl.sty"
+resolved_from = "external"
+digest = "blake3:e7a671ce8269d1b3014df54919413c4d03a5c6983bb50c22501127bd80aa5577"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/ctex/config/ctex-name-utf8.cfg"
+resolved_from = "external"
+digest = "blake3:e43faccd09d7f7dcd9c8488f566a987f6a6f849fc6ed2431524389b790333af3"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/ctex/config/ctex.cfg"
+resolved_from = "external"
+digest = "blake3:d7c809677b62782cb833b4487b3c777e863eb39c47aa7b1dad0ff343ab539c48"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/ctex/config/ctexbackend.cfg"
+resolved_from = "external"
+digest = "blake3:66918ee83f576f55902f1ae139e709ce4a48f56ae77e649dd48685f26c772b96"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/ctex/config/ctexopts.cfg"
+resolved_from = "external"
+digest = "blake3:4db794ba76c7e74d48741abf87efe6e2f065c4aa3c39c96c07d9f4c622db25d7"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/ctex/ctex-c5size.clo"
+resolved_from = "external"
+digest = "blake3:d77c30a79475ecdfc1c6ed6e0f28eae80ea55926483a44f7e159517f65dc7e16"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/ctex/ctexbook.cls"
+resolved_from = "external"
+digest = "blake3:055c06fa5e50238e6d18587c3a9e4eb64405aeaea1390b32db0b674a3c279e4c"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/ctex/ctexhook.sty"
+resolved_from = "external"
+digest = "blake3:efc924ec4cb51b05a98891f050afe2635e0829935ffc0488a094e454489fbb1d"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/ctex/ctexpatch.sty"
+resolved_from = "external"
+digest = "blake3:93cc8a70d06bc981570b34f3b0827c09dfd0676f8292093397cb7378b5164f84"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/ctex/engine/ctex-engine-xetex.def"
+resolved_from = "external"
+digest = "blake3:2cc5439bf48eda1ef513bd8f244767abd88a4b06023f9f72427b08935ccd8c11"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/ctex/scheme/ctex-scheme-chinese-book.def"
+resolved_from = "external"
+digest = "blake3:83041bd32fcc739ff0c638fab3c0ca12985c4decd40eb3056074d4940e4690fd"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/enumitem/enumitem.sty"
+resolved_from = "external"
+digest = "blake3:241c4577ef4fe14e38dbd3c79d36cb77c3a11f4a1f233e149e453206185e1574"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/environ/environ.sty"
+resolved_from = "external"
+digest = "blake3:c4e23d87941bbdd7abf273cda36dc4e47ff7c3f6f57e2b0d71fd0324fcc114de"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/etoolbox/etoolbox.sty"
+resolved_from = "external"
+digest = "blake3:2d8b30ef781005c1ed28b1e26c11d321fbfbc447d30c4a63658e1cb7e8296aac"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/fancyhdr/fancyhdr.sty"
+resolved_from = "external"
+digest = "blake3:02a5f90784e07d4e7aaa49fc730621e34287034113962dcbfa6129b61328a93f"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/float/float.sty"
+resolved_from = "external"
+digest = "blake3:b86ab4acee8c96ffc7c9cb1d039598690fd437e48dcc39bdda5b6d8c298c6ea4"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/fontspec/fontspec-xetex.sty"
+resolved_from = "external"
+digest = "blake3:5438b00902dc5c48ebfe213b0c232de61587aea537a0e9bebf9448a15b681f6f"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/fontspec/fontspec.cfg"
+resolved_from = "external"
+digest = "blake3:9ef2a4cefe8556671e6334d85b7f6b3698740a8e94a961c45b35774d3499ac71"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/fontspec/fontspec.sty"
+resolved_from = "external"
+digest = "blake3:49d6a4994bc05dfa7f86e3b82e3917cc8a25425c07dcb0fa466d4a028263abfb"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/footmisc/footmisc.sty"
+resolved_from = "external"
+digest = "blake3:77c1fd9237aab49cd0678503f20faabb0525da41613f89910357b7ae5bd20811"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/geometry/geometry.sty"
+resolved_from = "external"
+digest = "blake3:2a8358ce07bae8f2da24fc2da5c723dcee26783a4a3b08943cc48c740fec7c94"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/graphics-cfg/color.cfg"
+resolved_from = "external"
+digest = "blake3:29983118d12f052a6b2bf523fc179fafed76ad2fe3040ac861b1158c89917077"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/graphics-cfg/graphics.cfg"
+resolved_from = "external"
+digest = "blake3:14d07bb7995c71afc196c94f65bb025a778601ba4c70c0ce1a55d7aa300c2136"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/graphics-def/xetex.def"
+resolved_from = "external"
+digest = "blake3:95080a59b2053855fb4c05c18bbb6849582012389ce0ff1b756d39905629492d"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/graphics/color.sty"
+resolved_from = "external"
+digest = "blake3:81a92eb9d4c78869908d9afa0b17e85979def21f607d9bf77a30c9b522c3bbd5"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/graphics/graphics.sty"
+resolved_from = "external"
+digest = "blake3:a540a6b1c7bbf526770e33bbbb139b23e28ae9077c73bcf0132242eefa78bfd5"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/graphics/graphicx.sty"
+resolved_from = "external"
+digest = "blake3:533766e1bd6d47396ef85ea9e652349f55a6ac68cdea88a6a5ca01d5e6a9aa8f"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/graphics/keyval.sty"
+resolved_from = "external"
+digest = "blake3:39da52f7f242b5594ccefa7d798b70fb734c196dbddbcb54716a0c5e28c7e608"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/graphics/mathcolor.ltx"
+resolved_from = "external"
+digest = "blake3:9a0fb914a25283221ff15cccc0ab249f95d92d045b8e45d36f1cef1bc5cadf04"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/graphics/trig.sty"
+resolved_from = "external"
+digest = "blake3:6165a4fe1b26fed3a8107c120cd8046671329dda4fef21a1d82b99c3372ca39f"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/hycolor/hycolor.sty"
+resolved_from = "external"
+digest = "blake3:dcf061277d55e92d7c01bab49490d5d0007abf304ccd1124538fbc8c29370cda"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/hyperref/hxetex.def"
+resolved_from = "external"
+digest = "blake3:48b04685db77688972d56b512969f8b8b16cab857e1dea0dc20605cb7f031691"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/hyperref/hyperref.sty"
+resolved_from = "external"
+digest = "blake3:de9769e5a2ee97869362b1d0d97264f6994ca6914730d6d531ffef7493b33856"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/hyperref/nameref.sty"
+resolved_from = "external"
+digest = "blake3:0dd2586458cd73da1544b30a66735be8d861bfa561a1dfb4d8d019737edba24f"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/hyperref/pd1enc.def"
+resolved_from = "external"
+digest = "blake3:1fc303d6ff484229dbd7bc7a08bb1cc8bce89a9fed9a32b6cc672bd3eaf9c993"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/hyperref/puenc.def"
+resolved_from = "external"
+digest = "blake3:cdf42dcc67358e37f8c0acf41e438cebdafa28797e59159a124681ca185f9db6"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/kvoptions/kvoptions.sty"
+resolved_from = "external"
+digest = "blake3:808bfd95b813e24ac4353235d3bf3b83c03c6cb2594983e9e6a28479919c02fe"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/kvsetkeys/kvsetkeys.sty"
+resolved_from = "external"
+digest = "blake3:035ccf4e762575bf0bc5beeaf6c21b8f651583ae408e7945c55672f2fbfa52dc"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/l3backend/l3backend-xetex.def"
+resolved_from = "external"
+digest = "blake3:9634fd98a7474f26211c899028a6d47c03ac2fa867df1edabfa6f23ffa94259a"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/l3kernel/expl3.sty"
+resolved_from = "external"
+digest = "blake3:0183672d6a9fdf293a03811c0f6504b5ff8a208355db36c24a489432a5727976"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/l3packages/xparse/xparse.sty"
+resolved_from = "external"
+digest = "blake3:bb05a4c0c1e5597f4089661f4856adc8535c219ed79822fa8a6827616125436e"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/l3packages/xtemplate/xtemplate.sty"
+resolved_from = "external"
+digest = "blake3:c036a39c5028d61442475ec1c503f9ea9334a9827bc82840c6e2547cdcb537c2"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/listings/listings.cfg"
+resolved_from = "external"
+digest = "blake3:b5f3ca39da524cab1e6279c586a72aaa6fa6ab77354516d70af6c4ff6ad44b4a"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/listings/listings.sty"
+resolved_from = "external"
+digest = "blake3:1022db3c48508f738d0a1a14f8924e1ce93e6caf2513e543f38d9bac469cb2af"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/listings/lstlang1.sty"
+resolved_from = "external"
+digest = "blake3:f6fa13dbeb646cf556e98b89d2fcf29a3e3fe91ddd0a3338238dd0c450db6c8b"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/listings/lstmisc.sty"
+resolved_from = "external"
+digest = "blake3:9abd492894eec356afedf30772ced1c4ce6bfd6653df9c3a9c0cb03313c948eb"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/listings/lstpatch.sty"
+resolved_from = "external"
+digest = "blake3:476f19434e20ad65f9ccd4ff60b9ec1d82c5456fba8114874e3292f512a72fb7"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/logreq/logreq.def"
+resolved_from = "external"
+digest = "blake3:5d32336ee6ef25aa4fc84faeb8ef85aa6c903e5a7c568422e0572c0f1e48a76a"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/logreq/logreq.sty"
+resolved_from = "external"
+digest = "blake3:3ac42f798b17b15ce03cc75069f15e5939b9cb7fd9fa2df291465242ae4d6960"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/manfnt/manfnt.sty"
+resolved_from = "external"
+digest = "blake3:0ccb68d2ffc82799bafc9ecdc8e0f26fbd4c26ec1a9aadf5bf0fa704a5daf43b"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/microtype/microtype-xetex.def"
+resolved_from = "external"
+digest = "blake3:e48cd20e0798b3d00cf0bdcb3314a7ebefaeff171b33ab519f83dc13924ccc62"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/microtype/microtype.cfg"
+resolved_from = "external"
+digest = "blake3:1e2f944ceb341b6924c539b4993dddf0b56219e134debd846b6e55d404ab3945"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/microtype/microtype.sty"
+resolved_from = "external"
+digest = "blake3:725270567a9d5c470eb6874a31207fd3309d7b6e5696edc4c0b3b73e17c1290e"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/microtype/mt-LatinModernRoman.cfg"
+resolved_from = "external"
+digest = "blake3:67d6fa6c800586a4e74b0fa092af730fed737c9065a65446276886aa41a7a9ee"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/microtype/mt-cmr.cfg"
+resolved_from = "external"
+digest = "blake3:8ba6bc62fb03005422e5516136091c3f4ea0be7d72072f0cad8b3f54e9450ef5"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/microtype/mt-msa.cfg"
+resolved_from = "external"
+digest = "blake3:67edb4b460a8c3ea8677bc459ef8f7e3c70851ed81de4a5aa1bd74473bf5265f"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/microtype/mt-msb.cfg"
+resolved_from = "external"
+digest = "blake3:4dd1c6586c53eb0249416eac9b622e953dae682919b5ef6a1543e8fc867b3bcb"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/ninecolors/ninecolors.sty"
+resolved_from = "external"
+digest = "blake3:05f7bd1ac1453d062d181068e6348a9ba8507b1f97d5bde3314e11d7905f7561"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/pdfcol/pdfcol.sty"
+resolved_from = "external"
+digest = "blake3:600a6b677cc791b02c583c080582e9b744401d8ac32bb7fb88a14897d4719f4f"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/pgf/basiclayer/pgf.sty"
+resolved_from = "external"
+digest = "blake3:2c3606ea2c907861cdf3d93a4682f8a12311988b8893348bf5919587a5d394b4"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/pgf/basiclayer/pgfcore.sty"
+resolved_from = "external"
+digest = "blake3:5d2fd608fb6d72b11b327b7547799ef4bc2ad7f5fa33350236ecbaa61de8558d"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/pgf/compatibility/pgfcomp-version-0-65.sty"
+resolved_from = "external"
+digest = "blake3:9981428ef1a65c50325e8eaa525c0a9aeea2ff61d9e6c9ff3c6333d42844e0ae"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/pgf/compatibility/pgfcomp-version-1-18.sty"
+resolved_from = "external"
+digest = "blake3:e8d3b19897d8ec1802ad6379bc3281d3b1e5c972d8d1e0820e94cc649b37a63b"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/pgf/frontendlayer/tikz.sty"
+resolved_from = "external"
+digest = "blake3:e4ecbc221f3dabddfc4172d2beb4f4bc235d020fc2f34bd94a7aefc54f19e293"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/pgf/math/pgfmath.sty"
+resolved_from = "external"
+digest = "blake3:6bd4d7616bde6afbd56ef74d4d3dfd8a45de4bc254751b57f359052aa58c88df"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/pgf/systemlayer/pgfsys.sty"
+resolved_from = "external"
+digest = "blake3:fa0b5d2d80c24914b72e2de2747588a186e6c23ba5ce038a4414e2b85887c7a0"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/pgf/utilities/pgffor.sty"
+resolved_from = "external"
+digest = "blake3:d29080a0fbd294353f068f29cb532f7c5a0f175db7a8327fd484f5ba5d351918"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/pgf/utilities/pgfkeys.sty"
+resolved_from = "external"
+digest = "blake3:aaa2f037830f7ae58c4dd5477265d6a3ad29e23c894304858e81d208fc24f9f1"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/pgf/utilities/pgfrcs.sty"
+resolved_from = "external"
+digest = "blake3:a39570019c9e8dde72d63b99bf2091e6578f7049bf41dedc99da22b216e3efaa"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/psnfss/pifont.sty"
+resolved_from = "external"
+digest = "blake3:6e0719d6b7526917b4136d94b2dca97597617e99f1fbfa075fa75631330df671"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/psnfss/upsy.fd"
+resolved_from = "external"
+digest = "blake3:7584c84fd599290b5b8a23c424d8a8e0c6617b663489d1f7d91432460aac6a5d"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/psnfss/upzd.fd"
+resolved_from = "external"
+digest = "blake3:609239906fb47e8ca842fabcaca0b7542fc382951934829bbcaaca9c822f31a6"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/refcount/refcount.sty"
+resolved_from = "external"
+digest = "blake3:853a57b0be38ca59f36656e771084853682678ca16e2fb003df19d870b59fd74"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/rerunfilecheck/rerunfilecheck.sty"
+resolved_from = "external"
+digest = "blake3:6c3e698d357cc837b6d5985a29577a20e0823204b095ea7dacb7e6d82abb1378"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/setspace/setspace.sty"
+resolved_from = "external"
+digest = "blake3:9336bad1fd081765b3f812ad2354c916cb3a37759d52ee1c9951c6f65ae01d18"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/tabularray/tabularray.sty"
+resolved_from = "external"
+digest = "blake3:48939b748ceae3beee450ae5deb63c381e223a20886faf5d8b34a53b4a53b8ba"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/tcolorbox/tcbbreakable.code.tex"
+resolved_from = "external"
+digest = "blake3:96ba946a970b834c6b6ec99c3a7de072e68cf73e8135f8f913eb49b2e058f76e"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/tcolorbox/tcbfitting.code.tex"
+resolved_from = "external"
+digest = "blake3:4f324bbc1cc648b4b5ccd8b39746ef99ef3cd926203c6004ecbb8ea4185e93b7"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/tcolorbox/tcbhooks.code.tex"
+resolved_from = "external"
+digest = "blake3:2b11a7aa3209e9fabf06e86285fe7014f753bfab9a5c703e984611be9e27068a"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/tcolorbox/tcbraster.code.tex"
+resolved_from = "external"
+digest = "blake3:e2d21187cb1a63d0f144a3bc8ac4b0c6b355167cf149534b6e6eb43d6b79f539"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/tcolorbox/tcbskins.code.tex"
+resolved_from = "external"
+digest = "blake3:94cfeaef3ee98d6e12c4fe01eadc5bb55747b724374d5f71c885047029893684"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/tcolorbox/tcbskinsjigsaw.code.tex"
+resolved_from = "external"
+digest = "blake3:cade81323bfb4482e249de94d705e6ca0ccee69c329905547586d6356379693c"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/tcolorbox/tcbtheorems.code.tex"
+resolved_from = "external"
+digest = "blake3:d09b2faf413a02d31574dcd209d8266b85aba9796c85a819c0b96a3f65fe915d"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/tcolorbox/tcolorbox.sty"
+resolved_from = "external"
+digest = "blake3:e889eaa8783c2c93e7dd0836e111713c631308f5b439e0bfadb8afbcadc457ee"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/tikzfill/tikzfill-common.sty"
+resolved_from = "external"
+digest = "blake3:43fcd8f7df28a7ba9e78fa9e64f10513910278d4666600b9e52a523e8ee51dcd"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/tikzfill/tikzfill.image.sty"
+resolved_from = "external"
+digest = "blake3:4d2ee88d5bdce7c4d81a72824c512a01611f2d19856b65ade8c2d0cc63337cec"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/tikzfill/tikzlibraryfill.image.code.tex"
+resolved_from = "external"
+digest = "blake3:ef071687d298553c49aca0e36197e6560c0ac4fb39cb738d6705d9ff5a162a19"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/tools/array.sty"
+resolved_from = "external"
+digest = "blake3:7ea4b1e8d1dc95ce746da529531760cd6efa7bec315bb8971561f1b0f561d88e"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/tools/bm.sty"
+resolved_from = "external"
+digest = "blake3:8249222e8fec5c93fe21fde0b52df84d91e87e16a59ea0e097c64892a683e941"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/tools/enumerate.sty"
+resolved_from = "external"
+digest = "blake3:5465d5814eddf8546ec0407d7379ca213fbd6964f09c18ad0af66df5236e529d"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/tools/tabularx.sty"
+resolved_from = "external"
+digest = "blake3:d3e954d27d2eba7248b8abe71ecb3d8f6d32e6b228fd8955f08944fe4f1dd986"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/tools/verbatim.sty"
+resolved_from = "external"
+digest = "blake3:cf2c695869f85c5ea63b7932a479ed2a5eae0ad5f5d3d0fa6b174cea4e26e26a"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/trimspaces/trimspaces.sty"
+resolved_from = "external"
+digest = "blake3:791403a6abc95874b03c1fbb9ec2c1aa6f4cc4aa9219c597bd71271c47b9ca27"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/url/url.sty"
+resolved_from = "external"
+digest = "blake3:90c3e28d697b8d95360e20e60be58f9764bf20c90901a6b25f7e0e9119db5d20"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/wrapfig/wrapfig.sty"
+resolved_from = "external"
+digest = "blake3:b8e45c2b2e269a43a5cd304d8cf3c3e2a5912bad5fe83c2d5b17cca6144d8c05"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/xcolor/xcolor.sty"
+resolved_from = "external"
+digest = "blake3:80a4e6d67e0c89278633e7accca9786ab68e7978afc600d023641084537d6db4"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/zhnumber/zhnumber-utf8.cfg"
+resolved_from = "external"
+digest = "blake3:b8102fbc0e68cbd7711a1ab5c155540e0438dded3c0bdfd88959bbf08d80cbca"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/zhnumber/zhnumber.sty"
+resolved_from = "external"
+digest = "blake3:1b295a0e697985653be5169ea52783dfd99d86643b76d4805a17fea954817f5f"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/xelatex/xecjk/xeCJK-listings.sty"
+resolved_from = "external"
+digest = "blake3:9a87512db81b78d0a918ac398543b2aef5fd7796a36f32f60382ac14e16af6fe"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/xelatex/xecjk/xeCJK.cfg"
+resolved_from = "external"
+digest = "blake3:2b9f42fb13a98349bc92053098788b9368659955307aed5f8ae6db05ab00f8b1"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/xelatex/xecjk/xeCJK.sty"
+resolved_from = "external"
+digest = "blake3:d286271be7b982446eedd59a4be650f0433b8b3e240f9f457b37edfab7ceb916"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/xelatex/xecjk/xeCJKfntef.sty"
+resolved_from = "external"
+digest = "blake3:204748a42484317c17d3f911a03ab9cf17c498ef1291ef87dcfdc2afb535983f"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/web2c/texmf.cnf"
+resolved_from = "external"
+digest = "blake3:fae7f3ca1b20558ff92c2921391c1bf233bef516786ea2a605fc8935f46a5716"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf/tex/common/graphs.sty"
+resolved_from = "omnidoc-libs"
+digest = "blake3:2815fcfbb438abf240cf03210f9e35b32bce13d718d971908542fb69a43ec56c"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf/tex/common/listings-config.sty"
+resolved_from = "omnidoc-libs"
+digest = "blake3:c425a08667b58ee44776f9f25bc66bc6b6debe4428c135a5227c138386895560"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf/tex/ct/ctbook.cls"
+resolved_from = "omnidoc-libs"
+digest = "blake3:46bfa5fc906ab7a2ffc9d4b02b1a802f84776437631e90e9ad5fe4ea1077a3a1"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf/tex/ct/ctbook.sty"
+resolved_from = "omnidoc-libs"
+digest = "blake3:b1c1a45e41a58933e7b9a470cc340c67319eea937f886ac6ecbd977738dd00da"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf/tex/ct/ctcolor.sty"
+resolved_from = "omnidoc-libs"
+digest = "blake3:a4ef67e581cd467df45c9b217cc0b208521b1073fa2c6224a5d36dd901aa8732"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf/tex/ct/ctify.sty"
+resolved_from = "omnidoc-libs"
+digest = "blake3:b7d48ea49c71a8bfcdb5ca8ba37c9316e1043794c8e8fa26452101bb97a0636c"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf/tex/ctex/fontset/ctex-fontset-msword.def"
+resolved_from = "omnidoc-libs"
+digest = "blake3:5537aeea4742f9839ed59081e93801ab99bac410bb6bf3a61823322b218ed8db"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf/tex/listings/lstlangarm.sty"
+resolved_from = "omnidoc-libs"
+digest = "blake3:9c441db7efe07f1b425e1a5789c4958395f9220d339c8908c232eead01802158"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf/tex/utils/helper.sty"
+resolved_from = "omnidoc-libs"
+digest = "blake3:90e82869c89aa08259400d84ee274602f372b37ba91edb00a46a3580b00ee616"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf/tex/utils/utils.sty"
+resolved_from = "omnidoc-libs"
+digest = "blake3:42b23541839ffc767a8d4b240e1b8bebed6d9980f866eb3ad68b54f0c7b65364"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf/web2c/xetex/xelatex.fmt"
+resolved_from = "external"
+digest = "blake3:954c579df46b125f56bd6e51744ef0f50762ee25471734e1ca7f4de9960f83b7"
+
+[[targets.pdf.resources]]
+logical_name = "lua-filter:admonition.lua"
+resolved_from = "omnidoc-libs"
+digest = "blake3:765c00cba5f0f5c69f1e3724c717f3df2b301a1821acd9922c3a12be42b9b3f6"
+
+[[targets.pdf.resources]]
+logical_name = "lua-filter:diagram-generator.lua"
+resolved_from = "omnidoc-libs"
+digest = "blake3:2981ef025a8abb873fa7499cd8a9b9887a30c615bd7d1246f5dc04dc05e1f012"
+
+[[targets.pdf.resources]]
+logical_name = "lua-filter:emoji.lua"
+resolved_from = "omnidoc-libs"
+digest = "blake3:79788bcc772b8eeae1000172ec92f740b75c2dcb73efc500caa7dc9a9c5ecdf2"
+
+[[targets.pdf.resources]]
+logical_name = "lua-filter:fonts-and-alignment.lua"
+resolved_from = "omnidoc-libs"
+digest = "blake3:590809d28ce31cb5b08e8b8e2468a77a65bc89702d3e0af8b9126909077df0d4"
+
+[[targets.pdf.resources]]
+logical_name = "lua-filter:include-code-files.lua"
+resolved_from = "omnidoc-libs"
+digest = "blake3:2050382ecfdb4522a06decd06497463eb72c0c2609bdf109279c4198879d1ecd"
+
+[[targets.pdf.resources]]
+logical_name = "lua-filter:include-files.lua"
+resolved_from = "omnidoc-libs"
+digest = "blake3:d0a0912aee80efe4256305ae75ed5454d680addf103a0faec7e2bf694ba5c1d5"
+
+[[targets.pdf.resources]]
+logical_name = "lua-filter:latex-patch.lua"
+resolved_from = "omnidoc-libs"
+digest = "blake3:32ad0c378a187f7faa453143bd771dd227ab642ef1bf9227311e0a846a0001ca"
+
+[[targets.pdf.resources]]
+logical_name = "lua-filter:ltblr.lua"
+resolved_from = "omnidoc-libs"
+digest = "blake3:fab2baaf913660974b122eff388737892cbc2bde36529ae0c461f31fe35494ed"
+
+[[targets.pdf.resources]]
+logical_name = "omnidoc-libs-checksums"
+resolved_from = "omnidoc-libs"
+digest = "blake3:b68283b13c997e4f55f294b6f064908e9a503dfd04cddbf7ceebecdf995be4f6"
+
+[[targets.pdf.resources]]
+logical_name = "omnidoc-libs-manifest"
+resolved_from = "omnidoc-libs"
+digest = "blake3:e6a5dded07c001d8a77f85e8a3df6e9fdb23f3b87bce0986553ce9b2eef1e4b2"
+
+[[targets.pdf.resources]]
+logical_name = "pandoc-csl-dir"
+resolved_from = "omnidoc-libs"
+digest = "blake3:bfbf015a7b049d7be879610f8faa5b9dc29c2c5f51e3587894bb0da9062750d9"
+
+[[targets.pdf.resources]]
+logical_name = "pandoc-data-dir"
+resolved_from = "omnidoc-libs"
+digest = "blake3:1731efdab4ea06cb6e5e53a22418ea17fa4a43a094de3511fcfb70599c3c42c1"
+
+[[targets.pdf.resources]]
+logical_name = "texmf"
+resolved_from = "omnidoc-libs"
+digest = "blake3:0f235b09fb1ad7979babbcb22e9b47a1cb5e2068405dc38ed46bdb36c340aec8"

@@ -14,7 +14,8 @@
 \BlockDesc{时间复杂度}
 
 时间复杂度（Time Complexity）描述算法执行时间随输入规模增长的趋势。
-我们使用大 O 记号（Big-O notation）来表示时间复杂度，它描述了算法在最坏情况下的渐近行为。
+大 O 记号（Big-O notation）描述渐近上界，本身并不等同于“最坏情况”。
+应明确讨论的是最好、平均、期望、摊还还是最坏情况；若无特别说明，本章优先给出常见实现的最坏情况上界。
 
 常见的时间复杂度：
 
@@ -49,7 +50,7 @@
       \item 例如：冒泡排序、选择排序、插入排序、嵌套循环
     \end{itemize}
 
-  \item \textbf{O(2ⁿ) - 指数时间}
+  \item \textbf{$O(2^n)$ - 指数时间}
     \begin{itemize}
       \item 执行时间随输入规模指数增长
       \item 例如：递归计算斐波那契数列（朴素实现）、穷举搜索
@@ -259,7 +260,7 @@ void list_delete(LinkedList *list, int value) {
 \begin{itemize}
   \item 可以从两个方向遍历
   \item 删除节点时不需要前驱节点
-  \item 支持 O(1) 时间复杂度的前向和后向遍历
+  \item 已知当前节点时，前进一步或后退一步是 O(1)；遍历整个链表仍为 O(n)
 \end{itemize}
 
 \subsubsection{循环链表}
@@ -677,7 +678,7 @@ AVL 树是最早的自平衡二叉搜索树，得名于其发明者 Adelson-Vels
 性质：
 \begin{itemize}
   \item 任意节点的左右子树高度差不超过 1
-  \item 所有操作的时间复杂度为 O(log n)
+  \item 查找、插入和删除的最坏时间复杂度为 O(log n)；完整遍历仍为 O(n)
 \end{itemize}
 
 旋转操作：
@@ -721,7 +722,7 @@ AVL 树是最早的自平衡二叉搜索树，得名于其发明者 Adelson-Vels
 优势：
 \begin{itemize}
   \item 插入和删除操作的平均和最坏情况都是 O(log n)
-  \item 旋转操作比 AVL 树少，性能更优
+  \item 更新时通常比 AVL 树执行更少的旋转，但查找高度可能更大，实际性能取决于工作负载和实现
   \item 实现相对简单
 \end{itemize}
 
@@ -791,7 +792,7 @@ Trie 树（前缀树，Prefix Tree）是一种专门用于字符串检索的树�
   \item 完全二叉树，可以用数组实现
   \item 对于节点 $i$，父节点为 $\lfloor (i-1)/2 \rfloor$，左子节点为 $2i+1$，右子节点为 $2i+2$
   \item 插入和删除的时间复杂度为 O(log n)
-  \item 查找最大值/最小值的时间复杂度为 O(1)
+  \item 最小堆查找最小值、最大堆查找最大值为 O(1)；查找相反的极值通常为 O(n)
 \end{itemize}
 
 应用场景：
@@ -1633,13 +1634,13 @@ int fibonacci_iterative(int n) {
   \item \textbf{大整数乘法}
     \begin{itemize}
       \item 使用 Karatsuba 算法
-      \item 时间复杂度：$O(n^log₂³) ≈ O(n^1.585)$
+      \item 时间复杂度：$O(n^{\log_2 3}) \approx O(n^{1.585})$
     \end{itemize}
 
   \item \textbf{矩阵乘法}
     \begin{itemize}
       \item Strassen 算法
-      \item 时间复杂度：$O(n^log₂⁷) ≈ O(n^2.807)$
+      \item 时间复杂度：$O(n^{\log_2 7}) \approx O(n^{2.807})$
     \end{itemize}
 
   \item \textbf{最近点对问题}
@@ -2004,7 +2005,7 @@ int solve_n_queens(int board[], int row, int n) {
   \item \textbf{Boyer-Moore 算法}
     \begin{itemize}
       \item 从右到左匹配，利用坏字符和好后缀规则
-      \item 平均时间复杂度：O(n/m)，最坏 O(mn)
+      \item 在合适的字符分布下可出现次线性平均比较次数；基本坏字符/好后缀实现的最坏情况可达 O(mn)
       \item 实际应用中非常高效
     \end{itemize}
 
@@ -2181,7 +2182,7 @@ int kmp_search(char *text, char *pattern) {
 \begin{itemize}
   \item \texttt{find}：查找元素所属的集合
   \item \texttt{union}：合并两个集合
-  \item 时间复杂度：接近 O(1)（使用路径压缩和按秩合并）
+  \item 使用路径压缩和按秩/大小合并时，连续操作的摊还复杂度为 $O(\alpha(n))$，其中 $\alpha$ 是增长极慢的反 Ackermann 函数
 \end{itemize}
 
 应用：
