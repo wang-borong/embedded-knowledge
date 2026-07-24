@@ -1,0 +1,234 @@
+\chapter{实时分析与嵌入式语言内存模型}
+\label{chap:realtime-language-memory-model}
+
+实时正确性要求任务在截止期前完成；并发正确性要求编译器、处理器、缓存、DMA 和多个执行上下文对共享状态具有一致且被语言允许的解释。二者不能分开治理：一个存在数据竞争的“快速”任务没有可证明行为，一个使用无界锁等待的“线程安全”任务也没有可证明截止期。
+
+本章使用经典固定优先级和 EDF 模型建立分析方法\cite{liu-layland-1973,joseph-pandya-1986}，并依据 C/C++ 抽象机和语言内存模型讨论实现约束\cite{iso-c-2024,iso-cpp-2024}。公式是设计工具而不是硬件保证；真实系统还必须测量中断、缓存、总线和设备路径。
+
+\section{任务模型}
+
+周期或 sporadic 任务 $\tau_i$ 常用以下参数描述：
+\begin{description}
+  \item[$C_i$] 最坏执行时间，包括被任务自身触发且计入其预算的代码；
+  \item[$T_i$] 周期或最小到达间隔；
+  \item[$D_i$] 相对截止期；
+  \item[$J_i$] release jitter，即事件发生到任务进入就绪态的最大偏差；
+  \item[$B_i$] 因低优先级临界区或不可抢占区域造成的最大阻塞；
+  \item[$R_i$] 最坏响应时间。
+\end{description}
+
+模型必须说明时间由哪个时钟测量，任务是否自挂起，ISR、DMA completion、操作系统服务和共享中断是否计入 $C_i$。把驱动和 IRQ 时间遗漏在“系统开销”中会产生虚假的可调度结论。
+
+\section{利用率与必要条件}
+
+单核任务的总利用率为：
+\begin{equation}
+  U=\sum_{i=1}^{n}\frac{C_i}{T_i}
+\end{equation}
+
+$U>1$ 时单核必然不可调度；$U<1$ 只是必要条件，通常不是固定优先级系统的充分条件。对于独立、可抢占、截止期等于周期且采用 Rate Monotonic 的经典任务集，存在保守充分界：
+\begin{equation}
+  U \le n\left(2^{1/n}-1\right)
+\end{equation}
+
+该界随任务数增大趋近 $\ln 2$。超过该界不代表必然失败，应继续做精确响应时间分析。若存在共享资源、release jitter、非周期服务或 $D_i\ne T_i$，不能直接套用该简化判据。
+
+\section{固定优先级响应时间分析}
+
+对可抢占固定优先级任务，忽略更复杂自挂起时，可用迭代式计算：
+\begin{equation}
+  R_i^{(k+1)}=C_i+B_i+\sum_{j\in hp(i)}
+  \left\lceil\frac{R_i^{(k)}+J_j}{T_j}\right\rceil C_j
+\end{equation}
+
+其中 $hp(i)$ 是优先级高于 $\tau_i$ 的任务集合。初值可以取 $C_i+B_i$，迭代到收敛；若中间结果已超过 $D_i$，该任务在当前假设下不可调度。
+
+例如三个任务参数为 $(C,T,D)=(1,5,5)$、$(2,10,10)$ 和 $(4,20,20)$，按周期越短优先级越高。最低优先级任务的迭代为：
+\begin{align}
+R_3^{(0)} &= 4 \\
+R_3^{(1)} &= 4+\lceil4/5\rceil\cdot1+\lceil4/10\rceil\cdot2=7 \\
+R_3^{(2)} &= 4+\lceil7/5\rceil\cdot1+\lceil7/10\rceil\cdot2=8 \\
+R_3^{(3)} &= 4+\lceil8/5\rceil\cdot1+\lceil8/10\rceil\cdot2=8
+\end{align}
+因此 $R_3=8\le D_3$。加入一个 3\,ms 的低优先级锁阻塞后，必须重新计算，不能从平均 CPU 利用率推断仍然安全。
+
+\section{优先级分配}
+
+当 $D_i=T_i$ 且满足经典假设时，Rate Monotonic 令周期越短优先级越高；当截止期不同但仍满足适用条件时，Deadline Monotonic 令相对截止期越短优先级越高。
+
+工程系统还包括：
+\begin{itemize}
+  \item 硬件中断与线程化中断；
+  \item 看门狗、故障检测和安全输出；
+  \item 通信接收、控制计算与执行器提交；
+  \item 日志、诊断、升级和后台维护。
+\end{itemize}
+
+优先级分配应从端到端截止期和故障反应时间推导。看门狗喂狗线程不应盲目设为最高优先级，否则即使控制任务死锁，它仍可能持续证明“系统健康”。
+
+\section{优先级反转与资源协议}
+
+高优先级任务等待低优先级任务持有的锁时发生优先级反转；若中优先级任务持续抢占锁持有者，阻塞可显著放大。
+
+优先级继承把锁持有者临时提升到最高等待者优先级，能够限制部分反转，但不自动解决嵌套锁顺序、死锁和锁内阻塞 I/O。优先级上限类协议进一步限制任务进入临界区的条件，使阻塞项更易分析。
+
+每个共享资源应记录：使用任务、最大临界区、嵌套关系、是否在 ISR 使用、是否可能 page fault 或访问慢设备。响应时间分析中的 $B_i$ 必须来自这些事实，而不是填零。
+
+\section{EDF 与带宽预留}
+
+Earliest Deadline First 动态选择绝对截止期最早的就绪任务。对独立、可抢占、单核、隐式截止期任务，$U\le1$ 是可调度的重要结论。实际系统存在调度开销、非抢占区和资源共享，仍需预留裕量并采用更完整分析。
+
+Linux \texttt{SCHED\_DEADLINE} 使用 runtime、deadline 和 period 描述任务带宽。runtime 不是“期望平均时间”，而应覆盖任务在一个周期内允许消耗的 CPU；过小会被节流，过大会挤占其他服务。准入通过也不证明设备 IRQ、锁和内存路径满足端到端截止期。
+
+非周期工作应使用有界队列、sporadic server 或带宽服务器限制影响。让诊断请求直接继承最高控制优先级，会把外部输入转换成实时拒绝服务。
+
+\section{端到端链路与抖动}
+
+一个控制事务可能跨越传感器采样、DMA、ISR、任务、跨核消息、网络和执行器。只验证每个任务自身截止期，仍可能因相位和队列造成端到端超时。
+
+链路分析应记录：
+\begin{itemize}
+  \item 事件时间戳所在时钟域和同步误差；
+  \item 每段排队、执行、传输和设备响应上限；
+  \item 数据是否使用最新值、按序消费还是允许丢弃旧样本；
+  \item backpressure 时阻塞、覆盖、降采样或进入安全状态；
+  \item 跨周期的 age 和 freshness，而不只记录处理耗时。
+\end{itemize}
+
+控制系统尤其应区分采样抖动、计算抖动和执行器生效抖动。平均周期稳定不能掩盖偶发双采样间隔或过期控制量。
+
+\section{WCET 与测量边界}
+
+WCET 可以通过静态分析、测量或混合方法获得。现代处理器的缓存、分支预测、乱序、共享总线和动态频率使严格静态界非常困难；单纯测量则只能证明“已执行样本中的最大值”。
+
+测量型方法至少需要：
+\begin{itemize}
+  \item 覆盖输入、状态机路径和循环上界；
+  \item 在最坏合法 CPU/DDR/外设竞争和温度下执行；
+  \item 固定编译、链接、缓存、频率和内存布局；
+  \item 保存最大样本对应的 trace，而非只有直方图；
+  \item 为未覆盖路径、测量误差和平台变化保留裕量。
+\end{itemize}
+
+在 MCU 上，DWT cycle counter、GPIO 脉冲和 trace 可相互校验；在 Linux 上可结合 ftrace、rtla、perf 和硬件计数器。插桩自身会改变缓存和时序，关键结论应使用至少一种低侵入方法复验。
+
+\section{语言抽象机与未定义行为}
+
+C/C++ 编译器只需保持语言抽象机允许观察到的行为。越界、错误生命周期、无符号/有符号混用、严格别名违规、未初始化读取、部分整数溢出和数据竞争可能产生未定义行为，编译器可以据此删除、合并或重排代码。
+
+“汇编看起来正确”不能反向证明源程序定义良好。调试构建可用而优化构建失败时，应首先检查语言规则和同步，而不是永久关闭优化。
+
+硬件寄存器定义还应避免实现相关位域布局。更稳健的方式是使用固定宽度整数、明确 mask/shift、静态断言和芯片厂商头文件，并限制对保留位的读改写。
+
+\section{volatile 的边界}
+
+\texttt{volatile} 表示每次抽象机访问都是可观察副作用，适合 MMIO、被特殊执行环境修改的对象以及少量轮询接口。它不提供：
+\begin{itemize}
+  \item 原子性；
+  \item 多线程 happens-before；
+  \item 跨核 cache 一致性；
+  \item CPU 或设备总线屏障；
+  \item 对复合表达式的事务性。
+\end{itemize}
+
+因此不能用 \texttt{volatile bool ready} 在线程或 hart 之间发布结构体。应使用 release store 与 acquire load，或由 RTOS/内核同步原语建立顺序。
+
+\section{原子操作与 happens-before}
+
+语言原子为对象提供无数据竞争访问，并通过 memory order 建立线程间顺序。典型单向发布为：
+\begin{lstlisting}[language=C,caption={release/acquire 发布不可变配置}]
+static struct config cfg;
+static atomic_bool ready = ATOMIC_VAR_INIT(false);
+
+void producer(void)
+{
+    cfg = load_and_validate_config();
+    atomic_store_explicit(&ready, true, memory_order_release);
+}
+
+bool consumer(struct config *out)
+{
+    if (!atomic_load_explicit(&ready, memory_order_acquire))
+        return false;
+    *out = cfg;
+    return true;
+}
+\end{lstlisting}
+
+release 之前的写入在观察到该值的 acquire 之后可见。\texttt{memory\_order\_relaxed} 只保证该原子对象本身的原子性，适合独立计数等不发布其他状态的场景。
+
+不是所有目标都能无锁实现所有原子宽度。实时路径应检查 \texttt{atomic\_is\_lock\_free()} 或工具链 ABI；库回退可能关中断、调用锁甚至需要运行库支持。
+
+\section{ISR、任务与多核并发}
+
+单核 ISR 与任务并发不等同于普通线程：任务临界区可能通过屏蔽特定中断实现，ISR 则只能调用明确标记为 ISR-safe 的 API。对象的同步策略必须说明参与者是任务、ISR、另一个 hart、DMA 还是设备。
+
+适合单生产者单消费者 ring 的 head/tail 原子，并不自动适合多生产者。无锁算法需要同时证明：
+\begin{itemize}
+  \item 对象生命周期和 ABA 风险；
+  \item 索引回绕与容量不变量；
+  \item cache line 伪共享；
+  \item 目标原子指令和内存顺序；
+  \item 队列满、消费者停止和复位恢复。
+\end{itemize}
+
+在安全关键路径中，一个短且可分析的锁往往优于难以验证的无锁结构。
+
+\section{MMIO、屏障与 DMA}
+
+语言内存模型主要描述程序对象，MMIO 和 DMA 还受处理器架构与平台影响。驱动应使用平台 accessor，例如 Linux 的 \texttt{readl()/writel()} 或 CMSIS/芯片 SDK 约定，而不是把任意地址强制转换后假定顺序成立。
+
+屏障作用不同：
+\begin{description}
+  \item[编译器屏障] 限制编译器移动内存访问，不保证 CPU 或总线完成；
+  \item[CPU 内存屏障] 约束处理器观察顺序，语义随架构和内存属性变化；
+  \item[同步屏障] 还可能等待先前访问或 cache maintenance 完成；
+  \item[设备 API] 同时封装 DMA 地址转换、一致性和所有权要求。
+\end{description}
+
+典型 DMA 状态机是 CPU owns、device owns、completion、CPU owns。所有权交接时才执行必要的 cache clean/invalidate 和屏障，禁止双方同时写同一缓冲区。描述符的 owner 位必须最后发布，设备完成标志必须先观察后读取结果字段。
+
+\section{嵌入式 C++}
+
+C++ 可以通过 RAII、强类型、模板和 \texttt{constexpr} 降低资源泄漏与单位错误，但项目需要明确运行时策略：
+\begin{itemize}
+  \item 启动前全局构造顺序和失败处理；
+  \item 是否启用异常与 RTTI，以及异常表和不可恢复路径成本；
+  \item 动态分配允许的阶段、内存资源和耗尽行为；
+  \item 析构函数是否可能阻塞或在实时上下文执行；
+  \item 标准库实现、线程 ABI 和工具链版本。
+\end{itemize}
+
+“禁用全部 C++ 特性”并非唯一策略。更有效的是按上下文建立 profile：初始化阶段可以使用较丰富设施，硬实时周期路径只允许有界、无分配且可审计的子集。
+
+\section{Rust 与 unsafe 边界}
+
+Rust 的所有权和借用可以消除大量悬空引用与数据竞争，但 MMIO、裸指针、中断、链接脚本和 FFI 仍需要 \texttt{unsafe}。每个 unsafe 模块应写明调用者必须维护的不变量，例如地址有效、独占访问、对齐、DMA 生命周期和中断屏蔽状态。
+
+与 C 交互时应固定 \texttt{repr(C)}、整数宽度、枚举表示、panic 策略和符号 ABI。Rust 的安全引用不能指向会被 DMA 或另一执行域在别名条件下修改的内存，除非通过适合的同步和内部可变性抽象建模。
+
+\section{编码规则与验证组合}
+
+MISRA、CERT 等规则集可以减少高风险语言用法，但不能取代架构分析。推荐组合为：
+\begin{enumerate}
+  \item 编译器最高实用告警并将新增告警视为失败；
+  \item 静态分析覆盖数据流、并发和 API 规则；
+  \item 主机端 ASan/UBSan/TSan 与属性测试；
+  \item 多编译器、多优化等级和 LTO 构建；
+  \item 目标端边界、故障注入和实时 trace；
+  \item 对偏离编码规则的情况记录理由和验证证据。
+\end{enumerate}
+
+诊断构建改变布局和时序，最终必须在发布工具链、优化和链接配置上复验功能与实时性。
+
+\section{联合验收清单}
+
+\begin{itemize}
+  \item 每个实时任务是否具有 $C/T/D/J/B$、执行上下文和资源依赖？
+  \item 优先级和锁协议是否由响应时间分析而非经验数字决定？
+  \item 端到端链路是否验证数据 age、队列和跨时钟域误差？
+  \item 所有共享对象是否明确由语言原子、锁、关中断或消息传递保护？
+  \item \texttt{volatile}、CPU 屏障、MMIO accessor 和 DMA API 是否各自用于正确层次？
+  \item C++ 运行时策略和 Rust unsafe/FFI 不变量是否可审查？
+  \item 最大延迟是否能关联到代码版本、输入、硬件状态和完整 trace？
+\end{itemize}

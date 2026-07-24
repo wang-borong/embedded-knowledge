@@ -1,0 +1,133 @@
+Arm Cortex-M 是面向微控制器的 M-profile 处理器系列。不同内核可能实现 Armv6-M、Armv7-M 或 Armv8-M，指令、异常、安全、DSP、浮点、缓存和调试能力不能仅凭“Cortex-M”名称推断。本节以 Arm 架构和 CMSIS 文档为边界，具体寄存器和勘误仍以目标内核与芯片手册为准\cite{armv8m-architecture,cmsis-core}。
+
+\subsection{执行模型与寄存器}
+
+Cortex-M 使用 Thumb/Thumb-2 指令编码，处理器复位后即进入 Thumb 状态。常见程序员可见状态包括 R0--R12、栈指针 SP、链接寄存器 LR、程序计数器 PC 和程序状态寄存器 xPSR。部分实现增加浮点或 DSP 状态。
+
+SP 具有两个物理栈指针：
+\begin{description}
+  \item[MSP] 复位后使用，异常处理程序始终使用 MSP；
+  \item[PSP] 可由线程模式选择，适合把任务栈与内核/异常栈分离。
+\end{description}
+
+处理器具有线程模式和处理模式。普通程序运行在线程模式；进入任何异常后切换到处理模式。线程模式可以是特权或非特权，处理模式始终是特权。RTOS 通常利用 PSP、PendSV 和 SysTick 实现任务上下文与调度。
+
+\subsection{复位与向量表}
+
+向量表前两个字分别是初始 MSP 和复位处理程序地址，后续条目对应系统异常和外部中断。启动代码至少需要完成：
+\begin{enumerate}
+  \item 建立栈和向量表位置；
+  \item 复制已初始化数据段并清零 BSS；
+  \item 配置必要的时钟、存储等待周期和 FPU 状态；
+  \item 调用 C/C++ 运行库初始化；
+  \item 进入 \texttt{main()}，并为意外返回提供安全处理。
+\end{enumerate}
+
+支持 VTOR 的实现可以重定位向量表。Bootloader 跳转应用时，不应只修改 PC：还要验证镜像、关闭或转移中断源、设置 MSP、更新 VTOR、清理外设状态，并明确时钟和缓存契约。
+
+\subsection{异常进入与返回}
+
+异常被接受时，硬件通常把 R0--R3、R12、LR、PC 和 xPSR 自动压入当前栈，并在 LR 中写入特殊的 EXC\_RETURN 值。异常返回指令根据 EXC\_RETURN 恢复线程/处理模式、MSP/PSP 和可选浮点上下文。
+
+这种硬件栈帧使普通 C 中断函数成为可能，但仍需注意：
+\begin{itemize}
+  \item 栈必须满足架构对齐要求，并为嵌套中断和浮点扩展帧留出最坏空间；
+  \item lazy floating-point stacking 降低普通中断开销，却会使首次使用浮点的路径更长；
+  \item HardFault 发生后应保存原始 SP、EXC\_RETURN、故障状态寄存器和堆栈帧，避免诊断代码覆盖现场；
+  \item 在处理函数中修改堆栈 PC 可以实现受控恢复，但必须验证指令边界和故障可恢复性。
+\end{itemize}
+
+Tail-chaining 允许处理器在一个异常返回后直接进入另一个待处理中断而不重复完整出栈/入栈；late arrival 允许更高优先级异常在进入低优先级异常期间抢占。这些优化会改变测得的单次中断开销，但不改变优先级和共享资源分析要求。
+
+\subsection{NVIC 与优先级}
+
+NVIC 管理外部中断的使能、挂起、活动状态和优先级。芯片实现的优先级位数通常小于寄存器宽度，未实现的低位读回为零。数值越小通常表示优先级越高，不能把人类习惯的“优先级 10 高于 5”直接套用。
+
+优先级分组把有效位划分为抢占优先级和子优先级。子优先级只在多个异常同时等待时决定服务顺序，不能抢占正在执行的同组异常。项目应固定分组，并通过 CMSIS API 编码/解码，而不是在驱动中散布裸位移。
+
+\begin{lstlisting}[language=C,caption={中断优先级配置的边界检查}]
+NVIC_SetPriorityGrouping(PROJECT_PRIORITY_GROUPING);
+
+uint32_t encoded = NVIC_EncodePriority(
+    PROJECT_PRIORITY_GROUPING, preempt_prio, sub_prio);
+NVIC_SetPriority(UART_IRQn, encoded);
+NVIC_ClearPendingIRQ(UART_IRQn);
+NVIC_EnableIRQ(UART_IRQn);
+\end{lstlisting}
+
+启用中断前应先清外设状态和 NVIC pending，防止历史标志立即触发。处理程序应先确认中断来源，再按外设规定清除；写 1 清零、读清零和读取数据寄存器清零具有不同副作用。
+
+\subsection{中断屏蔽与临界区}
+
+常见屏蔽机制包括 PRIMASK、BASEPRI 和 FAULTMASK。PRIMASK 屏蔽大多数可配置异常；BASEPRI 只屏蔽数值不高于阈值的可配置优先级，适合 RTOS 保留最高关键中断；FAULTMASK 的影响更强，通常只用于非常受控的故障路径。
+
+临界区必须保存并恢复进入前状态，不能无条件开中断：
+\begin{lstlisting}[language=C,caption={保存和恢复中断屏蔽状态}]
+uint32_t primask = __get_PRIMASK();
+__disable_irq();
+__DSB();
+__ISB();
+
+update_shared_state();
+
+__set_PRIMASK(primask);
+\end{lstlisting}
+
+关中断时间应作为实时预算测量。若临界区包含轮询、日志、Flash 擦写或不确定总线访问，即使代码行数很少，也可能产生不可接受的长尾延迟。
+
+\subsection{SysTick、PendSV 与 RTOS}
+
+SysTick 提供简单递减定时器，常被用作系统节拍；PendSV 是可软件挂起的异常，通常被设置为最低优先级并执行任务切换；SVC 用于从非特权线程请求内核服务。
+
+典型调度链为：定时器或外设 ISR 只更新有界状态并请求调度，PendSV 保存被切出任务的非自动堆栈寄存器、切换 PSP，再恢复新任务。若启用 FPU、TrustZone 或 MPU，上下文还需要覆盖相应扩展状态。
+
+Tickless 系统不能仅停止 SysTick。软件必须选择低功耗下仍运行的唤醒时钟，处理计数器回绕、睡眠前后竞态、时钟漂移和一次跨越多个定时器截止期的补偿。
+
+\subsection{MPU 与任务隔离}
+
+MPU 使用有限数量的区域描述地址、大小、访问权限、可执行性和内存属性。Armv8-M MPU 与早期版本的区域编码方式不同，RTOS 端口必须匹配目标架构。
+
+一种常见的最小隔离策略是：
+\begin{itemize}
+  \item 内核代码和数据只允许特权访问；
+  \item 每个任务仅访问自己的栈、数据和显式共享缓冲；
+  \item 外设 MMIO 只授予对应驱动或服务；
+  \item 普通 RAM 默认不可执行，代码区默认不可写；
+  \item 栈边界设置 no-access guard region。
+\end{itemize}
+
+MPU 不能约束 DMA 主设备。带 DMA 的系统还需要缓冲区所有权、长度检查和芯片级总线防火墙；否则非特权任务仍可能诱导驱动覆盖受保护内存。
+
+\subsection{TrustZone-M}
+
+Armv8-M Security Extension 把地址和执行状态分为 Secure 与 Non-secure。SAU、实现定义的 attribution unit 和安全外设控制器共同决定资源归属。Non-secure Callable 区域通过安全网关允许受控跨域调用。
+
+安全入口必须像网络协议解析器一样对待非安全参数：复制并验证长度、地址范围、对齐和生命周期，避免在检查后使用期间被非安全世界修改。安全中断、DMA、调试和复位路径也必须纳入边界，不能只保护函数入口。
+
+\subsection{缓存、DMA 与内存属性}
+
+部分高端 Cortex-M 实现指令/数据缓存、TCM 和写缓冲。DMA 与 CPU 是否硬件一致由 SoC 决定。非一致系统的通用顺序是：
+\begin{itemize}
+  \item CPU 到设备：写入缓冲，按 cache line 范围 clean，再用屏障保证维护完成后启动 DMA；
+  \item 设备到 CPU：避免脏 cache line 覆盖 DMA 结果，传输完成后按平台规则 invalidate，再读取数据；
+  \item 双向缓冲：明确每一阶段所有权，禁止 CPU 和 DMA 同时修改同一 cache line。
+\end{itemize}
+
+缓冲区首尾不对齐时，cache maintenance 可能影响同一 cache line 中无关数据。工程上应使用 cache-line 对齐的专用缓冲池，而不是简单扩大维护区间后假设邻接对象不变。
+
+\subsection{故障、调试与追踪}
+
+可配置 Fault 包括 MemManage、BusFault 和 UsageFault，HardFault 可以作为升级入口。调试时至少解析 CFSR、HFSR、MMFAR、BFAR、SHCSR、异常堆栈和当前任务信息。
+
+DWT 可提供周期计数器、比较器和数据观察；ITM/SWO 适合低侵入事件输出；ETM 可记录指令流但需要芯片引脚、trace buffer 和工具支持。量产固件应把精简崩溃证据保存到受控持久区，调试认证策略则必须与设备生命周期一致。
+
+\subsection{架构检查清单}
+
+\begin{itemize}
+  \item 是否根据确切 M-profile 版本和芯片勘误选择指令与系统寄存器？
+  \item Bootloader 到应用的 MSP、VTOR、中断、时钟、缓存和外设状态契约是否明确？
+  \item 优先级位数、分组、RTOS 可调用 API 阈值和关键 IRQ 是否一致？
+  \item 最坏嵌套中断、浮点上下文和故障处理所需栈空间是否测量？
+  \item MPU/TrustZone 边界是否同时覆盖 DMA、调试和复位路径？
+  \item Fault handler 是否保存原始现场并具有可离线解析的版本信息？
+\end{itemize}

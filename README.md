@@ -12,6 +12,7 @@
 | --- | --- |
 | 处理器体系结构 | Armv8-A、AArch64、RISC-V、异常、中断、缓存、MMU、内存序、多核一致性、安全与调试 |
 | 实时固件 | MCU 启动、裸机事件模型、中断与 DMA、实时调度、FreeRTOS 内核对象与低功耗 |
+| 实时分析与语言 | 响应时间分析、EDF、WCET、C/C++ 内存模型、Rust unsafe、原子、MMIO 与 DMA |
 | 系统软件 | Boot ROM 至 PID 1 启动链、Linux 内核与用户空间、BSP、标准子系统驱动、编译链接与程序装载 |
 | 用户空间服务 | 进程边界、Unix Socket、D-Bus、事件循环、服务管理、权限、容器与健康管理 |
 | 实时与异构 | FreeRTOS、PREEMPT_RT、CPU/IRQ 隔离、remoteproc、RPMsg、共享内存与跨核 ABI |
@@ -31,6 +32,7 @@
 | 电路与器件 | 电路基础、半导体器件、运算放大器、集成电路、FPGA、常见外设协议 |
 | 硬件工程 | 电源树与时序、时钟复位、DDR、接口保护、模拟信号链、PCB、EMC 与制造输出 |
 | 制造与 DFT | 测试点、ICT、飞针、Boundary Scan、量产固件、校准、身份写入与追溯 |
+| 认证与质量 | EMC、安规、环境可靠性、EVT/DVT/PVT、GR&R、SPC、RMA 与 FRACAS |
 | 功率与电机 | MOSFET、Gate Driver、PWM、电流采样、六步换相、FOC、保护、热与 EMC |
 | 系统工程 | 需求、架构视图、接口契约、资源预算、ADR、变更影响与完成定义 |
 | 学习与参考 | MCU、Linux BSP、复杂 SoC 和硬件制造学习路径，工程模板、评审清单与统一术语约定 |
