@@ -33,7 +33,7 @@
 | 制造与 DFT | 测试点、ICT、飞针、Boundary Scan、量产固件、校准、身份写入与追溯 |
 | 功率与电机 | MOSFET、Gate Driver、PWM、电流采样、六步换相、FOC、保护、热与 EMC |
 | 系统工程 | 需求、架构视图、接口契约、资源预算、ADR、变更影响与完成定义 |
-| 学习与参考 | MCU、Linux BSP、复杂 SoC 和硬件制造学习路径，以及全书统一术语约定 |
+| 学习与参考 | MCU、Linux BSP、复杂 SoC 和硬件制造学习路径，工程模板、评审清单与统一术语约定 |
 | 工程实践 | 多平台 FreeRTOS、RISC-V Rust 内核、嵌入式 Linux 专用设备与多工位工装板 |
 | 工程工具 | Linux 命令行、调试与性能分析、OrCAD、Altium Designer、KiCad 与 SPICE |
 
