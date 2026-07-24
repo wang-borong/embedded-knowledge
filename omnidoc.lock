@@ -1,12 +1,12 @@
 lock_version = 4
-omnidoc_version = "1.5.1"
+omnidoc_version = "1.6.1"
 
 [library]
-version = "1.2.0"
-revision = "8f5d2341bead537c3cc00d99b7e8035f1105ae62"
-manifest_digest = "blake3:e6a5dded07c001d8a77f85e8a3df6e9fdb23f3b87bce0986553ce9b2eef1e4b2"
-checksums_digest = "blake3:b68283b13c997e4f55f294b6f064908e9a503dfd04cddbf7ceebecdf995be4f6"
-digest = "blake3:4de898db2d0b866bfc1acaa8ed2623648a28bfaf2f88c1ed8bc355b36cc71345"
+version = "1.6.1"
+revision = "v1.6.1"
+manifest_digest = "blake3:620a566824d243a5a5afa03c502c2b39973a55d2a5efbcf1eca33a68e4c7aa04"
+checksums_digest = "blake3:4ef91f2b8c890c06d0970ce6472142502b5051d247c4a3d520ae0584c564024b"
+digest = "blake3:6651c2431dd661dbee1927c2d5c298924d3852452561cb0797f4e98bcddbebc1"
 
 [toolchain]
 latex_engine = "XeTeX 3.141592653-2.6-0.999998 (TeX Live 2026/Arch Linux)"
@@ -15,7 +15,7 @@ pandoc_crossref = "pandoc-crossref v0.3.24 git commit UNKNOWN (UNKNOWN) built wi
 tex_kpathsea = "kpathsea version 6.4.2"
 
 [targets.pdf]
-input_digest = "blake3:4fab4e031cd0aed5b613b32fdc8e23ae4ae42325583d42ddb1f5f6abf1473928"
+input_digest = "blake3:bb7178632bb38e4a1609ee66467fd6a911d36b9260de9e9e86c775b9f30bc99d"
 dependencies = [
     ".omnidoc.toml",
     "figure/16KB-granule-tbl.png",
@@ -102,18 +102,29 @@ dependencies = [
     "figures/aarch32-spsr.pdf",
     "figures/aarch64-spsr.pdf",
     "main.tex",
+    "tex/case-study/dvrapp-mcu.tex",
+    "tex/case-study/programmer-extboard.tex",
+    "tex/case-study/rustos-riscv.tex",
+    "tex/case-study/t113-programmer.tex",
     "tex/embedded-book.sty",
+    "tex/hardware/board-system-design.tex",
     "tex/hardware/circuit-basis.tex",
     "tex/hardware/fpga.tex",
     "tex/hardware/ic.tex",
+    "tex/hardware/manufacturing-dft.tex",
+    "tex/hardware/motor-power-control.tex",
     "tex/hardware/opamp.tex",
     "tex/hardware/pcb.tex",
     "tex/hardware/peripheral-protocols.tex",
     "tex/hardware/semiconductor.tex",
+    "tex/part-case-study.tex",
     "tex/part-hardware.tex",
+    "tex/part-reference.tex",
     "tex/part-software.tex",
     "tex/part-tool.tex",
     "tex/preface.tex",
+    "tex/reference/learning-paths.tex",
+    "tex/reference/terminology.tex",
     "tex/software/armv8.tex",
     "tex/software/armv8/a64-isa.tex",
     "tex/software/armv8/abi.tex",
@@ -133,11 +144,33 @@ dependencies = [
     "tex/software/armv8/regs.tex",
     "tex/software/armv8/security.tex",
     "tex/software/bootloader.tex",
+    "tex/software/compiler-linker-binary.tex",
+    "tex/software/debug-reliability.tex",
     "tex/software/ds-algo.tex",
+    "tex/software/embedded-network-time.tex",
+    "tex/software/functional-safety.tex",
+    "tex/software/heterogeneous-multicore.tex",
+    "tex/software/linux-boot-chain.tex",
+    "tex/software/linux-bsp.tex",
+    "tex/software/linux-userspace-services.tex",
+    "tex/software/low-power-system.tex",
+    "tex/software/mcu-freertos.tex",
     "tex/software/micro-architecture.tex",
+    "tex/software/multimedia-edge-architecture.tex",
+    "tex/software/observability-fleet.tex",
     "tex/software/os-linux.tex",
     "tex/software/programming.tex",
+    "tex/software/realtime-linux.tex",
     "tex/software/risc-v.tex",
+    "tex/software/sampling-control-dsp.tex",
+    "tex/software/security-lifecycle.tex",
+    "tex/software/storage-reliability.tex",
+    "tex/software/system-build-update.tex",
+    "tex/software/system-engineering-method.tex",
+    "tex/software/test-automation-hil.tex",
+    "tex/software/trusted-execution-identity.tex",
+    "tex/software/virtualization-isolation.tex",
+    "tex/software/wireless-iot.tex",
     "tex/tool/linux.tex",
     "tex/tool/pcb.tex",
 ]
@@ -596,6 +629,11 @@ digest = "blake3:c0738d8b4dbf5667fb54f4c354dc7c8eded708167fb82a775966f78efc1d7e7
 logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/frontendlayer/tikz/libraries/tikzlibraryfpu.code.tex"
 resolved_from = "external"
 digest = "blake3:1d3c6320a2454db6c33a195665a3a1f6e3eaa743d06a754ebb801e0f7dd9a71c"
+
+[[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/frontendlayer/tikz/libraries/tikzlibrarypositioning.code.tex"
+resolved_from = "external"
+digest = "blake3:0cc9da16b187e5c5d732c03a9798c5db119fa0a9d05925d6edbd10ed41f28421"
 
 [[targets.pdf.resources]]
 logical_name = "latex-fls-input:texmf-dist/tex/generic/pgf/frontendlayer/tikz/libraries/tikzlibraryshadows.code.tex"
@@ -1228,6 +1266,11 @@ resolved_from = "external"
 digest = "blake3:f6fa13dbeb646cf556e98b89d2fcf29a3e3fe91ddd0a3338238dd0c450db6c8b"
 
 [[targets.pdf.resources]]
+logical_name = "latex-fls-input:texmf-dist/tex/latex/listings/lstlang2.sty"
+resolved_from = "external"
+digest = "blake3:4907988905286a7e307dbac3aa17490cb3f8f8d2d890ef6351dba8cc65ddb539"
+
+[[targets.pdf.resources]]
 logical_name = "latex-fls-input:texmf-dist/tex/latex/listings/lstmisc.sty"
 resolved_from = "external"
 digest = "blake3:9abd492894eec356afedf30772ced1c4ce6bfd6653df9c3a9c0cb03313c948eb"
@@ -1575,12 +1618,12 @@ digest = "blake3:954c579df46b125f56bd6e51744ef0f50762ee25471734e1ca7f4de9960f83b
 [[targets.pdf.resources]]
 logical_name = "lua-filter:admonition.lua"
 resolved_from = "omnidoc-libs"
-digest = "blake3:765c00cba5f0f5c69f1e3724c717f3df2b301a1821acd9922c3a12be42b9b3f6"
+digest = "blake3:d6d09e9d03eb2f8290497cbda3b9e07ee4d6aee038cf0dce9d8aece9fbea4a84"
 
 [[targets.pdf.resources]]
 logical_name = "lua-filter:diagram-generator.lua"
 resolved_from = "omnidoc-libs"
-digest = "blake3:2981ef025a8abb873fa7499cd8a9b9887a30c615bd7d1246f5dc04dc05e1f012"
+digest = "blake3:e013d6e2e77d45f43cbb1e882467c63085b76d9c81f35590888198ebfc94f183"
 
 [[targets.pdf.resources]]
 logical_name = "lua-filter:emoji.lua"
@@ -1608,19 +1651,29 @@ resolved_from = "omnidoc-libs"
 digest = "blake3:32ad0c378a187f7faa453143bd771dd227ab642ef1bf9227311e0a846a0001ca"
 
 [[targets.pdf.resources]]
-logical_name = "lua-filter:ltblr.lua"
+logical_name = "omnidoc-latex-header:pandoc/headers/emoji.tex"
 resolved_from = "omnidoc-libs"
-digest = "blake3:fab2baaf913660974b122eff388737892cbc2bde36529ae0c461f31fe35494ed"
+digest = "blake3:181bf5f6d8bb6227096f6c97d4b3d900af09a93b8a8614816d1f9b91e9ee3f06"
+
+[[targets.pdf.resources]]
+logical_name = "omnidoc-latex-header:pandoc/headers/semantic-blocks.tex"
+resolved_from = "omnidoc-libs"
+digest = "blake3:7ee34c9321c5d245f4c92835fb8c332c53012a9f7d36cd06c15f4b6d0b97ebd9"
 
 [[targets.pdf.resources]]
 logical_name = "omnidoc-libs-checksums"
 resolved_from = "omnidoc-libs"
-digest = "blake3:b68283b13c997e4f55f294b6f064908e9a503dfd04cddbf7ceebecdf995be4f6"
+digest = "blake3:4ef91f2b8c890c06d0970ce6472142502b5051d247c4a3d520ae0584c564024b"
 
 [[targets.pdf.resources]]
 logical_name = "omnidoc-libs-manifest"
 resolved_from = "omnidoc-libs"
-digest = "blake3:e6a5dded07c001d8a77f85e8a3df6e9fdb23f3b87bce0986553ce9b2eef1e4b2"
+digest = "blake3:620a566824d243a5a5afa03c502c2b39973a55d2a5efbcf1eca33a68e4c7aa04"
+
+[[targets.pdf.resources]]
+logical_name = "omnidoc-libs-release"
+resolved_from = "omnidoc-libs"
+digest = "blake3:00691f97cb00539e9f6b0862db04b69b3c402c22210cf8e3a1d0ab93c5fb6590"
 
 [[targets.pdf.resources]]
 logical_name = "pandoc-csl-dir"
@@ -1630,9 +1683,9 @@ digest = "blake3:bfbf015a7b049d7be879610f8faa5b9dc29c2c5f51e3587894bb0da9062750d
 [[targets.pdf.resources]]
 logical_name = "pandoc-data-dir"
 resolved_from = "omnidoc-libs"
-digest = "blake3:1731efdab4ea06cb6e5e53a22418ea17fa4a43a094de3511fcfb70599c3c42c1"
+digest = "blake3:6a26d38af663e964913669943a3491744c8bfcf577f66a88f9ada5be28d94802"
 
 [[targets.pdf.resources]]
 logical_name = "texmf"
 resolved_from = "omnidoc-libs"
-digest = "blake3:0f235b09fb1ad7979babbcb22e9b47a1cb5e2068405dc38ed46bdb36c340aec8"
+digest = "blake3:aea41144b82e1f3695a9234fc36897ff97cc0d74a1d7fc2755cabb44742d91a8"

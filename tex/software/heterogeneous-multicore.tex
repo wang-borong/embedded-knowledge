@@ -1,0 +1,179 @@
+\chapter{异构多核与 Linux/FreeRTOS 协同}
+\label{chap:heterogeneous-multicore}
+
+现代嵌入式 SoC 常把运行 Linux 的应用处理器与一个或多个实时核、DSP、NPU 或安全岛集成在同一芯片中。异构系统的目标不是简单地“多放一个核”，而是把复杂应用、确定性控制、低功耗常驻和故障隔离分配到最合适的执行域。
+
+\section{任务划分原则}
+
+Linux 适合网络、文件系统、图形界面、复杂协议和动态应用；FreeRTOS 或裸机核适合微秒级控制、持续采样、精确时序和主核休眠期间的常驻任务。划分时应基于截止期、故障影响、内存需求、驱动归属和升级边界，而不是仅按代码语言或团队分工切割。
+
+以下功能通常不宜跨核拆成高频细粒度调用：闭环控制的每个计算步骤、单次寄存器读写和需要共享大量可变状态的算法。跨核接口应尽量是批量、异步、可超时的消息。
+
+\section{启动与生命周期}
+
+常见启动模型有：
+\begin{itemize}
+  \item Bootloader 同时加载 Linux 与实时核固件；
+  \item Linux 通过 remoteproc 加载、启动和停止远端核；
+  \item 安全固件拥有远端核生命周期，Linux 只能连接通信通道；
+  \item 实时核先启动并维持安全输出，Linux 随后接管高级功能。
+\end{itemize}
+
+Linux remoteproc 框架负责固件加载、资源声明、启动停止和崩溃报告；RPMsg/OpenAMP 在共享内存 virtio ring 之上提供消息通道\cite{openamp-doc,linux-remoteproc}。资源表通常描述 vring、trace buffer 和设备地址，必须与链接脚本、设备树保留内存和 IOMMU 配置一致。
+
+\begin{center}
+\begin{tikzpicture}[node distance=7mm]
+  \tikzset{box/.style={draw=bookline,fill=bookpaper,rounded corners=1mm,
+    minimum width=38mm,minimum height=10mm,align=center,font=\small}}
+  \node[box] (linux) {Linux\\remoteproc/RPMsg};
+  \node[box,right=of linux] (shared) {共享内存\\vring＋buffer pool};
+  \node[box,right=of shared] (rtos) {FreeRTOS\\OpenAMP endpoint};
+  \node[box,below=of shared] (hw) {mailbox/IPI＋硬件信号量};
+  \draw[<->,bookteal] (linux)--(shared);
+  \draw[<->,bookteal] (shared)--(rtos);
+  \draw[<->,bookteal] (linux)--(hw);
+  \draw[<->,bookteal] (rtos)--(hw);
+\end{tikzpicture}
+\end{center}
+
+远端核停止并不等于共享资源已经安全释放。主核必须先阻止新请求，等待在途 DMA 和消息结束，再撤销设备、时钟、内存和中断资源。远端核崩溃后也不能盲目重启，否则可能重复执行一次不可幂等的控制命令。
+
+\section{共享内存与缓存一致性}
+
+共享内存区域必须回答四个问题：双方看到的地址、缓存属性、所有权转换和内存顺序。如果两侧不具备硬件缓存一致性，应在发布描述符前清理数据缓存，在消费前失效缓存，并确保描述符与数据操作顺序正确。
+
+即使硬件一致，编译器和 CPU 仍可能重排普通访问。无锁 ring 需要 release/acquire 语义：生产者先写数据，再以 release 发布写指针；消费者以 acquire 读取写指针后才能访问数据。
+
+\begin{lstlisting}[language=C,caption={共享 ring 的发布与消费语义（伪代码）}]
+void ring_publish(struct ring *r, const struct message *m)
+{
+    unsigned int head = atomic_load_explicit(&r->head, memory_order_relaxed);
+    r->slot[head % RING_SIZE] = *m;
+    platform_cache_clean(&r->slot[head % RING_SIZE], sizeof(*m));
+    atomic_store_explicit(&r->head, head + 1, memory_order_release);
+    platform_notify_peer();
+}
+
+bool ring_consume(struct ring *r, struct message *m)
+{
+    unsigned int head = atomic_load_explicit(&r->head, memory_order_acquire);
+    if (r->tail == head)
+        return false;
+    platform_cache_invalidate(&r->slot[r->tail % RING_SIZE], sizeof(*m));
+    *m = r->slot[r->tail++ % RING_SIZE];
+    return true;
+}
+\end{lstlisting}
+
+缓存维护函数必须按 cache line 对齐并覆盖完整范围。把共享区设为不可缓存可以简化初期 bring-up，但会显著降低吞吐量，也不能消除对内存屏障的需要。
+
+\section{跨核协议 ABI}
+
+跨核消息是独立固件之间的二进制 ABI，应使用固定宽度字段、显式字节序、版本、长度和事务标识。禁止直接发送 C 指针、编译器相关位域、未初始化 padding 或包含宿主尺寸类型的结构。
+
+\begin{lstlisting}[language=C,caption={可演进的跨核消息头}]
+struct ipc_header {
+    uint16_t abi_version;
+    uint16_t message_type;
+    uint32_t total_length;
+    uint32_t transaction_id;
+    uint32_t flags;
+    uint32_t payload_crc;
+};
+
+_Static_assert(sizeof(struct ipc_header) == 20, "IPC ABI drift");
+\end{lstlisting}
+
+请求应具有超时、取消和重复响应处理。对可能重试的命令，应定义幂等键或事务号；对事件流，应定义丢包、乱序、背压和消费者重启后的重新同步策略。
+
+\section{资源所有权}
+
+同一 UART、I2C、GPIO bank 或 DMA channel 不应被 Linux 和实时核同时驱动。所有权可以静态分配，也可以通过受控状态机迁移，但迁移必须覆盖 pinctrl、时钟、复位、IRQ、DMA 和外设内部状态。
+
+设备树中的 \texttt{reserved-memory} 防止 Linux 页分配器使用远端固件、vring 和共享 buffer；IOMMU 或总线防火墙进一步限制各执行域可访问的地址。硬件信号量只能解决互斥，不能自动解决缓存、超时和崩溃后的锁恢复。
+
+\section{时间同步与时间戳}
+
+双方独立的 tick 计数不能直接比较。需要关联事件时，应选择公共硬件计数器，或通过周期同步估计偏移与漂移。时间同步消息应同时记录发送、接收和处理时刻，避免把通信延迟误认为时钟偏移。
+
+控制闭环最好完全位于实时核；Linux 下发目标值、约束和配置，实时核返回带硬件时间戳的批量采样与状态。这样 Linux 调度抖动不会进入最关键的控制路径。
+
+\section{故障检测与恢复}
+
+跨核健康管理至少包括心跳、请求超时、远端 panic trace、看门狗和启动次数。恢复策略应按故障影响区分：重建 endpoint、重启远端核、复位共享外设、重启 Linux 或进入整机安全状态。
+
+远端核更新必须与 Linux 驱动和 IPC ABI 兼容。若两个固件不能独立回滚，应作为一个原子更新集合签名和部署；若允许独立升级，则必须提供能力协商和至少一个兼容窗口。
+
+\section{Linux/FreeRTOS 协同实现骨架}
+
+一个最小可运行链路包括四项：Device Tree 保留共享内存并声明 remoteproc；远端 ELF 携带 resource table；FreeRTOS 建立 OpenAMP endpoint；Linux RPMsg 驱动或用户空间 rpmsg char 发送消息。
+
+远端资源表声明两个 vring 和 trace buffer，地址既可以由 Linux 动态分配，也可以固定到双方约定的 carveout：
+
+\begin{lstlisting}[language=C,caption={远端固件 resource table 结构（简化）}]
+struct remote_resource_table {
+    struct resource_table base;
+    uint32_t offsets[2];
+    struct fw_rsc_vdev rpmsg_vdev;
+    struct fw_rsc_vdev_vring vring0;
+    struct fw_rsc_vdev_vring vring1;
+    struct fw_rsc_trace trace;
+};
+
+__attribute__((section(".resource_table")))
+const struct remote_resource_table resources = {
+    .base = { .ver = 1, .num = 2 },
+    .offsets = {
+        offsetof(struct remote_resource_table, rpmsg_vdev),
+        offsetof(struct remote_resource_table, trace),
+    },
+    .rpmsg_vdev = { .type = RSC_VDEV, .id = VIRTIO_ID_RPMSG,
+                    .num_of_vrings = 2 },
+    .vring0 = { .da = FW_RSC_ADDR_ANY, .align = 0x1000, .num = 256 },
+    .vring1 = { .da = FW_RSC_ADDR_ANY, .align = 0x1000, .num = 256 },
+    .trace = { .type = RSC_TRACE, .da = TRACE_BUFFER_DA,
+               .len = TRACE_BUFFER_SIZE, .name = "rtos-trace" },
+};
+\end{lstlisting}
+
+FreeRTOS 初始化平台 mailbox、共享内存和 libmetal 后创建 RPMsg endpoint。回调只验证消息并投递到任务队列，不在 OpenAMP 回调上下文执行长事务：
+
+\begin{lstlisting}[language=C,caption={FreeRTOS 端 RPMsg 接收边界}]
+static int endpoint_rx(struct rpmsg_endpoint *ept, void *data,
+                       size_t len, uint32_t src, void *priv)
+{
+    struct ipc_message msg;
+
+    if (len < sizeof(struct ipc_header) || len > sizeof(msg))
+        return RPMSG_SUCCESS;
+    memcpy(&msg, data, len);
+    if (!ipc_validate(&msg, len))
+        return RPMSG_SUCCESS;
+    if (xQueueSend(ipc_queue, &msg, 0) != pdPASS)
+        atomic_fetch_add(&ipc_dropped, 1);
+    return RPMSG_SUCCESS;
+}
+\end{lstlisting}
+
+Linux 启动远端核后，应等待 endpoint 出现并执行版本握手，再开放业务设备：
+
+\begin{lstlisting}[language=bash,caption={Linux 侧启动与握手检查（示意）}]
+echo realtime-fw.elf > /sys/class/remoteproc/remoteproc0/firmware
+echo start > /sys/class/remoteproc/remoteproc0/state
+wait-for-device /dev/rpmsg_ctrl0 --timeout 5
+ipc-selftest --endpoint control --require-abi 3
+\end{lstlisting}
+
+测试必须覆盖 Linux 先启动、实时核先启动、endpoint 重建、队列满、消息 CRC 错误、远端 panic、Linux 重启和两侧版本不匹配。共享外设在远端恢复前应保持安全状态，不能仅凭 endpoint 再次出现就恢复输出。
+
+\section{验证清单}
+
+\begin{itemize}
+  \item 冷启动、远端晚启动、重复启动和停止是否都具有确定结果？
+  \item 共享内存在一致和非一致平台上的 cache 操作是否经过压力验证？
+  \item 消息队列满、远端无响应、重复响应和主核重启是否能够恢复？
+  \item 外设、DMA、IRQ 和时钟是否始终只有一个明确所有者？
+  \item 两侧版本不匹配时是否拒绝危险操作并输出可诊断原因？
+  \item Linux suspend/resume 与远端常驻任务之间是否有明确契约？
+  \item 远端核崩溃时，执行器是否进入系统危害分析定义的状态？
+\end{itemize}

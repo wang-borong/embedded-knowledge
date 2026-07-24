@@ -1,0 +1,93 @@
+\chapter{可信执行、设备身份与证明}
+\label{chap:trusted-execution-identity}
+
+可信启动只能证明系统加载了经过授权的软件，不能自动保护运行时密钥、证明设备当前状态或隔离高价值操作。完整信任体系还需要硬件唯一根、受保护执行环境、密钥派生、设备证明和生命周期管理。
+
+\section{信任根与身份层次}
+
+设备身份不应等同于可修改的序列号或 MAC 地址。根身份通常来自不可变密钥、PUF、eFuse/OTP、安全元件或在受控生产阶段注入的设备密钥。
+
+直接长期使用硬件根密钥会扩大泄漏影响。更合理的层次是：根密钥只参与派生，按用途生成启动验证、存储加密、设备认证和会话密钥。派生上下文应绑定设备、用途、算法版本和生命周期状态。
+
+\begin{lstlisting}[language=C,caption={用途隔离的密钥派生上下文（示意）}]
+struct key_context {
+    uint32_t schema_version;
+    uint32_t purpose;
+    uint8_t  device_id[16];
+    uint8_t  firmware_measurement[32];
+    uint8_t  salt[32];
+};
+
+derived_key = hkdf(root_secret, context, sizeof(context));
+\end{lstlisting}
+
+同一个派生密钥不能同时用于 TLS、磁盘加密和更新签名验证。密钥用途分离可以限制单一协议缺陷的影响范围。
+
+\section{Arm TrustZone 与 OP-TEE}
+
+Arm TrustZone 把系统划分为安全与非安全状态，安全监控器负责世界切换；OP-TEE 等可信执行环境在 Secure World 中运行受信任应用，并由 Linux 客户端请求服务\cite{optee-doc}。
+
+TEE 适合保存小型密钥、执行签名、验证受保护计数器和隔离设备身份操作，不适合把整个复杂业务搬入安全世界。可信计算基越大，漏洞面、审查和更新成本越高。
+
+共享内存参数来自非可信世界，可信应用必须重新验证长度、指针、命令和状态。Secure World 访问 DMA 设备时还需要考虑总线主设备是否能绕过 CPU 世界隔离。
+
+\section{RISC-V 隔离基础}
+
+RISC-V 可以使用 PMP 限制较低特权级对物理地址的访问，并通过 M-mode 固件建立 S-mode 边界。PMP entry 数量、对齐和锁定行为由具体实现决定，不能假定所有 RISC-V SoC 具有相同安全能力。
+
+可信执行方案还需要安全启动、可信固件、隔离中断、DMA 防火墙和安全存储。只有 PMP 而没有外设访问控制时，恶意 DMA 主设备仍可能破坏受保护内存。
+
+\section{TPM、安全元件与 RPMB}
+
+TPM 提供受保护密钥、PCR、密封和证明；安全元件适合存储设备私钥并执行密码操作；eMMC RPMB 提供认证读写与单调写计数。它们解决的层次不同，不应混为一种“安全芯片”。
+
+高频、大容量数据不应直接写入 RPMB。常见做法是在 RPMB 保存小型根元数据、版本计数或数据分区密钥，再由普通存储保存经过认证加密的大数据。
+
+\section{Measured Boot}
+
+Verified Boot 决定“是否允许启动”，Measured Boot 记录“实际启动了什么”。每一级对下一级镜像和关键配置计算 measurement，并扩展到受保护寄存器或证明日志。
+
+measurement 必须覆盖实际改变行为的内容，例如 Bootloader 配置、DTB、内核命令行、initramfs 和安全策略。只度量内核镜像无法表示完整启动状态。
+
+\section{远程证明}
+
+远程证明把设备身份、measurement、随机 challenge 和签名组合，使验证方判断设备是否处于可接受状态。证明不能只返回固件版本字符串，因为普通软件可以伪造该字符串。
+
+\begin{lstlisting}[language=C,caption={远程证明响应的逻辑字段}]
+struct attestation_evidence {
+    uint8_t  device_identity[32];
+    uint8_t  boot_measurement[32];
+    uint8_t  runtime_measurement[32];
+    uint8_t  challenge[32];
+    uint64_t security_version;
+    uint8_t  signature[64];
+};
+\end{lstlisting}
+
+验证端还需要 endorsement、允许的 measurement 集合、证书链、吊销和时效策略。证明成功只代表观测状态满足策略，不等于设备所有应用均无漏洞。
+
+\section{生产注入与生命周期状态}
+
+设备生命周期可划分为芯片制造、板级生产、产品装配、部署、维修和报废。每个阶段允许的调试、启动密钥和配置权限不同。
+
+生产注入应使用受控工位、短期授权和可审计记录。私钥最好在设备内部生成，只导出公钥或证书请求；确需外部注入时，应使用安全通道并避免主机磁盘和日志保留明文。
+
+从开发状态切换到量产锁定通常不可逆，必须在执行前验证安全启动、恢复镜像、设备证书和维修路径。锁定调试口却没有可用恢复路径，会把普通软件故障变成整机报废。
+
+\section{密钥轮换、吊销与报废}
+
+根信任必须预留轮换机制。更新验证可以保留多个公钥槽位、签名授权链和安全版本计数；设备证书应支持续期和吊销。轮换流程必须在旧密钥仍有效时完成，避免设备因时间或网络故障永久失联。
+
+设备报废需要撤销云端身份、清除用户数据和可删除密钥，并记录不可删除硬件身份的状态。恢复出厂设置和安全报废是不同操作。
+
+\section{验证清单}
+
+\begin{itemize}
+  \item 根身份是否来自不可由普通软件修改的信任源？
+  \item 各用途密钥是否独立派生并具有明确生命周期？
+  \item TEE 接口是否把所有共享内存视为不可信输入？
+  \item CPU、DMA、调试器和外设是否处于一致隔离边界？
+  \item measured boot 是否覆盖 DTB、命令行和 initramfs？
+  \item 远程证明是否包含 challenge、防重放和可验证 endorsement？
+  \item 量产锁定、维修、密钥轮换、吊销和报废是否完成演练？
+\end{itemize}

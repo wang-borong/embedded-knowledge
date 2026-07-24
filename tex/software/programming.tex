@@ -940,114 +940,10 @@ typedef struct {
 #define GPIOB ((GPIO_TypeDef *)GPIOB_BASE)
 \end{lstlisting}
 
-\subsection{MCU 与 RTOS}
+\subsection{MCU 与实时系统}
 
-微控制器（MCU）通常资源有限，实时操作系统（RTOS）提供了任务调度、同步和通信机制。
-
-\subsubsection{MCU 编程特点}
-
-\BlockDesc{MCU 编程}
-
-MCU 编程的特点：
-\begin{itemize}
-  \item 资源受限：有限的 RAM 和 Flash
-  \item 低功耗：需要优化功耗
-  \item 实时性：需要快速响应
-  \item 单线程：通常只有一个 CPU 核心
-\end{itemize}
-
-\subsubsection{RTOS 基础}
-
-\BlockDesc{实时操作系统}
-
-RTOS 提供的基本功能：
-\begin{itemize}
-  \item 任务调度：多任务并发执行
-  \item 同步机制：信号量、互斥锁、消息队列
-  \item 时间管理：延时、定时器
-  \item 内存管理：动态内存分配
-\end{itemize}
-
-\subsubsection{FreeRTOS 示例}
-
-FreeRTOS 是流行的开源 RTOS：
-
-\begin{lstlisting}[language=C]
-#include "FreeRTOS.h"
-#include "task.h"
-#include "queue.h"
-#include "semphr.h"
-
-// 任务函数
-void vTask1(void *pvParameters)
-{
-    for (;;) {
-        // 任务代码
-        vTaskDelay(pdMS_TO_TICKS(1000)); // 延时 1 秒
-    }
-}
-
-void vTask2(void *pvParameters)
-{
-    for (;;) {
-        // 任务代码
-        vTaskDelay(pdMS_TO_TICKS(500)); // 延时 500ms
-    }
-}
-
-// 创建任务
-int main(void)
-{
-    // 硬件初始化
-    // ...
-
-    // 创建任务
-    xTaskCreate(vTask1, "Task1", configMINIMAL_STACK_SIZE,
-                NULL, 1, NULL);
-    xTaskCreate(vTask2, "Task2", configMINIMAL_STACK_SIZE,
-                NULL, 1, NULL);
-
-    // 启动调度器
-    vTaskStartScheduler();
-
-    // 不会执行到这里
-    return 0;
-}
-\end{lstlisting}
-
-\subsubsection{任务同步}
-
-使用信号量和队列进行任务同步：
-
-\begin{lstlisting}[language=C]
-// 创建信号量
-SemaphoreHandle_t xSemaphore = xSemaphoreCreateBinary();
-
-// 创建队列
-QueueHandle_t xQueue = xQueueCreate(10, sizeof(int));
-
-// 任务 1：发送数据
-void vSenderTask(void *pvParameters)
-{
-    int value = 0;
-    for (;;) {
-        xQueueSend(xQueue, &value, portMAX_DELAY);
-        value++;
-        vTaskDelay(pdMS_TO_TICKS(1000));
-    }
-}
-
-// 任务 2：接收数据
-void vReceiverTask(void *pvParameters)
-{
-    int received;
-    for (;;) {
-        if (xQueueReceive(xQueue, &received, portMAX_DELAY)) {
-            // 处理接收到的数据
-        }
-    }
-}
-\end{lstlisting}
+MCU 启动、裸机事件模型、中断与 DMA、实时调度以及 FreeRTOS 内核对象之间具有紧密的系统联系，
+已在第~\ref{chap:mcu-freertos}~章中独立讲述。本节的寄存器访问、位操作和内存映射方法是该章驱动层实现的基础。
 
 \section{软件架构思想}
 
@@ -1369,6 +1265,107 @@ if (addr == MAP_FAILED) {
 munmap(addr, file_size);
 close(fd);
 \end{lstlisting}
+
+\section{C/C++ 并发与内存模型}
+
+C/C++ 并发正确性由语言内存模型、处理器内存顺序和操作系统同步共同决定。普通变量上的并发读写若没有 happens-before 关系，会形成 data race，并产生未定义行为；\texttt{volatile} 不能修复该问题。
+
+\subsection{原子性与顺序}
+
+原子操作保证对象访问不可被撕裂，并通过 memory order 建立顺序。最常用的发布/获取模式是生产者完成对象初始化后以 release 发布指针或标志，消费者以 acquire 观察后再访问对象：
+
+\begin{lstlisting}[language=C,caption={release/acquire 发布不可变对象}]
+static struct config startup_config;
+_Atomic(struct config *) active;
+
+void publish_startup_config(void)
+{
+    fill_and_validate(&startup_config);
+    atomic_store_explicit(&active, &startup_config, memory_order_release);
+}
+
+const struct config *read_config(void)
+{
+    return atomic_load_explicit(&active, memory_order_acquire);
+}
+\end{lstlisting}
+
+该示例中的对象发布后保持不可变，生命周期覆盖所有读取者。若需要运行时替换配置，还必须增加引用计数、RCU 或其他安全回收协议。
+
+acquire 只有在读取到 release sequence 发布的值时才建立同步。把所有操作改成 relaxed 不会自动保持对象初始化顺序；把所有操作改成 sequentially consistent 虽较易推理，也不能修复对象生命周期和协议逻辑错误。
+
+\subsection{ISR 与任务}
+
+中断不是 ISO C 定义的线程，但编译器仍会优化共享对象。裸机或 RTOS 应使用端口提供的临界区、原子 API 和屏障，并确认目标原子宽度。禁止中断只能保护当前 CPU，无法阻止 DMA 或其他核访问。
+
+单个原子标志适合发布状态，不适合传递每次事件。若 ISR 可能连续产生多个样本，应使用计数器、SPSC ring 或 RTOS 队列。
+
+\subsection{SPSC 环形缓冲}
+
+单生产者单消费者 ring 可以用独立 head/tail 和 release/acquire 实现：
+
+\begin{lstlisting}[language=C,caption={有界 SPSC ring 的核心顺序（简化）}]
+bool ring_push(struct ring *r, item_t item)
+{
+    size_t head = atomic_load_explicit(&r->head, memory_order_relaxed);
+    size_t next = (head + 1U) % RING_CAPACITY;
+    if (next == atomic_load_explicit(&r->tail, memory_order_acquire))
+        return false;
+    r->items[head] = item;
+    atomic_store_explicit(&r->head, next, memory_order_release);
+    return true;
+}
+
+bool ring_pop(struct ring *r, item_t *item)
+{
+    size_t tail = atomic_load_explicit(&r->tail, memory_order_relaxed);
+    if (tail == atomic_load_explicit(&r->head, memory_order_acquire))
+        return false;
+    *item = r->items[tail];
+    atomic_store_explicit(&r->tail,
+        (tail + 1U) % RING_CAPACITY, memory_order_release);
+    return true;
+}
+\end{lstlisting}
+
+该算法只适用于一个生产者和一个消费者。增加第二个生产者会破坏 head 所有权，不能仅把变量声明为 atomic 后继续使用。
+
+\subsection{锁与条件变量}
+
+互斥量保护复合不变量，条件变量用于等待谓词。等待必须放在循环中，因为可能发生伪唤醒，且条件在重新获得锁之前可能再次改变：
+
+\begin{lstlisting}[language=C++]
+std::unique_lock lock(mutex);
+condition.wait(lock, [&] { return !queue.empty() || stopping; });
+if (stopping && queue.empty())
+    return;
+auto item = std::move(queue.front());
+queue.pop();
+\end{lstlisting}
+
+通知本身不保存事件，真正状态是受锁保护的谓词。先等待再无条件清零一个共享标志，容易丢失并发到达的事件。
+
+\subsection{对象生命周期}
+
+无锁算法最困难的部分通常不是原子更新，而是确保其他线程不再持有旧指针。reference count、hazard pointer、epoch reclamation 和 RCU 是不同的生命周期方案。
+
+compare-exchange 还可能遇到 ABA：值从 A 变为 B 又回到 A，地址相同但对象已经不是原对象。可使用版本标签、不可复用节点或安全回收机制解决。
+
+\subsection{设备内存与 DMA}
+
+C/C++ 原子顺序只定义普通内存的线程可见性。MMIO 应使用平台设备访问 API，DMA ownership 应使用 DMA API 和设备屏障。\texttt{atomic\_thread\_fence()} 不能替代 cache clean/invalidate，也不能保证外设已经完成 posted write。
+
+\subsection{性能与伪共享}
+
+不同线程频繁修改位于同一 cache line 的独立变量会产生 false sharing。高频队列的 head、tail 和统计计数可按 cache line 分离，但对齐应依据实际平台并测量收益。
+
+无锁不等于无等待，也不一定比互斥更快。比较方案时应测量争用、最坏延迟、公平性、功耗和代码可证明性。
+
+\subsection{并发验证}
+
+主机测试可以使用 ThreadSanitizer 发现部分 data race，模型检查和压力调度有助于覆盖罕见交错。目标系统还应注入中断、超时、取消和对象销毁并发。
+
+并发接口的文档必须说明调用上下文、可否阻塞、所有权、锁顺序和关闭协议。没有关闭协议的后台线程、timer 和 DMA 回调，最终容易产生释放后使用。
 
 \section{Rust 编程}
 

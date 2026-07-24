@@ -1007,6 +1007,81 @@ T_{co,min} + T_{logic,min} + T_{routing,min}
     \end{itemize}
 \end{enumerate}
 
+\section{RTL 验证与签核}
+
+综合成功只说明 RTL 可以映射到器件资源，不证明功能、时序和跨时钟行为正确。
+FPGA 工程应建立从静态检查、仿真、形式验证到实现后签核的分层验证流程，并为每一级定义可重复的通过条件。
+
+\subsection{Testbench 与自动判定}
+
+testbench 应生成时钟、复位、输入事务和错误场景，并由参考模型或断言自动判定结果。
+仅观察波形适合早期调试，不适合作为回归测试的最终判据。
+
+验证计划至少覆盖：
+\begin{itemize}
+  \item 正常数据路径和所有配置模式；
+  \item 边界值、最小/最大包长、计数器回绕和 FIFO 满空；
+  \item 复位期间、复位释放边界和运行中软复位；
+  \item 背压、超时、校验错误和协议违规输入；
+  \item 多个独立事件同时发生时的仲裁与优先级；
+  \item 参数、位宽和不同目标器件配置。
+\end{itemize}
+
+self-checking testbench 应在失败时给出事务、时间和期望值，避免只能依靠人工比较大段波形。
+
+\subsection{断言与覆盖率}
+
+SystemVerilog Assertion 可以表达协议不变量和时序关系，例如请求最终必须得到响应、FIFO 不能下溢、握手稳定期间数据不能变化。
+断言应同时用于仿真和支持的形式工具，并区分设计假设与必须保证的属性。
+
+代码覆盖率反映哪些语句、分支和状态被执行，功能覆盖率反映验证计划中的场景是否发生。
+高覆盖率不能证明设计正确，但未解释的覆盖空洞通常意味着激励不足、死代码或不可达状态。
+
+\subsection{Lint 与综合前检查}
+
+Lint 用于发现未驱动信号、位宽截断、隐式锁存器、组合环、不可综合结构和可疑编码。
+所有告警都应分类处理：修复、以明确依据豁免，或调整规则。长期保留大量未审查告警会掩盖新问题。
+
+\subsection{时钟域与复位域交叉}
+
+单比特电平跨时钟域通常使用多级同步器；脉冲、计数、多比特数据和高吞吐流需要握手、Gray 编码计数器或异步 FIFO。
+逐位同步多比特总线不能保证各位在同一周期一致。
+
+CDC 工具应检查同步器结构、数据重汇聚、异步 FIFO 指针和时钟关系。
+复位域交叉（Reset Domain Crossing, RDC）还要检查不同复位源或释放时刻造成的亚稳态和非法组合状态。
+
+\subsection{形式验证}
+
+形式验证在约束的状态空间内穷举输入，适合证明仲裁器、FIFO、协议控制器、状态机和安全属性。
+环境假设过强会使证明失去意义；证明不收敛也不等同于存在缺陷。
+建议从局部模块和明确不变量开始，并保留可重放的反例波形。
+
+\subsection{门级与实现后验证}
+
+大多数功能回归应在 RTL 级完成。实现后需要检查静态时序、时钟网络、未约束路径、I/O 约束、DRC 和功耗估计。
+只有在初始化、原语、跨层时序或特定器件行为无法由 RTL 模型充分表达时，才有针对性地执行门级或时序仿真。
+
+时序例外是设计意图的一部分。每条 false path、multicycle path 和 asynchronous clock group 都必须具有结构依据和评审记录，不能用于隐藏普通时序违规。
+
+\subsection{板级验证与在线观测}
+
+片上逻辑分析仪会消耗资源并改变布局布线，因此调试构建和发布构建都应完成时序检查。
+调试探针应提前规划，覆盖状态机、握手、FIFO 水位、错误计数器和时间戳，而不是故障发生后再大规模修改逻辑。
+
+板级验收应把 RTL 版本、约束、工具版本、器件速度等级和 bitstream 摘要关联起来，并覆盖温度、电压、不同链路伙伴和长时间压力场景。
+
+\subsection{验证签核清单}
+
+\begin{itemize}
+  \item RTL lint、CDC 和 RDC 是否无未解释严重告警？
+  \item 验证计划中的功能点、边界和错误路径是否都有自动判定测试？
+  \item 关键协议不变量是否由断言或形式属性覆盖？
+  \item 所有时钟是否已定义，是否存在未约束端点或无依据时序例外？
+  \item 建立、保持、脉宽、恢复和移除检查是否在所有目标角满足？
+  \item bitstream 是否能够追溯到源码、约束、IP 和工具版本？
+  \item 发布构建是否完成真实板卡的接口、压力、温度和复位测试？
+\end{itemize}
+
 \section{FPGA 设计技巧}
 
 \subsection{同步设计}
@@ -1271,6 +1346,75 @@ HLS 从高级语言（C/C++）生成 RTL：
   \item 矩阵运算
   \item 低延迟推理
 \end{itemize}
+
+\section{FPGA 与 SoC 软件协同}
+
+SoC FPGA 或外接 FPGA 的工程边界不仅是 RTL。处理器与可编程逻辑之间还需要寄存器 ABI、AXI 拓扑、DMA、中断、缓存一致性、Device Tree、Linux 驱动和 bitstream 生命周期共同配合。
+
+\subsection{控制面与数据面}
+
+低速配置通常通过 AXI4-Lite 寄存器完成，高吞吐数据通过 AXI4、AXI-Stream 和 DMA 传输。控制寄存器不适合逐样本搬运，大数据通路也不应依赖频繁 MMIO 轮询。
+
+寄存器表应定义 offset、宽度、复位值、访问属性、位语义和版本。软硬件共享的寄存器 ABI 应具有只读 ID/version/capability，并为保留位规定写零、读忽略语义。
+
+\begin{lstlisting}[language=C,caption={FPGA 寄存器 ABI 的软件表示}]
+#define REG_ID          0x0000
+#define REG_VERSION     0x0004
+#define REG_CONTROL     0x0010
+#define REG_STATUS      0x0014
+#define REG_IRQ_STATUS  0x0020
+#define REG_IRQ_ENABLE  0x0024
+
+#define CONTROL_START   BIT(0)
+#define CONTROL_ABORT   BIT(1)
+#define STATUS_BUSY     BIT(0)
+#define STATUS_ERROR    BIT(1)
+\end{lstlisting}
+
+多字寄存器和计数器需要定义原子读取方式，例如 latch、先低后高重试或 snapshot 命令，不能假定 CPU 两次 MMIO 之间硬件状态不变化。
+
+\subsection{AXI 与地址空间}
+
+AXI interconnect 需要处理地址译码、burst、outstanding transaction、QoS 和错误响应。RTL slave 对非法地址和不支持 burst 应返回明确错误，不能永久拉低 ready 导致总线死锁。
+
+处理器、FPGA master 和 DMA 看到的地址可能不同。设计文档应区分 CPU physical、bus address、IOVA 和 FPGA local address，并由 DMA API/IOMMU 建立映射。
+
+\subsection{DMA 数据通路}
+
+高吞吐采集通常使用 descriptor ring 和固定缓冲池。FPGA 只消费已经发布的 descriptor，完成后写回长度、状态和硬件时间戳，再触发中断。
+
+在非一致系统中，CPU 发布 descriptor 前必须清理 cache，读取完成数据前必须失效 cache。descriptor 的 ownership bit 应最后写入，并配合内存屏障，避免 FPGA 看到半初始化条目。
+
+\begin{lstlisting}[language=C,caption={DMA descriptor 所有权交接（伪代码）}]
+desc->dma_addr = dma_addr;
+desc->capacity = buffer_size;
+desc->status = 0;
+dma_wmb();
+WRITE_ONCE(desc->owned_by_hw, 1);
+writel(next_tail, regs + DMA_TAIL);
+\end{lstlisting}
+
+完成 IRQ 应采用 NAPI、tasklet/threaded IRQ 或 workqueue 批量回收，具体选择取决于吞吐和可睡眠操作。中断合并能降低 CPU 开销，但会增加延迟。
+
+\subsection{Device Tree 与驱动选择}
+
+固定平台设备通过 Device Tree 描述 MMIO、IRQ、clock、reset、DMA channel 和 IOMMU。用户空间直接访问可以使用 UIO，但只适合受控、非安全关键、无需复杂 DMA/PM 的设备；需要稳定 ABI、共享、IOMMU 或标准框架时，应实现内核驱动。
+
+可表达为 IIO、V4L2、DRM、network 或 DMAengine 的逻辑应优先接入标准子系统。VFIO 适合把完整设备安全地交给受控用户空间或虚拟机，但依赖正确 IOMMU 隔离。
+
+\subsection{Bitstream 生命周期}
+
+bitstream 与驱动之间存在版本契约。加载前应验证器件、区域、接口版本和签名；加载后读取 ID/version/capability，再允许用户接口工作。驱动不能假定任意 bitstream 都提供相同寄存器。
+
+全量或局部重配置前必须阻止新请求、停止 DMA、屏蔽中断、等待在途事务并把输出置于安全状态。重配置失败时应保持 isolation，不得让浮动接口驱动外部硬件。
+
+bitstream、Device Tree overlay、固件和用户应用若无法独立兼容，应作为一个原子发布集合。A/B 更新还需保证旧槽能够加载与旧驱动匹配的逻辑版本。
+
+\subsection{调试与验证}
+
+ILA/SignalTap 观察 FPGA 内部握手，ftrace/perf 观察 Linux IRQ 和调度，逻辑分析仪或协议分析仪观察外部接口。三类 trace 应通过 transaction ID 或硬件时间戳关联。
+
+验收至少覆盖：非法寄存器访问、AXI error、DMA 越界、descriptor ring wrap、缓存一致性、IRQ 丢失/风暴、bitstream 不匹配、重配置中断电，以及 Linux 解绑和系统休眠。
 
 \section{FPGA 厂商和工具}
 

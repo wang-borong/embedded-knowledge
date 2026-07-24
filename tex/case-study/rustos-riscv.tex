@@ -1,0 +1,204 @@
+\chapter{RISC-V Rust 操作系统实践}
+\label{chap:case-rustos}
+
+实现一个可在 QEMU 上启动的小型内核，能够把 RISC-V 特权架构、OpenSBI、Device Tree、Sv39、Trap、调度、进程、文件系统和自动化测试串成一条可执行路径。
+以下实现采用 QEMU \texttt{virt} 机器、稳定版 Rust 和 \texttt{riscv64imac-unknown-none-elf} 裸机目标，但讨论重点是可迁移的操作系统机制及其边界。
+架构行为分别以 RISC-V 特权规范、SBI 规范和 QEMU 平台模型为边界\cite{riscvpri,riscv-sbi,qemu-riscv}。
+
+\section{系统边界}
+
+小型教学内核不必追求 Linux ABI 或源码兼容，但应覆盖通用操作系统最关键的机制：
+\begin{itemize}
+  \item OpenSBI 引导与动态 FDT 发现；
+  \item S-mode Trap、时钟中断和 PLIC 外部中断；
+  \item Sv39 高半区内核、物理页分配和内核堆；
+  \item U-mode 地址空间、系统调用和 ELF 加载；
+  \item 内核线程、抢占调度、进程、fork/exec/wait；
+  \item 文件描述符、pipe、poll、initrd 和 VirtIO block；
+  \item 教学磁盘文件系统及确定性 QEMU 冒烟测试。
+\end{itemize}
+
+初始实现可固定单 hart 运行，从而在引入每 hart 栈、跨核中断和 SMP 锁之前先验证单核生命周期不变量。
+
+\section{启动链}
+
+QEMU 加载 OpenSBI，OpenSBI 完成 M-mode 初始化后进入 S-mode 内核，并按照 RISC-V 启动约定传递：
+\begin{itemize}
+  \item \texttt{a0}：启动 hart ID；
+  \item \texttt{a1}：Flattened Device Tree 的物理地址。
+\end{itemize}
+
+汇编入口先保存参数、建立临时页表、打开 Sv39，再跳转到高半区别名，最后进入 Rust 初始化函数。
+
+入口代码应只承担无法由高级语言可靠表达的工作，并尽快把平台参数交给 Rust：
+
+\begin{lstlisting}[language={[RISC-V]Assembler},caption={RISC-V S-mode 入口骨架（伪代码）}]
+.section .text.entry
+.globl _start
+_start:
+    mv      s0, a0              # hart id
+    mv      s1, a1              # FDT physical address
+    la      sp, boot_stack_top
+    call    build_boot_page_table
+    csrw    satp, a0
+    sfence.vma
+    la      t0, high_half_entry
+    jr      t0
+
+high_half_entry:
+    mv      a0, s0
+    mv      a1, s1
+    tail    rust_main
+\end{lstlisting}
+
+\begin{center}
+\begin{tikzpicture}[node distance=7mm]
+  \tikzset{flow/.style={draw=bookline,fill=bookpaper,rounded corners=1mm,
+    minimum width=31mm,minimum height=9mm,align=center,font=\small}}
+  \node[flow] (qemu) {QEMU virt};
+  \node[flow,right=of qemu] (sbi) {OpenSBI\\M-mode};
+  \node[flow,right=of sbi] (entry) {\texttt{entry.S}\\临时页表};
+  \node[flow,right=of entry] (rust) {Rust 高半区\\S-mode 内核};
+  \draw[->,bookteal] (qemu)--(sbi);
+  \draw[->,bookteal] (sbi)--node[above,font=\scriptsize]{hart/FDT}(entry);
+  \draw[->,bookteal] (entry)--(rust);
+\end{tikzpicture}
+\end{center}
+
+启动页表同时保留必要的物理别名和高半区别名。进入最终页表后，低地址执行映射被移除，防止内核意外依赖启动阶段身份映射。
+
+\section{从 Device Tree 发现平台}
+
+内核不把 QEMU 的内存容量、UART 地址和时钟频率全部写死，而是按照 Devicetree Specification 解析 OpenSBI 提供的 FDT\cite{devicetree-spec}，提取：
+\begin{itemize}
+  \item \texttt{memory/reg}；
+  \item 16550 UART 的地址、寄存器步长、时钟和 IRQ；
+  \item PLIC 地址与中断源数量；
+  \item \texttt{timebase-frequency}。
+\end{itemize}
+
+解析器在堆可用前工作，因此使用固定深度节点栈并直接扫描 structure block。
+地址解析遵守父节点的 \texttt{\#address-cells} 和 \texttt{\#size-cells}，避免只适配单一 DTB 编码。
+
+这一设计使 \texttt{make test MEMORY=...} 能够改变 QEMU 内存容量并验证内核动态发现结果。
+
+\section{早期控制台与中断控制台}
+
+早期日志首先使用 SBI console，完成 UART 发现后切换到 MMIO 16550。
+发送路径保留轮询模式，保证 panic 或调度器不可用时仍能输出；接收路径通过 PLIC 中断写入无锁环形缓冲，并唤醒阻塞读取者。
+
+这是典型的双路径控制台设计：可靠的同步紧急输出与高效的中断驱动正常输入并存。
+
+\section{Trap 与双栈边界}
+
+内核把 \texttt{stvec} 指向统一 Trap 入口。S-mode Trap 继续使用当前内核栈；进入 U-mode 前把内核栈写入 \texttt{sscratch}，用户 Trap 的第一条交换指令把不可信用户栈切换为受控内核栈。
+
+Trap frame 保存通用寄存器、用户栈、\texttt{sstatus} 和 \texttt{sepc}，Rust handler 根据 \texttt{scause} 分派时钟中断、外部中断、用户系统调用和异常。
+用户 page fault 被转换为进程退出信息，内核自身异常则输出诊断并停止系统。
+
+分派层必须同时区分“中断或异常”与“来自用户态或内核态”，因为相同 fault 在两种特权级下具有完全不同的恢复策略：
+
+\begin{lstlisting}[language=Rust,caption={Trap 分派的策略边界（简化代码）}]
+fn handle_trap(frame: &mut TrapFrame, cause: Cause) {
+    match cause {
+        Cause::TimerInterrupt => scheduler::tick(frame),
+        Cause::ExternalInterrupt => plic::dispatch(),
+        Cause::UserEnvCall => {
+            frame.sepc += 4;
+            frame.a0 = syscall::dispatch(frame);
+        }
+        Cause::UserPageFault(addr) => process::fault_or_exit(frame, addr),
+        other if frame.from_user() => process::terminate(other),
+        other => panic!("kernel trap: {:?}", other),
+    }
+}
+\end{lstlisting}
+
+这一边界展示了操作系统中汇编与安全 Rust 的职责划分：汇编处理 ABI、CSR 和栈切换，Rust 处理类型化状态与策略。
+
+\section{Sv39 内存管理}
+
+内核建立高半区映射，并按 4~KiB 页面分别保护 text、rodata 和 data，实现写与执行权限互斥（W\textasciicircum X）。
+物理内存直映射和 MMIO 均不可执行，启动栈下方保留未映射 guard page。
+
+物理页分配器扫描 FDT 内存区，排除 OpenSBI、内核、DTB 和其他保留范围，再使用位图管理可用页。
+内核堆从连续物理页建立，分配器维护可合并空闲区间。
+
+用户进程拥有独立 Sv39 根页表。\texttt{copy\_from\_user} 和 \texttt{copy\_to\_user} 不直接解引用用户指针，而是逐页验证映射、权限和跨页范围。
+进程退出或 exec 后，页表与物理页引用必须按生命周期完整回收。
+
+映射接口宜把权限组合约束集中在一个位置，防止调用者无意创建可写且可执行的页面：
+
+\begin{lstlisting}[language=Rust,caption={页映射权限的集中校验（简化代码）}]
+fn map_page(va: VirtAddr, pa: PhysAddr, perm: Perm) -> Result<()> {
+    if perm.contains(Perm::WRITE | Perm::EXECUTE) {
+        return Err(Error::WritableExecutablePage);
+    }
+    if perm.contains(Perm::USER) && kernel_range().contains(va) {
+        return Err(Error::UserKernelAlias);
+    }
+    page_table::insert(va, pa, perm | Perm::VALID)
+}
+\end{lstlisting}
+
+\section{调度与进程模型}
+
+内核线程具有独立内核栈和上下文，round-robin 调度器支持协作式 \texttt{yield} 与时钟抢占。
+任务状态包括 Ready、Running、Sleeping 和 Blocked；无 Ready 任务时，独立 idle task 执行 \texttt{wfi}。
+
+进程对象维护 PID、父子关系、用户地址空间和 Zombie 状态，调度任务通过 PID 关联进程。
+wait/reap 把“执行线程已经结束”与“父进程已经回收资源”区分开。
+
+fork 使用 copy-on-write：父子共享只读用户页，首次写 fault 时分配私有页。
+exec 保留 PID 和文件描述符语义，但以新 ELF 替换地址空间、入口和用户栈。
+
+\section{ELF 与用户运行时}
+
+ELF loader 校验文件类别、目标机器、Program Header 和段范围，再按照 \texttt{PT\_LOAD} 权限建立用户映射。
+初始用户栈包含 \texttt{argc/argv/envp/auxv}，使 \texttt{no\_std} Rust 用户运行时能够获得页大小和入口等信息。
+
+系统调用层只接收定长标量或经过安全拷贝验证的用户缓冲区。
+路径和 argv 具有数量、单项长度和总长度上限，避免用户态通过超长或跨非法页参数破坏内核。
+
+\section{文件描述符与阻塞 I/O}
+
+每进程文件描述符表引用共享 open-file description，因此 \texttt{dup} 和 fork 后的描述符共享 offset。
+pipe 使用等待队列实现阻塞读写和 EOF；\texttt{poll} 统一查询 console、initrd 文件和 pipe 的 readiness。
+
+这种设计体现 Unix I/O 抽象的核心价值：不同对象共享 open/read/write/close/poll 语义，而设备特有状态留在对象实现内部。
+
+\section{VirtIO 与教学文件系统}
+
+VirtIO MMIO block 驱动通过 PLIC IRQ 和等待队列完成阻塞扇区 I/O。
+小型写回 buffer cache 提供命中、淘汰和 flush 统计，并串行化设备事务。
+
+教学文件系统包含 superblock、block bitmap、固定 inode、目录和 direct block。
+创建操作按照 data、bitmap、inode、隐藏目录项、根目录大小的顺序提交，把目录可见性作为提交点。
+当前模型不实现日志，而是允许掉电后存在不可见孤儿资源，并在挂载扫描时回收。
+
+这是一种适合教学的崩溃一致性模型：明确声明故障假设和恢复上限，而不是声称所有元数据更新都具有事务性。
+
+\section{确定性 QEMU 测试}
+
+自动化测试应构建锁定版本的内核、initrd 和确定性 VirtIO 磁盘，通过脚本向 UART 输入命令，并检查启动、内存、Trap、调度、进程、文件系统和 shell 的语义标记。
+
+测试同时设置超时、验证 QEMU 退出状态，并要求关键测试重复通过，能够发现死锁、启动回归和资源未回收。
+这种串口黑盒测试不替代单元测试，但非常适合验证从固件入口到用户程序的完整系统链路。
+
+\begin{lstlisting}[language=bash,caption={QEMU 串口冒烟测试的最小闭环（伪代码）}]
+timeout 20s qemu-system-riscv64 \
+  -machine virt -bios default -nographic \
+  -kernel kernel.bin -drive file=disk.img,format=raw,if=none,id=d0 \
+  -device virtio-blk-device,drive=d0 > serial.log
+
+rg -q 'BOOT_OK' serial.log
+rg -q 'USER_TESTS_OK' serial.log
+rg -q 'FS_RECOVERY_OK' serial.log
+\end{lstlisting}
+
+\section{教学组织方法}
+
+教学型内核应把每个新增机制配套为独立文档，并维持明确的前置依赖：启动和中断先于内存，内存先于用户态，用户态先于进程与文件系统。
+每一步都具有可观测输出和自动测试，因此读者能够判断自己实现的是“概念相似”还是“行为已经通过验证”。
+
+后续可扩展主题包括多 hart、ASID、浮点/向量上下文、信号、网络和更完整的日志文件系统，但这些功能应在当前单核生命周期和并发不变量稳定之后引入。

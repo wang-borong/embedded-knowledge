@@ -1,0 +1,105 @@
+\chapter{嵌入式 Linux 启动链工程}
+\label{chap:linux-boot-chain}
+
+嵌入式 Linux 的启动不是若干二进制文件依次运行，而是一系列逐级收紧的执行契约。每一级都必须明确输入镜像、执行地址、内存所有权、硬件状态、失败处理和传递给下一级的信息。
+
+\section{启动阶段与责任边界}
+
+典型启动链包括 Boot ROM、第一阶段加载器、可信固件或 OpenSBI、U-Boot、Linux 内核和 PID~1：
+
+\begin{center}
+\begin{tikzpicture}[node distance=5mm]
+  \tikzset{boot/.style={draw=bookline,fill=bookpaper,rounded corners=1mm,
+    minimum width=25mm,minimum height=9mm,align=center,font=\small}}
+  \node[boot] (rom) {Boot ROM};
+  \node[boot,right=of rom] (spl) {SPL/FSBL};
+  \node[boot,right=of spl] (fw) {TF-A/OpenSBI};
+  \node[boot,right=of fw] (uboot) {U-Boot};
+  \node[boot,right=of uboot] (linux) {Linux/PID~1};
+  \draw[->,bookteal] (rom)--(spl);
+  \draw[->,bookteal] (spl)--(fw);
+  \draw[->,bookteal] (fw)--(uboot);
+  \draw[->,bookteal] (uboot)--(linux);
+\end{tikzpicture}
+\end{center}
+
+Boot ROM 负责选择启动介质和验证最初级镜像；SPL 在片上 SRAM 中完成最小初始化和 DRAM bring-up；可信固件建立异常级、安全状态和电源管理接口；U-Boot 选择启动目标、加载镜像并构造内核入口条件；内核接管 MMU、中断、设备和用户空间。
+
+阶段越早，可使用的内存、日志和恢复能力越有限。因此早期代码应保持小而确定，不应在 DRAM 尚未验证前引入复杂解析器和动态分配。
+
+\section{DRAM 初始化与内存交接}
+
+DRAM 初始化依赖时钟、供电、拓扑、训练参数和温度条件。训练成功只说明控制器得到一组可用参数，还应通过地址线、数据线、不同 burst、边界和压力模式验证完整容量。
+
+各阶段必须共享一致的内存地图：固件保留区、可信内存、远端核固件、DMA pool、CMA、ramoops 和 framebuffer 都不应被普通页分配器覆盖。Device Tree 的 \texttt{reserved-memory}、固件内存描述和链接脚本应由同一设计表生成或交叉检查。
+
+\section{镜像封装与 FIT}
+
+FIT Image 可以把内核、DTB、initramfs、配置和签名组织为一个可描述的镜像集合。配置节点应绑定适用硬件、载荷摘要和签名，Bootloader 只选择经过验证的组合，而不是分别加载互不关联的文件。
+
+\begin{lstlisting}[language=dts,caption={FIT 配置关系示意}]
+/ {
+    images {
+        kernel-1 { data = /incbin/("Image"); type = "kernel"; };
+        fdt-a    { data = /incbin/("board-a.dtb"); type = "flat_dt"; };
+        ramdisk  { data = /incbin/("recovery.cpio.gz"); type = "ramdisk"; };
+    };
+    configurations {
+        default = "conf-a";
+        conf-a {
+            kernel = "kernel-1";
+            fdt = "fdt-a";
+            ramdisk = "ramdisk";
+        };
+    };
+};
+\end{lstlisting}
+
+签名覆盖范围必须包括实际影响启动行为的配置节点。只验证内核数据而允许攻击者替换 DTB、命令行或 initramfs，仍可能改变内存权限、调试接口和根文件系统。
+
+\section{内核入口契约}
+
+进入内核前，Bootloader 应满足目标架构的 boot protocol：CPU 模式、MMU/cache 状态、DTB 地址和对齐、保留寄存器、次级 CPU 状态以及镜像放置范围。不要依赖某个内核版本偶然容忍的状态。
+
+内核命令行属于发布接口，应区分开发与量产配置。\texttt{earlycon}、initcall debug、忽略安全策略和任意 shell init 只能用于受控调试；量产系统应限制命令行覆盖来源并记录最终生效参数。
+
+\section{根文件系统与 PID 1}
+
+内核通过 initramfs 或块设备获得初始根文件系统。initramfs 适合恢复、早期存储解锁和最小诊断；正式系统可以使用 SquashFS/EROFS、ext4 或 UBIFS。
+
+根文件系统挂载失败时，应从日志中区分：驱动未注册、分区未发现、文件系统未启用、root 参数错误、等待设备超时和 init 不存在。PID~1 启动后，再由服务管理器处理设备事件、挂载数据区和启动产品服务。
+
+\section{启动时间分析}
+
+启动优化应先分段测量：
+\begin{equation}
+  T_{boot}=T_{ROM}+T_{SPL}+T_{firmware}+T_{U-Boot}+T_{kernel}+T_{userspace}
+\end{equation}
+
+Bootloader 使用时间戳或 bootstage，内核使用 initcall debug、ftrace 和 printk 时间，用户空间使用服务管理器的关键路径分析。优化重点通常是串行等待、设备超时、重复探测、固件加载、文件系统检查和服务依赖，而不是盲目提高 CPU 频率。
+
+并行启动必须保持依赖正确。延迟启动非关键服务可以改善“功能可用时间”，但不应通过隐藏失败日志或跳过必要自检制造更短数字。
+
+\section{恢复与 A/B 协同}
+
+启动链应把普通启动、候选试启动、回退和 recovery 作为统一状态机。Bootloader 只依据受保护的启动元数据选择槽位；内核命令行向用户空间传递当前槽；健康服务确认成功；恢复系统能够重写损坏槽而不依赖正式 rootfs。
+
+连续失败达到阈值后，应保留最近失败原因并进入恢复模式，避免无限重启。恢复镜像必须与正式系统一样验证签名，且不应暴露绕过安全启动的维修入口。
+
+\section{调试方法}
+
+无输出时按 Boot ROM 下载能力、调试口、早期 GPIO、片上 SRAM 日志、SPL 串口、U-Boot console、内核 earlycon 的顺序建立可观测性。每一级都应能证明“已经进入”和“向下一级传递了什么”。
+
+已知良好镜像应同时保存串口日志、镜像摘要、内存布局、DTB 和 Bootloader 环境。调试时一次只替换一个阶段，避免无法判断回归来源。
+
+\section{验收清单}
+
+\begin{itemize}
+  \item 各阶段的输入、执行地址、内存所有权和失败路径是否明确？
+  \item DRAM 是否在不同温度、频率和完整容量下验证？
+  \item 内核、DTB、initramfs 和命令行是否处于一致的信任边界？
+  \item 保留内存是否在固件、Device Tree 和内核日志中一致？
+  \item rootfs 缺失、单槽损坏和启动元数据损坏时能否恢复？
+  \item 启动时间是否按阶段测量，并区分首次启动与稳定启动？
+  \item 量产配置是否关闭未经授权的调试和启动参数覆盖？
+\end{itemize}

@@ -1,0 +1,452 @@
+\chapter{Linux BSP 与设备驱动}
+\label{chap:linux-bsp}
+
+板级支持包（Board Support Package, BSP）负责把处理器、SoC 外设和电路板资源接入 Bootloader、Linux 内核及用户空间。
+BSP 不是若干补丁的集合，而是一组可维护的硬件描述、驱动、配置、固件和验证资产。
+本章讨论主线 Linux 常见模型；具体数据结构和 API 会随内核版本演进，应以目标源码树中的文档为准\cite{linux-driver-api}。
+
+\section{BSP 的边界与交付物}
+
+一个可交付 BSP 通常包含：
+\begin{itemize}
+  \item Bootloader 板级配置、存储布局和启动策略；
+  \item Linux defconfig、设备树、必要驱动和固件；
+  \item 时钟、复位、供电、引脚、中断和 DMA 等资源描述；
+  \item 根文件系统中的固件、规则、服务和诊断工具；
+  \item 可复现的构建配置、镜像清单和版本信息；
+  \item 上电、接口、压力、低功耗和恢复测试结果。
+\end{itemize}
+
+BSP 应尽量复用上游内核接口。长期依赖大规模 vendor fork 会增加安全更新、内核升级和问题定位成本。
+
+\section{Linux 设备模型}
+
+Linux 设备模型以设备（\texttt{struct device}）、驱动（\texttt{struct device\_driver}）、总线和类为核心，统一管理设备发现、匹配、生命周期、电源管理和用户空间表示。
+
+\subsection{设备与驱动匹配}
+
+设备可以由可枚举总线发现，也可以由固件描述创建。SoC 内部不可枚举外设通常注册为 platform device，并通过 Device Tree 的 \texttt{compatible} 与驱动匹配。
+\texttt{compatible} 描述硬件编程模型，而不是板卡营销名称；兼容字符串应从具体到通用排列，以便驱动选择精确实现或兼容回退。
+
+驱动的 \texttt{probe()} 应完成资源获取、硬件初始化和子系统注册。
+现代驱动优先使用设备管理资源接口，使时钟、映射、IRQ、内存和注册对象在 probe 失败或设备解绑时按正确顺序释放。
+
+\subsection{Deferred Probe}
+
+设备之间存在供电、时钟、PHY、IOMMU 等依赖。如果消费者 probe 时供应者尚未就绪，资源获取函数可能返回 \texttt{-EPROBE\_DEFER}。
+驱动应传播该错误，而不是把暂时缺失误判为永久硬件故障。反复 deferred probe 通常意味着依赖描述、驱动配置或供应者初始化存在问题。
+
+\section{Device Tree 工程}
+
+Device Tree 描述硬件拓扑和操作系统发现硬件所需的信息，不用于表达运行策略或复制驱动内部默认值。
+语法和通用语义由 Devicetree Specification 定义\cite{devicetree-spec}，Linux 绑定还应遵守目标内核的 YAML schema。
+
+\subsection{节点与资源}
+
+典型外设节点包含地址、中断、时钟、复位、DMA、供电和引脚资源：
+
+\begin{lstlisting}[language=dts]
+serial@40010000 {
+    compatible = "vendor,soc-uart-v2", "vendor,soc-uart";
+    reg = <0x40010000 0x1000>;
+    interrupts = <42>;
+    clocks = <&clk UART0_CLK>;
+    resets = <&rst UART0_RST>;
+    pinctrl-names = "default", "sleep";
+    pinctrl-0 = <&uart0_default>;
+    pinctrl-1 = <&uart0_sleep>;
+    status = "okay";
+};
+\end{lstlisting}
+
+单元地址应与 \texttt{reg} 的首地址一致；\texttt{status}、父总线的地址单元和范围转换必须符合层次关系。
+设备树变更应通过 \texttt{dtbs\_check} 和目标板启动验证，不能只以 DTS 能够编译作为完成标准。
+
+\subsection{绑定设计原则}
+
+新绑定应描述稳定的硬件接口。能够由寄存器或标准机制发现的信息通常不应重复写入设备树；板级连线、不可发现参数和真实硬件差异则应显式描述。
+绑定一旦进入公开 ABI，就必须考虑旧设备树与新内核、新设备树与旧内核的兼容性。
+
+\section{SoC 基础资源}
+
+\subsection{引脚、时钟、复位与供电}
+
+pinctrl 子系统管理复用、电气属性和功耗状态；common clock framework 管理时钟拓扑、频率和门控；reset controller 表达复位线；regulator framework 管理电源轨、电压和消费者关系。
+
+驱动不应绕过这些框架直接操作其他模块的寄存器。推荐的启用顺序通常是获取资源、设置所需速率或电压、解除复位、使能时钟并初始化设备；关闭路径必须按硬件约束逆序执行。
+
+\subsection{中断域}
+
+Linux 使用 \texttt{irq\_domain} 把硬件中断号映射为内核虚拟 IRQ。级联控制器和 GPIO 中断控制器通常建立层次中断域。
+驱动只应使用固件接口和 IRQ API 获得 IRQ，不应假定 Linux IRQ 号等于硬件中断号。
+
+中断处理应根据硬件特性选择硬中断、线程化中断或工作队列。硬中断部分负责确认设备并保存最少状态；可能睡眠的总线访问或复杂处理应放入线程上下文。
+
+硬件中断号（hwirq）只在某个中断控制器内部有意义，Linux IRQ 则是内核分配的逻辑编号。\texttt{irq\_domain} 负责二者之间的映射，并把 Device Tree 或 ACPI 中的中断描述转换为控制器资源。GPIO 控制器、PMIC 和外部 FPGA 经常作为级联 irqchip，其 domain 是上级 GIC domain 的子节点。
+
+固定且较小的 hwirq 空间通常使用线性映射；稀疏而巨大的编号空间可以使用树形映射；层次中断控制器应通过 \texttt{irq\_domain\_create\_hierarchy()} 建立父子关系。驱动不得缓存或导出动态 Linux IRQ 编号，调试时应同时记录 domain、hwirq、触发类型和目标 CPU。
+
+\begin{lstlisting}[language=C,caption={级联中断控制器的 domain 建立骨架}]
+static const struct irq_domain_ops child_domain_ops = {
+    .alloc = child_irq_alloc,
+    .free = irq_domain_free_irqs_common,
+    .translate = irq_domain_translate_twocell,
+};
+
+static int child_irqchip_probe(struct platform_device *pdev)
+{
+    struct irq_domain *parent, *domain;
+    struct device_node *parent_np;
+
+    parent_np = of_irq_find_parent(pdev->dev.of_node);
+    if (!parent_np)
+        return -ENXIO;
+    parent = irq_find_host(parent_np);
+    of_node_put(parent_np);
+    if (!parent)
+        return -EPROBE_DEFER;
+
+    domain = irq_domain_create_hierarchy(parent, 0, 32,
+        dev_fwnode(&pdev->dev), &child_domain_ops,
+        platform_get_drvdata(pdev));
+    return domain ? 0 : -ENOMEM;
+}
+\end{lstlisting}
+
+\subsection{DMA 与 IOMMU}
+
+设备看到的 DMA 地址不一定等于 CPU 物理地址。DMA API 负责缓存一致性、地址转换、bounce buffer 和 IOMMU 映射，驱动不能直接用 \texttt{virt\_to\_phys()} 替代 DMA 映射。
+
+一致性缓冲区适合长期由 CPU 和设备共享的控制结构；流式映射适合具有明确所有权切换的数据缓冲区。
+调用同步 API 后，驱动必须遵守 CPU 与设备之间的所有权协议。
+
+scatter-gather 列表用于描述非连续内存。驱动应使用 DMA 映射后返回的段数进行硬件编程，因为映射层可能合并相邻条目。
+
+\subsection{Scatter-gather DMA 的所有权}
+
+\texttt{struct scatterlist} 描述页、页内偏移和长度；\texttt{struct sg\_table} 同时保存原始条目数 \texttt{orig\_nents} 与 DMA 映射后的条目数 \texttt{nents}。驱动调用 \texttt{dma\_map\_sg()} 后，必须使用返回值或 \texttt{nents} 对硬件描述符编程，而不能继续使用原始段数。
+
+\begin{lstlisting}[language=C,caption={流式 scatter-gather DMA 的标准生命周期}]
+int mapped = dma_map_sg(dev, sgl, orig_nents, DMA_TO_DEVICE);
+if (mapped == 0)
+    return -EIO;
+
+for_each_sg(sgl, sg, mapped, i)
+    program_desc(i, sg_dma_address(sg), sg_dma_len(sg));
+
+start_dma();
+wait_for_completion(&done);
+dma_unmap_sg(dev, sgl, orig_nents, DMA_TO_DEVICE);
+\end{lstlisting}
+
+映射期间缓冲区归设备所有，CPU 不应访问；重新交给 CPU 前，应完成传输并按 DMA API 要求同步或解除映射。错误路径、超时路径和设备移除路径必须保证只 unmap 一次，并在释放页之前终止 DMA。
+
+\section{驱动执行上下文}
+
+Linux 内核代码可能运行在进程上下文、硬中断、软中断、工作队列或专用内核线程中。
+能否睡眠、允许使用的锁以及可调用 API 取决于当前上下文。
+
+\subsection{锁与并发}
+
+互斥锁适用于可以睡眠的进程上下文；自旋锁适用于短小且不能睡眠的临界区；原子变量和位操作只解决有限的状态更新问题，不能自动建立完整对象生命周期。
+
+驱动必须考虑以下并发来源：
+\begin{itemize}
+  \item 多个用户线程同时调用文件操作；
+  \item 中断与进程上下文访问共享状态；
+  \item DMA 完成、超时和设备移除同时发生；
+  \item runtime PM 与正常 I/O 竞争；
+  \item CPU 热插拔、系统挂起和驱动解绑。
+\end{itemize}
+
+锁顺序和对象所有权应写入设计说明。不要通过大范围关中断或单个全局锁掩盖生命周期问题。
+
+\subsection{等待与异步工作}
+
+等待队列用于等待条件变化；completion 适合一次性或阶段性完成事件；workqueue 用于把工作推迟到可睡眠上下文；timer 和 hrtimer 用于时间触发。
+所有异步工作在设备移除和错误回滚路径中都必须被取消或同步，避免释放后的回调访问失效对象。
+
+\section{常见子系统接入}
+
+驱动应优先接入语义匹配的内核子系统，而不是为每个设备创建私有字符设备接口：
+\begin{itemize}
+  \item 传感器和 ADC：IIO；
+  \item 按键、触摸和输入设备：input；
+  \item 温度、电压和风扇监控：hwmon；
+  \item 非易失存储：MTD、SPI NOR、MMC；
+  \item 网络设备：netdev、PHY 和 phylink；
+  \item 摄像头：V4L2/media；
+  \item 音频：ALSA SoC；
+  \item 显示：DRM/KMS；
+  \item 看门狗、RTC、PWM、LED：对应标准子系统。
+\end{itemize}
+
+使用标准子系统能够复用公共 ABI、电源管理、诊断工具和测试基础设施，也降低应用与单一驱动实现的耦合。
+
+\section{完整 platform driver 骨架}
+
+下面的驱动展示一个由 Device Tree 枚举、具有 MMIO、时钟、复位和线程化中断的 platform device。示例省略具体寄存器语义，但保留 probe 回滚、runtime PM、IRQ 与 remove 生命周期，能够作为接入 IIO、hwmon、input 等标准子系统之前的结构模板。
+
+\begin{lstlisting}[language=C,caption={带 runtime PM 的 platform driver 结构}]
+#include <linux/clk.h>
+#include <linux/interrupt.h>
+#include <linux/io.h>
+#include <linux/module.h>
+#include <linux/of.h>
+#include <linux/platform_device.h>
+#include <linux/pm_runtime.h>
+#include <linux/reset.h>
+
+struct sample_dev {
+    struct device *dev;
+    void __iomem *base;
+    struct clk *clk;
+    struct reset_control *rst;
+    int irq;
+};
+
+static irqreturn_t sample_irq(int irq, void *data)
+{
+    struct sample_dev *sdev = data;
+    u32 status = readl(sdev->base + STATUS_REG);
+
+    if (!(status & IRQ_PENDING))
+        return IRQ_NONE;
+    writel(status, sdev->base + STATUS_REG); /* acknowledge */
+    return IRQ_WAKE_THREAD;
+}
+
+static irqreturn_t sample_irq_thread(int irq, void *data)
+{
+    struct sample_dev *sdev = data;
+
+    sample_push_completed_data(sdev); /* may sleep */
+    return IRQ_HANDLED;
+}
+
+static int sample_runtime_resume(struct device *dev)
+{
+    struct sample_dev *sdev = dev_get_drvdata(dev);
+    int ret;
+
+    ret = clk_prepare_enable(sdev->clk);
+    if (ret)
+        return ret;
+    ret = reset_control_deassert(sdev->rst);
+    if (ret)
+        clk_disable_unprepare(sdev->clk);
+    return ret;
+}
+
+static int sample_runtime_suspend(struct device *dev)
+{
+    struct sample_dev *sdev = dev_get_drvdata(dev);
+
+    reset_control_assert(sdev->rst);
+    clk_disable_unprepare(sdev->clk);
+    return 0;
+}
+
+static int sample_probe(struct platform_device *pdev)
+{
+    struct device *dev = &pdev->dev;
+    struct sample_dev *sdev;
+    int ret;
+
+    sdev = devm_kzalloc(dev, sizeof(*sdev), GFP_KERNEL);
+    if (!sdev)
+        return -ENOMEM;
+    sdev->dev = dev;
+    sdev->base = devm_platform_ioremap_resource(pdev, 0);
+    if (IS_ERR(sdev->base))
+        return PTR_ERR(sdev->base);
+    sdev->clk = devm_clk_get(dev, NULL);
+    if (IS_ERR(sdev->clk))
+        return dev_err_probe(dev, PTR_ERR(sdev->clk), "clock\n");
+    sdev->rst = devm_reset_control_get_optional_exclusive(dev, NULL);
+    if (IS_ERR(sdev->rst))
+        return dev_err_probe(dev, PTR_ERR(sdev->rst), "reset\n");
+    sdev->irq = platform_get_irq(pdev, 0);
+    if (sdev->irq < 0)
+        return sdev->irq;
+
+    platform_set_drvdata(pdev, sdev);
+    ret = devm_request_threaded_irq(dev, sdev->irq, sample_irq,
+        sample_irq_thread, IRQF_ONESHOT, dev_name(dev), sdev);
+    if (ret)
+        return dev_err_probe(dev, ret, "irq\n");
+
+    pm_runtime_set_suspended(dev);
+    pm_runtime_enable(dev);
+    pm_runtime_set_autosuspend_delay(dev, 100);
+    pm_runtime_use_autosuspend(dev);
+    ret = pm_runtime_resume_and_get(dev);
+    if (ret < 0) {
+        pm_runtime_disable(dev);
+        return ret;
+    }
+    ret = sample_register_subsystem(sdev);
+    if (ret) {
+        pm_runtime_put_sync_suspend(dev);
+        pm_runtime_disable(dev);
+        return ret;
+    }
+    pm_runtime_mark_last_busy(dev);
+    pm_runtime_put_autosuspend(dev);
+    return 0;
+}
+
+static void sample_remove(struct platform_device *pdev)
+{
+    struct sample_dev *sdev = platform_get_drvdata(pdev);
+    int ret;
+
+    ret = pm_runtime_resume_and_get(&pdev->dev);
+    sample_unregister_subsystem(sdev);
+    if (ret >= 0)
+        pm_runtime_put_sync_suspend(&pdev->dev);
+    pm_runtime_disable(&pdev->dev);
+}
+
+static const struct dev_pm_ops sample_pm_ops = {
+    SET_RUNTIME_PM_OPS(sample_runtime_suspend,
+                       sample_runtime_resume, NULL)
+};
+
+static const struct of_device_id sample_of_match[] = {
+    { .compatible = "vendor,sample-v1" }, { }
+};
+MODULE_DEVICE_TABLE(of, sample_of_match);
+
+static struct platform_driver sample_driver = {
+    .probe = sample_probe,
+    .remove_new = sample_remove,
+    .driver = {
+        .name = "sample-device",
+        .of_match_table = sample_of_match,
+        .pm = &sample_pm_ops,
+    },
+};
+module_platform_driver(sample_driver);
+MODULE_LICENSE("GPL");
+\end{lstlisting}
+
+真实驱动还必须在注册子系统之前确认 runtime PM 初始状态一致，并根据目标内核版本选择资源获取 API。probe 的每一个失败点、模块卸载、设备解绑、系统休眠和 IRQ 并发都应进入测试矩阵。
+
+\section{标准子系统驱动实例：IIO ADC}
+
+ADC 不应默认设计私有字符设备。IIO 能统一表达通道、raw 值、scale、采样频率、触发和缓冲采集。下面给出一个 MMIO ADC 的最小接入结构，寄存器值仅用于说明接口关系。
+
+设备树绑定应先定义硬件资源：
+
+\begin{lstlisting}[language=dts]
+adc@48000000 {
+    compatible = "vendor,soc-adc-v1";
+    reg = <0x48000000 0x1000>;
+    interrupts = <52>;
+    clocks = <&clk 12>;
+    vref-supply = <&vref_1v8>;
+    #io-channel-cells = <1>;
+};
+\end{lstlisting}
+
+驱动把硬件通道转换为 IIO channel，并通过 \texttt{read\_raw()} 暴露标准属性：
+
+\begin{lstlisting}[language=C,caption={IIO ADC 的核心接口}]
+static const struct iio_chan_spec adc_channels[] = {
+    { .type = IIO_VOLTAGE, .indexed = 1, .channel = 0,
+      .info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
+      .info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SCALE) },
+    { .type = IIO_VOLTAGE, .indexed = 1, .channel = 1,
+      .info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
+      .info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SCALE) },
+};
+
+static int adc_read_raw(struct iio_dev *indio,
+                        const struct iio_chan_spec *chan,
+                        int *val, int *val2, long mask)
+{
+    struct adc_state *st = iio_priv(indio);
+    int ret;
+
+    switch (mask) {
+    case IIO_CHAN_INFO_RAW:
+        ret = pm_runtime_resume_and_get(st->dev);
+        if (ret < 0)
+            return ret;
+        ret = adc_single_conversion(st, chan->channel, val);
+        pm_runtime_mark_last_busy(st->dev);
+        pm_runtime_put_autosuspend(st->dev);
+        return ret ? ret : IIO_VAL_INT;
+    case IIO_CHAN_INFO_SCALE:
+        *val = st->vref_uv;
+        *val2 = st->resolution_bits;
+        return IIO_VAL_FRACTIONAL_LOG2;
+    default:
+        return -EINVAL;
+    }
+}
+
+static const struct iio_info adc_info = {
+    .read_raw = adc_read_raw,
+};
+\end{lstlisting}
+
+probe 需要分配 \texttt{iio\_dev}、映射资源、获取参考电压和时钟、初始化 completion/IRQ、设置通道与 \texttt{iio\_info}，最后调用 \texttt{devm\_iio\_device\_register()}。单次转换应在启动硬件前重新初始化 completion，等待时使用有界超时，并在超时后停止转换和清除 pending IRQ。
+
+若需要连续采样，应使用 IIO triggered buffer：硬件 IRQ 或 hrtimer 触发采集，poll function 把带时间戳的扫描数据推入缓冲。用户空间通过标准 sysfs 和 \texttt{/dev/iio:deviceN} 使用驱动，避免形成不可维护的 ioctl ABI。
+
+完整验收包括 raw/scale 换算、参考电压变化、采样超时、并发读取、buffer overflow、runtime suspend、系统休眠、解绑和输入越界。YAML binding 还应通过 \texttt{dt\_binding\_check} 与 \texttt{dtbs\_check}。
+
+\section{并行 NOR Flash 与 MTD 移植}
+
+并行 NOR 的移植不能只向 JEDEC ID 表追加器件编号。应先沿 \texttt{physmap\_flash\_probe()}、\texttt{do\_map\_probe()}、CFI/JEDEC probe 路径确认问题属于器件识别、总线映射还是平台访问语义，再核对总线宽度、字节序、解锁地址、扇区布局和查询时序。
+
+某些平台只允许固定宽度访问，或 CPU 与 Flash 总线字节序不同。这种差异应封装在 \texttt{map\_info} 的 read/write/copy 回调中，而不是散布到通用 MTD 核心。新增识别延时也必须来自数据手册的最大时序要求，不能以某块样板上的偶然延时替代规范依据。
+
+移植完成后至少验证：完整擦除区域表、首尾地址、跨扇区读写、掉电后内容、只读保护、并发访问以及在不同温度和总线频率下的识别稳定性。
+
+\section{电源管理}
+
+系统睡眠处理整机挂起和恢复；runtime PM 在系统运行期间按设备空闲状态关闭资源。
+驱动的电源管理回调必须与 I/O、IRQ、DMA 和时钟状态协调，保证挂起时没有新的事务进入，恢复时硬件状态与软件缓存一致。
+
+低功耗问题经常跨越设备树、时钟、pinctrl、regulator、唤醒中断和用户空间策略。
+验证时既要检查平均功耗，也要检查唤醒延迟、丢中断、总线错误和重复挂起恢复后的资源泄漏。
+
+\section{BSP 移植流程}
+
+建议按可观测性和依赖关系推进新板移植：
+\begin{enumerate}
+  \item 确认电源、复位、启动模式和调试串口；
+  \item 建立最小 Bootloader 路径并验证 DRAM；
+  \item 启动最小内核，保留 early console；
+  \item 接入中断控制器、时钟源和系统定时器；
+  \item 接入 pinctrl、clock、reset、regulator 等基础供应者；
+  \item 接入存储、网络和根文件系统；
+  \item 按产品依赖增加显示、音频、传感器等外设；
+  \item 完成 runtime PM、系统休眠、压力和恢复测试；
+  \item 固化 defconfig、设备树 schema 检查和自动化板级测试。
+\end{enumerate}
+
+每一步都应保留已知良好的镜像和日志。出现回归时，优先缩小到电源、时钟、中断、DMA、内存或协议中的一个边界，而不是同时修改多个子系统。
+
+\section{调试与验收}
+
+驱动调试可结合动态调试、tracepoint、ftrace、debugfs、设备子系统统计和总线分析仪。
+生产接口不能依赖 debugfs，因为它不属于稳定用户空间 ABI。
+
+BSP 的最低验收条件包括：
+\begin{itemize}
+  \item 所有设备树均通过 schema 检查且启动日志无未解释错误；
+  \item 驱动绑定、解绑和失败回滚不存在资源泄漏或释放后使用；
+  \item DMA、缓存、IOMMU 和大内存压力场景经过验证；
+  \item 中断风暴、设备超时和热插拔路径能够恢复；
+  \item runtime PM、suspend/resume 和唤醒源经过重复测试；
+  \item BSP 能由锁定的工具链和配置重新生成相同版本的镜像；
+  \item 补丁具有清晰的上游状态和长期维护责任。
+\end{itemize}
+
+第~\ref{chap:case-t113-programmer}~章进一步讨论专用 Linux 设备中的资源冲突处理、多实例字符驱动、稳定 ioctl ABI、Buildroot 组装和目标板测试。
+
+第~\ref{chap:embedded-network-time}~章把 MAC/PHY、NAPI、工业网络和硬件时间戳扩展为完整网络数据路径。

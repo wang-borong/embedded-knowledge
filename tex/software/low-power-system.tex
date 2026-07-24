@@ -1,0 +1,105 @@
+\chapter{低功耗嵌入式系统设计}
+\label{chap:low-power-system}
+
+低功耗不是在开发末期关闭几个时钟，而是硬件电源树、唤醒源、软件状态机和业务时延共同决定的系统属性。最小睡眠电流、平均能量、唤醒时间和功能可用性必须同时满足。
+
+\section{功耗与能量预算}
+
+瞬时功耗为 $P=VI$，电池寿命更关心完整业务周期的能量：
+\begin{equation}
+  E_{cycle}=\sum_i V_i I_i t_i
+\end{equation}
+
+平均电流估算还应考虑稳压器效率、自放电、温度、峰值压降和电池老化。无线发射、显示背光和电机等短时大电流可能先触发欠压，即使平均电流仍很低。
+
+系统需求应分别定义关机、深睡、待机、空闲和满载功耗，以及每种状态的进入条件、唤醒源和最大恢复时间。
+
+\section{硬件电源域}
+
+电源树应区分 always-on、可开关和保持状态的电源域。GPIO、外设信号和上拉不能在目标域掉电后通过钳位二极管反向供电。电平转换器、模拟开关或明确的高阻状态用于隔离不同电源域。
+
+PMIC 的 regulator、enable、power-good、复位和中断需要形成确定时序。软件关闭电源前必须先停止总线访问和 DMA，并把引脚切换到安全 pinctrl 状态。
+
+\section{MCU 低功耗状态}
+
+MCU 常见运行、sleep、stop 和 standby 状态。越深的状态关闭越多时钟和电源，唤醒延迟和上下文恢复成本也越高。进入前应确认：
+\begin{itemize}
+  \item 所有 DMA 和外设事务已经完成或允许中止；
+  \item 唤醒标志已经清除，避免立即伪唤醒；
+  \item 未使用 GPIO 没有浮空或外部冲突；
+  \item RTC、低功耗 timer 和唤醒引脚由仍供电的域驱动；
+  \item 唤醒后时钟、Flash wait state 和外设按正确顺序恢复。
+\end{itemize}
+
+FreeRTOS Tickless Idle 只能在内核知道的空闲窗口内抑制 tick。应用还应通过睡眠确认回调检查驱动和通信状态，避免在外设即将完成时进入深睡。
+
+\section{Linux runtime PM}
+
+runtime PM 处理系统运行期间单设备的空闲管理。驱动通过 usage count 表达活动需求，autosuspend 延迟吸收短时间重复访问。resume 回调应按电源、时钟、复位和寄存器恢复顺序启动硬件；suspend 回调必须阻止新 I/O 并等待在途事务结束。
+
+父子设备、IOMMU、PHY、regulator 和 clock 之间存在依赖。消费者仍活动时关闭供应者会造成难以复现的总线错误，因此应使用内核设备链接和标准框架表达依赖，而不是由多个驱动独立猜测状态。
+
+\section{系统 suspend/resume}
+
+系统 suspend 需要冻结用户任务、挂起设备、选择唤醒源、关闭非必要 CPU 和电源域。恢复路径按依赖关系重建硬件，不能假定寄存器保持不变。
+
+唤醒源必须受到治理。持续活动的 GPIO、电容触摸、网络包或错误配置的 IRQ 会造成 suspend 后立即恢复。系统应记录 wakeup reason、每个唤醒源计数和 suspend 持续时间。
+
+\begin{lstlisting}[language=bash,caption={Linux 低功耗诊断的常用观测点}]
+cat /sys/kernel/debug/wakeup_sources
+cat /sys/power/wakeup_count
+cat /sys/kernel/debug/pm_genpd/pm_genpd_summary
+cat /sys/kernel/debug/clk/clk_summary
+cat /sys/kernel/debug/regulator/regulator_summary
+\end{lstlisting}
+
+debugfs 不属于稳定产品 ABI，但适合实验室定位未关闭的时钟、电源域和唤醒源。
+
+\section{CPUIdle 与 DVFS}
+
+CPUIdle governor 根据预计空闲时间选择状态，深状态具有更高进入/退出成本。DVFS 根据负载调整电压和频率，动态功耗近似满足：
+\begin{equation}
+  P_{dynamic}\propto C V^2 f
+\end{equation}
+
+降低频率不一定降低总能量：任务运行更久可能阻止系统进入深睡。实时系统还需要把频率切换和深度 idle 的唤醒延迟纳入截止期分析。
+
+thermal governor 可能在高温时限频。性能和实时测试必须覆盖稳定热状态，而不是只测冷启动后的短时峰值。
+
+\section{异构系统的低功耗协同}
+
+Linux 主核可以休眠，由 MCU 或实时核保持传感器采样、按键、RTC 和网络唤醒。双方需要明确休眠握手：Linux 停止共享外设、下发允许唤醒条件、等待实时核确认，再进入低功耗；唤醒后重新同步时间、消息序号和外设所有权。
+
+若实时核在主核睡眠期间缓存事件，必须限制队列容量并定义溢出策略。唤醒风暴会比持续保持主核浅睡更耗能，因此应合并非紧急事件并设置最小驻留时间。
+
+\section{外设与板级漏电}
+
+低功耗异常经常来自软件之外：
+\begin{itemize}
+  \item LED、分压电阻和上拉持续耗电；
+  \item USB-UART、调试器或测量仪通过信号线反向供电；
+  \item SD 卡、显示模组和传感器没有进入真实休眠；
+  \item DC/DC 在轻载下进入效率较差模式；
+  \item 未使用输入浮空导致数字门反复翻转；
+  \item 电源开关关断漏电和电容放电路径超出预算。
+\end{itemize}
+
+测量时应分别断开调试器、串口线和外部供电，确认仪器没有改变被测状态。
+
+\section{功耗测量方法}
+
+万用表适合稳态小电流，示波器配合分流电阻适合观察快速峰值，电流分析仪适合记录从微安睡眠到安培脉冲的完整波形。测量带宽、量程切换和 burden voltage 都可能影响结果。
+
+应在波形上标记软件事件，例如 GPIO marker、串口时间戳或 trace event，从而把唤醒、处理、发送和回睡阶段对应到能量。优化应比较每次业务操作的能量，而不仅是最低睡眠电流。
+
+\section{验证清单}
+
+\begin{itemize}
+  \item 是否为每个功耗状态定义进入条件、唤醒源和恢复时间？
+  \item 掉电域是否通过 GPIO、上拉或调试线被反向供电？
+  \item runtime PM usage count、autosuspend 和错误回滚是否正确？
+  \item suspend/resume 是否经过高次数、并发 I/O 和异常唤醒测试？
+  \item DVFS、CPUIdle 和 thermal throttling 是否满足实时与性能约束？
+  \item 平均能量估算是否使用真实业务波形和电源转换效率？
+  \item Linux 与实时核的休眠握手、事件缓存和所有权恢复是否验证？
+\end{itemize}

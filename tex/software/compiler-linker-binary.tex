@@ -1,0 +1,119 @@
+\chapter{编译器、链接器与固件二进制工程}
+\label{chap:compiler-linker-binary}
+
+嵌入式构建的最终产物不是“编译成功”这一状态，而是与处理器 ABI、存储布局、启动代码和调试资产一致的二进制。编译器选项、链接脚本和后处理工具都会改变运行行为。
+
+\section{编译阶段与中间表示}
+
+典型流程包括预处理、前端语义分析、中间表示优化、指令选择、汇编、链接和镜像转换。问题定位时应判断错误首次出现在哪一级，而不是只阅读最终反汇编。
+
+预处理输出适合检查宏、条件编译和头文件选择；编译器 IR 适合分析优化；目标文件展示 section、symbol 和 relocation；最终 ELF 展示实际地址与链接结果。
+
+\section{目标 ABI}
+
+ABI 约束寄存器调用约定、栈对齐、数据布局、浮点传参、异常展开和目标文件格式。相同 ISA 不代表 ABI 相同，例如软浮点与硬浮点对象可能无法安全链接。
+
+工程应锁定 target triple、CPU、ISA 扩展、浮点 ABI、字节序和代码模型。库、启动文件和应用必须使用兼容选项，不能依赖链接器在最后阶段发现所有不一致。
+
+\section{Section 与链接布局}
+
+编译器把代码和数据放入 \texttt{.text}、\texttt{.rodata}、\texttt{.data}、\texttt{.bss} 等 input section，链接脚本把它们组织为 output section 和 load segment。
+
+加载地址（LMA）与运行地址（VMA）可以不同，例如初始化数据存储在 Flash，启动时复制到 SRAM。启动代码应使用链接符号而不是重复硬编码地址。
+
+\begin{lstlisting}[language=bash,caption={链接脚本的核心契约（示意）}]
+MEMORY {
+  FLASH (rx)  : ORIGIN = 0x08010000, LENGTH = 448K
+  SRAM  (rwx) : ORIGIN = 0x20000000, LENGTH = 128K
+}
+
+SECTIONS {
+  .vectors : { KEEP(*(.isr_vector)) } > FLASH
+  .text : { *(.text*) *(.rodata*) } > FLASH
+  .data : { __data_start = .; *(.data*) __data_end = .; }
+          > SRAM AT> FLASH
+  __data_load = LOADADDR(.data);
+  .bss (NOLOAD) : { __bss_start = .; *(.bss*) *(COMMON)
+                    __bss_end = .; } > SRAM
+  ASSERT(__bss_end <= ORIGIN(SRAM) + LENGTH(SRAM), "SRAM overflow")
+}
+\end{lstlisting}
+
+中断向量、注册表、initcall 和反射元数据常只被链接脚本引用，需要 \texttt{KEEP()} 防止 section garbage collection 删除。所有保留都应有理由，避免把未使用代码重新带回镜像。
+
+\section{启动代码与 C 运行时}
+
+进入 \texttt{main()} 前需要建立栈、复制 data、清零 bss，并按平台要求初始化 FPU、向量表、时钟和内存属性。C++ 还需要运行静态构造函数；退出和异常支持取决于运行时配置。
+
+裸机系统应明确是否支持 TLS、异常、RTTI、atexit 和线程安全静态初始化。这些功能可能引入堆、锁和隐藏运行库依赖。
+
+\section{重定位与位置无关代码}
+
+relocation 记录尚未确定的符号地址或偏移。静态固件通常在最终链接时解析；动态程序由加载器处理 GOT/PLT 和动态重定位。
+
+Bootloader、共享库和高地址内核可能要求 PIC/PIE。位置无关并不意味着可以加载到任意地址，代码模型、相对寻址范围和链接脚本仍有约束。
+
+\section{链接时优化}
+
+LTO 可以跨 translation unit 内联、去虚函数化和删除无用代码，但会改变调试、链接时间和符号边界。启用后应比较：
+\begin{itemize}
+  \item Flash/RAM 大小与热点性能；
+  \item 中断和安全关键函数是否被意外合并或变形；
+  \item inline assembly、链接脚本保留符号和插件是否兼容；
+  \item 崩溃地址、backtrace 和覆盖率工具是否仍可使用。
+\end{itemize}
+
+\section{优化与未定义行为}
+
+Debug 构建正常而 Release 失败，经常来自未初始化变量、越界、strict aliasing、整数溢出、数据竞争和缺失屏障。降低优化只是诊断手段，不是修复。
+
+编译器只需保持语言抽象机可观察行为。MMIO 需要 volatile/访问 API，并发需要原子或同步，DMA 需要架构和设备屏障；三者不能互相替代。
+
+\section{二进制分析}
+
+发布检查应自动使用：
+\begin{itemize}
+  \item \texttt{readelf} 检查 ELF header、program header、section 和 relocation；
+  \item \texttt{nm} 检查符号大小、未解析符号和重复实现；
+  \item \texttt{objdump} 检查反汇编、调用和特殊指令；
+  \item map file 分析内存区域、archive 拉入原因和最大对象；
+  \item \texttt{size} 或自定义脚本生成 Flash/RAM 趋势。
+\end{itemize}
+
+\begin{lstlisting}[language=bash,caption={固件布局的自动检查示意}]
+readelf -h -l -S firmware.elf
+nm --print-size --size-sort firmware.elf | tail -40
+objdump -d -S firmware.elf > firmware.dis
+verify-elf-layout firmware.elf layout-policy.json
+objcopy -O binary firmware.elf firmware.bin
+\end{lstlisting}
+
+BIN 不包含地址、符号和 segment 信息，不能替代 ELF 作为发布和诊断主产物。
+
+\section{DWARF 与崩溃解析}
+
+DWARF 保存类型、源文件、行号、变量位置和调用框架。优化后变量可能不存在或位于不同寄存器，调试器显示 \texttt{optimized out} 并不表示 DWARF 损坏。
+
+产品应归档未剥离 ELF、map、配置、工具链和源码版本。现场地址只有与完全匹配的 ELF 结合才有意义。若启用独立 debug file，应保存 build ID 与映射关系。
+
+\section{Sanitizer 与静态分析}
+
+ASan、UBSan、TSan 等适合主机或资源充足目标；MCU 可以使用主机复用测试、编译器告警、静态分析、栈使用报告和 MPU guard。诊断构建改变内存布局和时序，修复后必须在发布配置复验。
+
+\section{可复现与多工具链验证}
+
+路径、时间戳、archive 顺序、随机种子和构建 ID 都会影响二进制。可复现构建应使用固定工具链、规范化路径和确定输入，并对无法消除的差异提供解释。
+
+使用 GCC、Clang 或不同优化等级交叉验证，可以暴露扩展依赖和未定义行为，但不同工具链输出不必逐字节相同。比较重点应是 ABI、布局、测试行为和可解释差异。
+
+\section{验收清单}
+
+\begin{itemize}
+  \item CPU、ISA 扩展、浮点和调用 ABI 是否在所有对象间一致？
+  \item 链接脚本是否对区域溢出、对齐和保留段设置断言？
+  \item data LMA/VMA、bss 和构造函数是否由启动代码正确处理？
+  \item Release/LTO 是否完成目标板与故障路径验证？
+  \item ELF、map、DWARF、反汇编和工具链是否随发布归档？
+  \item 是否自动检查未定义符号、可写可执行段和内存增长？
+  \item BIN/HEX 是否由已经验证的最终 ELF 生成？
+\end{itemize}

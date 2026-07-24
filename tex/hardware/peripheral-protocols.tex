@@ -377,6 +377,40 @@ I3C 是由 MIPI Alliance 制定、借鉴 I2C 电气与寻址模型的新一代�
   \item 开漏输出：线与逻辑
 \end{itemize}
 
+图~\ref{fig:i2c-open-drain-bus} 给出 I2C 总线的电气连接。控制器和目标设备只能主动拉低 SDA/SCL，高电平由公共上拉电阻建立，因此任一器件拉低都会使总线为低，实现仲裁、应答和时钟延展所需的线与逻辑。
+
+\begin{figure}[H]
+  \centering
+  \begin{circuitikz}[american,scale=0.9,transform shape]
+    \node[draw,rectangle,minimum width=2.5cm,minimum height=1.7cm]
+          (controller) at (0.8,1.8) {Controller};
+    \node[draw,rectangle,minimum width=2.5cm,minimum height=1.7cm]
+          (target) at (9.0,1.8) {Target};
+    \coordinate (scl) at (2.05,2.35);
+    \coordinate (sda) at (2.05,1.25);
+    \draw (controller.east |- scl) -- (target.west |- scl)
+          node[midway,above] {SCL};
+    \draw (controller.east |- sda) -- (target.west |- sda)
+          node[midway,above] {SDA};
+    \draw (4.0,4.2) node[vcc] {$V_{DD}$}
+          to[R,l=$R_{PU,SCL}$] (4.0,2.35) node[circ] {};
+    \draw (6.2,4.2) node[vcc] {$V_{DD}$}
+          to[R,l=$R_{PU,SDA}$] (6.2,1.25) node[circ] {};
+    \draw (7.2,1.25) to[C,l_=$C_{BUS}$] (7.2,0) node[ground] {};
+    \node[below] at (controller.south) {open-drain};
+    \node[below] at (target.south) {open-drain};
+  \end{circuitikz}
+  \caption{I2C 开漏总线、公共上拉与等效总线电容}
+  \label{fig:i2c-open-drain-bus}
+\end{figure}
+
+上拉电阻需要同时满足低电平灌电流和上升时间约束：
+\begin{equation}
+  R_{PU,min}=\frac{V_{DD}-V_{OL,max}}{I_{OL,max}},\qquad
+  R_{PU,max}=\frac{t_{r,max}}{0.8473C_{BUS}}
+\end{equation}
+其中 $0.8473$ 对应一阶 RC 波形从 30\% 上升到 70\% 的时间系数。$C_{BUS}$ 应包含器件引脚、连接器、走线、电平转换器和测试探头；选值后还需要在最差电压、温度和设备数量下测量实际 $V_{OL}$ 与上升时间。
+
 \subsection{I2C 协议}
 
 \subsubsection{总线状态}
@@ -540,6 +574,34 @@ I3C 相对于 I2C 的改进：
     \end{itemize}
 \end{enumerate}
 
+SPI 是推挽接口，信号质量由边沿时间而不只是时钟频率决定。图~\ref{fig:spi-source-termination} 展示双向数据链路的源端串联匹配：SCLK、MOSI 和 CS 的电阻靠近控制器输出，MISO 的电阻则靠近目标设备输出。
+
+\begin{figure}[H]
+  \centering
+  \begin{circuitikz}[american,scale=0.92,transform shape]
+    \node[draw,rectangle,minimum width=2.4cm,minimum height=2.4cm]
+          (master) at (1.3,2.2) {Controller};
+    \node[draw,rectangle,minimum width=2.4cm,minimum height=2.4cm]
+          (slave) at (9.0,2.2) {Target};
+    \draw[->] (2.5,2.85) to[R,l=$R_{SCLK}$] (4.2,2.85)
+          -- (7.8,2.85) node[midway,above] {$Z_0$ trace};
+    \node[left] at (2.5,2.85) {SCLK};
+    \draw[<-] (2.5,1.55) -- (6.1,1.55)
+          to[R,l=$R_{MISO}$] (7.8,1.55);
+    \node[left] at (2.5,1.55) {MISO};
+    \node[right] at (7.8,1.55) {MISO};
+    \node[right] at (7.8,2.85) {SCLK};
+    \draw[dashed] (3.05,0.55) -- (3.05,3.85);
+    \draw[dashed] (7.25,0.55) -- (7.25,3.85);
+    \node[below] at (3.05,0.55) {靠近源端};
+    \node[below] at (7.25,0.55) {靠近源端};
+  \end{circuitikz}
+  \caption{SPI 推挽信号的双向源端串联匹配}
+  \label{fig:spi-source-termination}
+\end{figure}
+
+串联电阻的初始值可按 $R_{DRV}+R_S\approx Z_0$ 估算，其中 $R_{DRV}$ 是驱动器在实际电压和边沿条件下的等效输出阻抗。最终值应通过 IBIS 仿真或示波器测量调整。多从设备共享 MISO 时，所有未选中器件必须保证输出高阻；SCLK/MOSI 的分支长度和连接顺序也要受控，不能把低频逻辑连接图直接视为高速拓扑。
+
 \subsection{SPI 协议}
 
 \subsubsection{时钟极性和相位}
@@ -658,7 +720,7 @@ RS232、RS422 和 RS485 是常用的串行通信标准，用于工业控制和�
   \item 单端信号
   \item 传输距离：通常 < 15 米
   \item 传输速率：通常 < 115.2 kbps
-  \item 使用负逻辑：+3--+15 V 表示 0，-3--15 V 表示 1
+  \item 使用负逻辑：+3 至 +15 V 表示 0，-15 至 -3 V 表示 1
 \end{itemize}
 
 \subsubsection{信号定义}
@@ -776,6 +838,38 @@ RS232、RS422 和 RS485 是常用的串行通信标准，用于工业控制和�
   \item 防止总线浮空
 \end{itemize}
 
+图~\ref{fig:rs485-terminated-bus} 给出半双工 RS-485 的推荐总线结构。终端只放在主干电缆的两个物理端点，偏置网络通常全网只设置一组，各节点通过尽量短的支线连接；星形长支线会形成多个阻抗不连续点。
+
+\begin{figure}[H]
+  \centering
+  \begin{circuitikz}[american,scale=0.86,transform shape]
+    \draw (0.5,3.0) -- (10.5,3.0) node[right] {$A$};
+    \draw (0.5,1.4) -- (10.5,1.4) node[right] {$B$};
+    \draw (0.5,3.0) to[R,l=$R_{T1}$] (0.5,1.4);
+    \draw (10.5,3.0) to[R,l_=$R_{T2}$] (10.5,1.4);
+    \draw (2.1,4.8) node[vcc] {$V_{CC}$}
+          to[R,l=$R_{BIAS+}$] (2.1,3.0) node[circ] {};
+    \draw (2.8,1.4) to[R,l_=$R_{BIAS-}$] (2.8,0) node[ground] {};
+    \node[draw,rectangle,minimum width=2.1cm,minimum height=1.0cm]
+          (n1) at (4.4,-0.15) {Node 1};
+    \node[draw,rectangle,minimum width=2.1cm,minimum height=1.0cm]
+          (n2) at (7.7,-0.15) {Node 2};
+    \draw (4.05,3.0) -- (4.05,0.35);
+    \draw (4.75,1.4) -- (4.75,0.35);
+    \draw (7.35,3.0) -- (7.35,0.35);
+    \draw (8.05,1.4) -- (8.05,0.35);
+    \node[circ] at (4.05,3.0) {};
+    \node[circ] at (4.75,1.4) {};
+    \node[circ] at (7.35,3.0) {};
+    \node[circ] at (8.05,1.4) {};
+    \node[above] at (6.0,3.0) {双绞线主干};
+  \end{circuitikz}
+  \caption{双端终端、单点偏置和短支线的 RS-485 总线}
+  \label{fig:rs485-terminated-bus}
+\end{figure}
+
+$R_{T1}$ 和 $R_{T2}$ 应与电缆差分特性阻抗匹配，120~$\Omega$ 是常见值而不是对所有线缆固定不变。偏置电阻需要在两个终端并联、收发器负载、电源容差和漏电的最坏条件下仍建立足够空闲差分电压，同时不能使发送器负载超限。不同厂商对 A/B 极性的命名并不完全一致，接线必须以数据手册中的同相/反相端和差分电压定义为准。
+
 \subsubsection{RS485 应用}
 
 \begin{enumerate}
@@ -809,6 +903,32 @@ RS232、RS422 和 RS485 是常用的串行通信标准，用于工业控制和�
   \item CANL：CAN 低线
   \item 差分信号
 \end{itemize}
+
+高速 CAN 主干通常在两个物理端点各设置一组 120~$\Omega$ 终端。图~\ref{fig:can-split-termination} 给出端点处常用的 split termination：两个 60~$\Omega$ 电阻保持 120~$\Omega$ 差分终端，中点电容为共模高频分量提供低阻抗返回路径。
+
+\begin{figure}[H]
+  \centering
+  \begin{circuitikz}[american,scale=0.95,transform shape]
+    \node[draw,rectangle,minimum width=2.5cm,minimum height=1.6cm]
+          (xcvr) at (1.4,2.2) {CAN Transceiver};
+    \draw (2.65,2.7) -- (3.1,3.0) -- (7.2,3.0) coordinate (canh)
+          node[midway,above] {CANH};
+    \draw (2.65,1.7) -- (3.1,1.4) -- (7.2,1.4) coordinate (canl)
+          node[midway,below] {CANL};
+    \draw (7.2,3.0) to[R,l=$60\,\Omega$] (7.2,2.2) coordinate (mid)
+          to[R,l=$60\,\Omega$] (7.2,1.4);
+    \draw (mid) -- (8.35,2.2) to[C,l=$C_{SPLIT}$] (8.35,0) node[ground] {};
+    \node[circ] at (mid) {};
+    \node[circ] at (canh) {};
+    \node[circ] at (canl) {};
+    \draw (5.4,3.0) to[short,*-o] (5.4,3.65) node[above] {Connector H};
+    \draw (5.9,1.4) to[short,*-o] (5.9,0.75) node[below] {Connector L};
+  \end{circuitikz}
+  \caption{CAN 总线端点的分裂终端}
+  \label{fig:can-split-termination}
+\end{figure}
+
+$C_{SPLIT}$ 的取值应依据收发器厂商建议、EMC 测量和允许的共模电流确定。分裂终端只能安装在总线端点，不能在每个节点重复放置；支线长度、连接器阻抗、共模扼流圈和保护器件寄生电容也必须纳入信号完整性验证。
 
 \subsection{CAN 协议}
 

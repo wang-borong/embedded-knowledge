@@ -1,0 +1,228 @@
+\chapter{电机驱动与功率控制}
+\label{chap:motor-power-control}
+
+电机控制把低压数字系统与高电流、高 $dv/dt$、高 $di/dt$ 的功率级连接起来。可靠设计必须同时考虑功率器件、安全关断、电流测量、PWM 时序、控制算法、热和 EMC。
+
+\section{电机与驱动拓扑}
+
+常见对象包括有刷直流电机、步进电机、BLDC/PMSM 和感应电机。对应功率拓扑包括低边开关、半桥、H 桥和三相逆变桥。
+
+有刷电机可通过 H 桥实现正反转和制动；步进电机使用双 H 桥和电流斩波；BLDC/PMSM 使用三相桥，根据转子位置进行六步换相或 FOC。
+
+拓扑选择需要依据母线电压、峰值/持续电流、回生能量、制动方式、控制精度和安全状态。
+
+图~\ref{fig:motor-h-bridge} 给出有刷直流电机 H 桥的功能原理图。$Q_1/Q_4$ 或 $Q_3/Q_2$ 对角导通决定电流方向；同一桥臂的上下管禁止同时导通。两个下管导通可形成低侧动态制动，全部关断则进入滑行状态，实际电流续流路径由 MOSFET 体二极管和同步整流策略决定。
+
+\begin{figure}[htbp]
+  \centering
+  \begin{circuitikz}[american,scale=0.9,transform shape]
+    \draw (1,4) node[left] {$V_{BUS}$} -- (5,4);
+    \draw (1,4) to[switch,l=$Q_1$] (1,2) coordinate (phasea)
+          to[switch,l=$Q_2$] (1,0) node[ground] {};
+    \draw (5,4) to[switch,l_=$Q_3$] (5,2) coordinate (phaseb)
+          to[switch,l_=$Q_4$] (5,0) node[ground] {};
+    \draw (phasea) -- (2.35,2);
+    \node[draw,circle,minimum size=1.15cm] (motor) at (3,2) {$M$};
+    \draw (3.65,2) -- (phaseb);
+    \node[left] at (phasea) {$A$};
+    \node[right] at (phaseb) {$B$};
+    \node[align=left] at (0.0,3.0) {PWM\_AH};
+    \node[align=left] at (0.0,1.0) {PWM\_AL};
+    \node[align=right] at (6.0,3.0) {PWM\_BH};
+    \node[align=right] at (6.0,1.0) {PWM\_BL};
+  \end{circuitikz}
+  \caption{有刷直流电机 H 桥的功能原理图}
+  \label{fig:motor-h-bridge}
+\end{figure}
+
+BLDC/PMSM 使用三个半桥。图~\ref{fig:motor-three-phase-bridge} 中 $U/V/W$ 三个桥臂的中点连接定子绕组，母线去耦电容必须紧邻功率桥，使高频换流回路不经过长电源线。
+
+\begin{figure}[htbp]
+  \centering
+  \begin{circuitikz}[american,scale=0.82,transform shape]
+    \draw (0,4) node[left] {$V_{BUS}$} -- (8,4);
+    \draw (0,0) node[ground] {} -- (8,0);
+    \draw (1,4) to[C,l=$C_{BUS}$] (1,0);
+    \draw (3,4) to[switch,l=$Q_{UH}$] (3,2) coordinate (u)
+          to[switch,l=$Q_{UL}$] (3,0);
+    \draw (5,4) to[switch,l=$Q_{VH}$] (5,2) coordinate (v)
+          to[switch,l=$Q_{VL}$] (5,0);
+    \draw (7,4) to[switch,l=$Q_{WH}$] (7,2) coordinate (w)
+          to[switch,l=$Q_{WL}$] (7,0);
+    \draw (u) to[L,l=$L_U$] (4,1.15) coordinate (neutral);
+    \draw (v) to[L,l=$L_V$] (neutral);
+    \draw (w) to[L,l_=$L_W$] (neutral);
+    \node[above left] at (u) {$U$};
+    \node[above] at (v) {$V$};
+    \node[above right] at (w) {$W$};
+    \node[below] at (neutral) {$N$};
+  \end{circuitikz}
+  \caption{三相逆变桥与星形电机绕组}
+  \label{fig:motor-three-phase-bridge}
+\end{figure}
+
+\section{MOSFET 选型}
+
+功率 MOSFET 不能只比较额定电流和典型 $R_{DS(on)}$。需要检查：
+\begin{itemize}
+  \item 最大 $V_{DS}$ 及母线浪涌裕量；
+  \item 在实际 gate voltage 和结温下的 $R_{DS(on)}$；
+  \item gate charge、Miller plateau 和开关损耗；
+  \item SOA、雪崩能力和反向恢复；
+  \item 封装热阻、寄生电感和散热路径。
+\end{itemize}
+
+导通损耗近似为：
+\begin{equation}
+  P_{cond}=I_{rms}^{2}R_{DS(on)}(T_j)
+\end{equation}
+
+开关损耗与电压、电流、上升下降时间和频率相关。降低 $R_{DS(on)}$ 往往增加 gate charge，需要在导通与开关损耗之间平衡。
+
+\section{Gate Driver 与死区}
+
+高边 N-MOSFET 需要 bootstrap、charge pump 或隔离供电的 gate driver。驱动器应具有欠压锁定、足够 source/sink 电流、可控传播延迟和必要的故障输出。
+
+同一半桥上下管同时导通会产生 shoot-through。PWM 必须插入 dead time，并考虑 driver、MOSFET 和温度下的最坏传播差异。死区过大又会增加体二极管导通、损耗和电流畸变。
+
+硬件关断应能独立于 MCU 软件撤销 gate。上电、复位、调试停核和 MCU 引脚高阻期间，gate 必须保持关闭。
+
+\section{PWM 策略}
+
+PWM 频率需平衡听觉噪声、电流纹波、开关损耗和控制带宽。中心对齐 PWM 便于在开关噪声较小的中点同步 ADC，并产生对称波形。
+
+更新 compare register 应使用 timer preload/shadow，统一在周期边界生效，避免三相 duty 在不同时间更新。过调制和最小脉宽会限制有效 duty，需要在控制器中显式处理。
+
+\section{电流测量}
+
+电流可以使用低边单 shunt、相 shunt、多 shunt 或霍尔/磁隔离传感器测量。shunt 值在信号幅度、功耗和压降之间取舍：
+\begin{equation}
+  V_{sense}=I_{phase}R_{shunt}
+\end{equation}
+
+采样放大器需检查 common-mode 范围、增益误差、带宽、恢复时间和 PWM 边沿下的瞬态抑制。PCB 应使用 Kelvin 连接，从 shunt 内侧单独引出测量线。
+
+图~\ref{fig:motor-low-side-current-sense} 给出低边 shunt 与非反相放大器的基本连接。其标称转换关系为：
+\begin{equation}
+  V_{ADC}=\left(1+\frac{R_F}{R_G}\right)I R_{SHUNT}
+\end{equation}
+
+\begin{figure}[htbp]
+  \centering
+  \begin{circuitikz}[american,scale=0.88,transform shape]
+    \draw (0,3.2) node[left] {$V_{BUS}$}
+          to[R,l=$Z_{LOAD}$] (2,3.2)
+          to[switch,l=$Q_L$] (2,1.25) coordinate (sense)
+          to[R,l_=$R_{SHUNT}$] (2,0) node[ground] {};
+    \draw (6.0,1.5) node[op amp,noinv input up] (amp) {};
+    \draw (amp.+) -- ++(-0.35,0) coordinate (filtered);
+    \draw (sense) -- (sense |- filtered) -- ++(0.35,0)
+          to[R,l=$R_{IN}$] (filtered);
+    \draw (filtered) to[C] ++(0,-1.75) coordinate (cf_bottom) node[ground] {};
+    \draw (amp.-) -- ++(-1.25,0) coordinate (fb);
+    \draw (fb) to[R] ++(0,-1.45) coordinate (rg_bottom) node[ground] {};
+    \draw (amp.out) -- ++(0,1.55) coordinate (fb_right)
+          to[R] (fb_right -| fb) coordinate (fb_left) -- (fb);
+    \draw (amp.out) to[short,*-o] ++(1.0,0) node[right] {$ADC_I$};
+    \node[right=0.12cm] at ($(filtered)!0.5!(cf_bottom)$) {$C_F$};
+    \node[right=0.12cm] at ($(fb)!0.58!(rg_bottom)$) {$R_G$};
+    \node[above=0.12cm] at ($(fb_left)!0.5!(fb_right)$) {$R_F$};
+    \node[left] at (sense) {$V_{SHUNT}$};
+  \end{circuitikz}
+  \caption{低边 shunt、电流采样放大与 ADC 接口}
+  \label{fig:motor-low-side-current-sense}
+\end{figure}
+
+$R_{IN}$ 与 $C_F$ 用于衰减开关尖峰，但其时间常数必须小于有效采样窗口，并在 ADC acquisition time 内充分建立。实际器件还要同时满足输入 common-mode 范围、输出摆幅和过载恢复要求。$R_{SHUNT}$ 两端应使用成对 Kelvin 走线，采样地返回 shunt 的测量端，不能与功率回流铜皮共享一段高电流路径。
+
+ADC 采样点必须落在电流稳定且对应开关状态可观测的窗口。单 shunt 重构在某些低 duty 区域没有足够采样窗口，需要 PWM 重排或切换估计策略。
+
+\section{位置与速度反馈}
+
+Hall sensor 适合六步换相和低成本位置分区；增量 encoder 提供较高分辨率但需要 index 和丢计数检测；resolver 适合恶劣环境但接口复杂；sensorless 方法通过反电动势或 observer 估计位置。
+
+反馈输入需要检查范围、边沿间隔、方向一致性和新鲜度。encoder A/B 同时异常、Hall 非法组合和速度突变应触发诊断。
+
+\section{六步换相与 FOC}
+
+六步换相根据转子扇区切换两相导通，实现简单但转矩纹波较大。FOC 将三相电流经 Clarke/Park 变换到旋转 $d$-$q$ 坐标系，分别控制磁链和转矩分量，再通过逆变换和 SVPWM 生成 duty。
+
+FOC 的关键链路为：同步采样相电流、估计电角度、坐标变换、PI 电流环、限幅与 anti-windup、SVPWM 更新。电流环周期通常与 PWM 同步，速度环以更低频率运行。
+
+角度、相序、采样极性和电机参数任何一项错误都可能导致失控。初次 bring-up 应使用限流电源、低母线电压和机械安全措施，逐步验证静态相电流、开环角度和闭环方向。
+
+\section{保护机制}
+
+硬件快速保护包括过流 comparator、gate driver desaturation、母线过压、欠压锁定和过温。软件保护包括 RMS/平均电流、速度、位置、堵转、传感器合理性和通信超时。
+
+硬件过流阈值必须高于正常峰值并低于器件安全边界，传播时间要短于功率级损坏时间。保护触发后应锁存或受控重试，禁止高频自动重新使能放大故障。
+
+快速过流保护不应依赖 MCU 中断延迟。图~\ref{fig:motor-hardware-overcurrent} 中，比较器直接撤销 gate driver 使能；MCU 只负责读取锁存故障、记录上下文并在满足安全条件后执行受控复位。
+
+\begin{figure}[htbp]
+  \centering
+  \begin{circuitikz}[american,scale=0.9,transform shape]
+    \draw (0,2.25) node[left] {$V_{SENSE}$}
+          to[R,l=$R_{FILT}$] (2.25,2.25) coordinate (filt);
+    \draw (filt) to[C,l_=$C_{FILT}$] (2.25,0) node[ground] {};
+    \draw (4.15,1.75) node[op amp] (cmp) {};
+    \draw (filt) |- (cmp.+);
+    \draw (cmp.-) to[short,-o] ++(-2.1,0) node[left] {$V_{TRIP}$};
+    \node[above=0.1cm] at (cmp) {CMP};
+    \draw (cmp.out) -- ++(0.75,0) coordinate (fault);
+    \node[draw,rectangle,minimum width=2.5cm,minimum height=1.05cm,
+          right=0.75cm of fault] (driver) {Gate Driver};
+    \draw[->] (fault) -- (driver.west) node[midway,above] {$FAULT_{OC}$};
+    \draw[->] (driver.east) -- ++(1.15,0) node[right] {Gate OFF};
+    \draw (fault) -- ++(0,-1.25) -- ++(-0.8,0)
+          node[left] {$MCU\_FAULT$};
+  \end{circuitikz}
+  \caption{独立于 MCU 的硬件过流关断路径}
+  \label{fig:motor-hardware-overcurrent}
+\end{figure}
+
+滤波或 blanking 用于抑制正常换流尖峰，但总延迟必须纳入功率器件的短路耐受时间预算。阈值误差分析至少包括 shunt 容差与温漂、放大器增益和失调、比较器失调、参考源误差以及传播延迟。对可能持续存在的短路，应采用硬件锁存并限制复位条件，而不是周期性自动重启功率桥。
+
+回生制动会把能量送回母线。电源不能吸收能量时，需要制动电阻、TVS、主动钳位或降低制动力，避免母线过压。
+
+\section{热设计}
+
+功率损耗分布在 MOSFET、driver、shunt、电感和连接器。结温估算需要考虑稳态与瞬态热阻、PCB 铜面积、过孔、气流和相邻热源。
+
+温度传感器应靠近主要热源但理解其与结温的热延迟。软件降额曲线应在硬件关断阈值之前逐步降低电流，并防止温度采样失效时继续满功率运行。
+
+\section{PCB 与 EMC}
+
+高 $di/dt$ 回路包括母线电容、上管、下管和返回路径，应面积最小。Gate 回路短而独立，driver 去耦紧靠器件。功率地、模拟测量地和数字地应按电流路径设计，而不是机械分割后在任意一点连接。
+
+switch node 铜面积需要在散热和寄生电容/辐射之间平衡，避免经过敏感模拟区域。RC snubber、gate resistor 和共模滤波参数应依据测量调试，而不是直接复制参考值。
+
+\section{软件架构}
+
+PWM/ADC ISR 负责硬实时电流环和快速状态采集；较低优先级任务负责速度环、命令、诊断、温度和通信。最终 PWM 输出必须经过统一限幅和安全状态机。
+
+参数应区分电机模型、功率级限制、校准和用户命令。在线修改 PI、限流和角度参数必须进行范围检查，并在安全状态或受控斜坡中生效。
+
+\section{验证方法}
+
+\begin{itemize}
+  \item 不装电机时验证 gate 波形、死区和默认关闭；
+  \item 使用受限母线和假负载验证过流保护；
+  \item 测量 shunt 放大器在 PWM 边沿后的恢复；
+  \item 检查堵转、反转、断相、反馈丢失和母线回生；
+  \item 在最低/最高电压、温度和负载下测量效率与结温；
+  \item 执行调试停核、MCU 复位和软件崩溃，确认 gate 关闭；
+  \item 使用 HIL 验证角度、速度和传感器故障路径。
+\end{itemize}
+
+\section{检查清单}
+
+\begin{itemize}
+  \item MOSFET 是否按实际 gate voltage、温度、SOA 和开关损耗选型？
+  \item dead time 是否覆盖最坏传播差并测量 shoot-through？
+  \item ADC 是否与 PWM 同步并避开不可观测窗口？
+  \item 硬件保护是否能独立于 MCU 快速关断 gate？
+  \item 回生、堵转、断相和反馈异常是否具有确定策略？
+  \item 热与 EMC 是否在最终 PCB、线缆和外壳条件下验证？
+  \item 调试停核和复位期间输出是否保持安全？
+\end{itemize}

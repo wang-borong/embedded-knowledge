@@ -1,0 +1,289 @@
+\chapter{板级系统设计}
+\label{chap:board-system-design}
+
+板级系统设计把器件、电源、时钟、存储器、接口和 PCB 约束组合成能够稳定启动、长期运行并可量产的硬件平台。
+原理图连接正确只是必要条件；系统还必须满足上电时序、信号质量、故障保护、热、容差和软件控制等动态约束。
+
+\section{需求与接口预算}
+
+设计开始前应把产品需求转换为可验证的工程预算：
+\begin{itemize}
+  \item 各电源域的最大、典型和瞬态电流；
+  \item 启动时间、复位时间和掉电保持要求；
+  \item 接口速率、长度、连接器和环境噪声；
+  \item 处理器、存储器和外设的带宽与容量；
+  \item 工作温度、散热路径、振动和防护等级；
+  \item 预期寿命、器件降额、可制造性和测试覆盖率。
+\end{itemize}
+
+预算必须包含容差、老化和设计裕量。不能把数据手册中的典型值当成设计保证，也不能用单块样机的测量结果替代最坏情况分析。
+
+\section{电源树与上电时序}
+
+\subsection{电源架构}
+
+电源树从输入保护和主电源开始，向处理器核、存储器、I/O、模拟、射频和外设电源域分配能量。
+每个电源轨应记录额定电压、容差、最大电流、纹波、启动时间、关断行为、负载瞬态和供电来源。
+
+稳压器选型不能只比较输出电流。还应检查输入范围、压差、开关频率、环路稳定性、效率、静态电流、热阻、软启动、限流和短路恢复模式。
+开关稳压器的电感、输入电容、输出电容和补偿网络必须满足厂商稳定性条件。
+
+图~\ref{fig:board-protected-power-tree} 给出一个典型的板级电源入口。保险或可恢复限流元件限制故障能量，反接保护阻断错误极性，TVS 在接口附近把瞬态电流导向机壳地或电源返回。主 Buck 产生系统中间电源，再由负载开关和低噪声 LDO 分配给数字与模拟负载。
+
+\begin{figure}[H]
+  \centering
+  \begin{circuitikz}[american,scale=0.78,transform shape]
+    \draw (0,3.2) node[left] {$VIN$}
+          to[R,l=$F_1$] (1.8,3.2)
+          to[D,l=$D_{REV}$] (3.7,3.2) coordinate (protected);
+    \draw (protected) to[D,l_=$D_{TVS}$] (3.7,0) node[ground] {};
+    \draw (4.45,3.2) to[C,l=$C_{IN}$] (4.45,0) node[ground] {};
+    \draw (protected) -- (4.45,3.2);
+    \node[draw,rectangle,minimum width=1.7cm,minimum height=1.0cm,
+          right=1.55cm of protected] (buck) {Buck};
+    \draw (protected) -- (buck.west);
+    \draw (buck.east) -- ++(1.0,0) coordinate (vsys);
+    \draw (vsys) to[C,l=$C_{SYS}$] ++(0,-3.2) node[ground] {};
+    \node[above] at (vsys) {$V_{SYS}$};
+    \node[draw,rectangle,minimum width=2.0cm,minimum height=1.0cm,
+          right=0.75cm of vsys] (loadsw) {Load Switch};
+    \draw (vsys) -- (loadsw.west);
+    \draw[->] (loadsw.east) -- ++(0.75,0) node[right] {$V_{IO}$};
+    \node[draw,rectangle,minimum width=1.7cm,minimum height=1.0cm,
+          below=1.0cm of loadsw] (ldo) {LDO};
+    \draw (vsys) -- ++(0,-1.5) -- (ldo.west);
+    \draw[->] (ldo.east) -- ++(0.75,0) node[right] {$V_{ANA}$};
+  \end{circuitikz}
+  \caption{输入保护、主稳压与分域供电的板级电源树}
+  \label{fig:board-protected-power-tree}
+\end{figure}
+
+图中的串联二极管仅表示反接保护功能；在较大电流系统中通常使用理想二极管控制器或 MOSFET，以降低压降和热损耗。TVS 的钳位电压必须在后级绝对最大额定值以内，同时高于输入正常上限；保险元件的动作特性还需与 TVS 脉冲能力、输入线缆阻抗和电源限流特性配合。
+
+\subsection{时序与反向供电}
+
+SoC、FPGA、DDR 和高速收发器经常要求电源按特定顺序达到有效范围，并限制电源轨之间的电压差。
+PMIC 的 power-good、使能和复位信号应形成确定状态机；软件控制的电源域还要定义启动失败和超时回退路径。
+
+当某个 I/O 信号在接收器未上电时为高电平，可能通过保护二极管产生反向供电。
+设计应核对器件的 power-off protection、I/O 注入电流和电源时序要求，必要时使用隔离、串联限流或具有掉电高阻特性的电平转换器。
+
+\subsection{去耦与 PDN}
+
+去耦网络的目标是在负载瞬态的频率范围内把电源阻抗限制在目标值以下。
+小容量电容提供高频局部电流，大容量电容承担较低频能量，但封装、电感、安装位置和电容偏压降额会显著改变实际阻抗。
+
+处理器和 FPGA 电源应结合厂商 PDN 指南、层叠和布局进行阻抗分析。大量并联同值电容不一定最优，反谐振峰值可能造成特定频段的电源噪声放大。
+
+\section{时钟系统}
+
+\subsection{晶体与振荡器}
+
+晶体电路应核对标称频率、负载电容、等效串联电阻、驱动功率、频率容差和温漂。
+负载电容由外接电容、引脚电容和 PCB 寄生共同决定；布局应短、对称并远离高速开关节点。
+
+有源振荡器接口还需匹配供电、电平标准、占空比、上升时间和使能逻辑。差分时钟必须遵守共模、电摆幅、端接和抖动要求。
+
+\subsection{抖动与时钟分配}
+
+时钟抖动会降低高速串行接口和高速 ADC 的有效信噪比。时钟树设计应从源、缓冲器、PLL 到接收端分配相位噪声预算，并避免由开关电源和串扰引入周期性调制。
+
+多个器件需要同步时，应区分频率同步、相位同步和时间戳同步。仅使用相同标称频率的独立晶振不能保证长期相位一致。
+
+\section{复位与启动配置}
+
+复位电路应确保所有关键电源和时钟稳定后再释放处理器，并在欠压或时钟异常时重新进入确定状态。
+RC 延时只能提供近似时序，不能替代具有阈值、迟滞和最小脉宽保证的复位监控器。
+
+图~\ref{fig:board-reset-supervisor} 给出一种常见的复位监控连接。监控器持续检查关键电源，并以开漏输出驱动共享复位网络；上拉电阻决定释放后的逻辑电平，手动复位开关和其他故障源可以通过线与方式安全地拉低 $nRESET$。
+
+\begin{figure}[H]
+  \centering
+  \begin{circuitikz}[american,scale=0.9,transform shape]
+    \node[draw,rectangle,minimum width=2.4cm,minimum height=1.25cm]
+          (sup) at (3.0,2.2) {Reset Supervisor};
+    \node[draw,rectangle,minimum width=2.4cm,minimum height=1.25cm]
+          (soc) at (8.0,2.2) {Processor};
+    \draw[->] (0.25,2.2) node[left] {$V_{MON}$} -- (sup.west);
+    \coordinate (reset) at (5.5,2.2);
+    \draw (sup.east) -- (reset) -- (soc.west);
+    \node[above] at (reset) {$nRESET$};
+    \node[below=0.08cm of sup.east] {open-drain};
+    \draw (5.5,4.2) node[vcc] {$V_{IO}$}
+          to[R,l=$R_{PU}$] (5.5,2.2) node[circ] {};
+    \draw (6.5,2.2) to[switch,l=$S_{RESET}$] (6.5,0) node[ground] {};
+    \draw[->] (soc.east) -- ++(0.9,0) node[right] {内部复位树};
+  \end{circuitikz}
+  \caption{电源监控器、开漏复位网络与手动复位}
+  \label{fig:board-reset-supervisor}
+\end{figure}
+
+复位监控器的阈值必须高于处理器保证工作的最低电压，并包含电源纹波、阈值容差和迟滞裕量。复位释放延迟应覆盖晶振启动、电源稳定和内部状态初始化；多个开漏复位源并联时，还要核算总漏电流、上升时间和各器件未上电时的引脚行为。
+
+启动 strap 引脚常与普通 GPIO 复用。上拉/下拉强度必须在复位采样窗口内战胜外部器件、漏电和测试夹具影响，同时不妨碍启动后的正常功能。
+量产测试应读取并记录实际启动模式和复位原因。
+
+图~\ref{fig:board-strap-isolation} 展示 strap 与运行期复用信号的隔离方法。$R_{CFG}$ 在采样窗口内建立确定启动电平，$R_{ISO}$ 限制外设争用电流并改善调试可控性；外设必须在 strap 采样完成前保持高阻。
+
+\begin{figure}[H]
+  \centering
+  \begin{circuitikz}[american,scale=0.95,transform shape]
+    \draw (3.6,4.0) node[vcc] {$V_{IO}$}
+          to[R,l=$R_{CFG\_UP}$] (3.6,2.25) coordinate (strap);
+    \draw (strap) to[R,l_=$R_{CFG\_DN}$] (3.6,0) node[ground] {};
+    \node[circ] at (strap) {};
+    \node[draw,rectangle,minimum width=2.2cm,minimum height=1.1cm,
+          left=1.0cm of strap] (socstrap) {SoC STRAP};
+    \draw (socstrap.east) -- (strap);
+    \draw (strap) to[R,l=$R_{ISO}$] (6.3,2.25) coordinate (isoout);
+    \node[draw,rectangle,minimum width=2.3cm,minimum height=1.1cm,
+          right=0.35cm of isoout] (periph) {复用外设};
+    \draw (isoout) -- (periph.west);
+    \node[below] at (4.95,2.25) {运行期 GPIO};
+    \node[right] at (periph.east) {上电保持高阻};
+  \end{circuitikz}
+  \caption{启动配置电阻与运行期复用信号隔离}
+  \label{fig:board-strap-isolation}
+\end{figure}
+
+$R_{CFG\_UP}$ 与 $R_{CFG\_DN}$ 通常只装配其一，另一位置用于不同物料配置或调试。阻值上限由输入漏电、噪声和采样阈值决定，下限则受功耗、外设驱动能力及争用电流限制；不能仅以“常用 10~k$\Omega$”替代最坏情况计算。
+
+\section{DDR 与高速存储器}
+
+DDR/LPDDR 接口同时受协议时序、封装、拓扑、阻抗、电源噪声和训练算法影响。
+设计应优先复用处理器和存储器厂商验证过的拓扑、层叠与布局规则，不应把低速数字布线经验直接套用于 DDR。
+
+\subsection{拓扑与布局}
+
+数据组通常以 DQS 为中心进行组内匹配，地址命令和时钟遵循器件要求的 fly-by 或其他拓扑。
+等长只是一种满足时序预算的手段；更重要的是参考平面连续、阻抗受控、过孔数量、串扰和接收端建立保持窗口。
+
+\subsection{训练与验证}
+
+现代控制器可能执行写平衡、读门控、读写延时和 Vref 训练。训练成功不代表具有足够裕量。
+验证应覆盖温度、电压、频率、不同颗粒批次和压力负载，并保留眼图、训练窗口或控制器错误统计。
+
+内存故障还可能来自电源、时钟、缓存和 DMA，不能仅凭软件崩溃位置判断 DDR 颗粒损坏。
+
+\section{接口保护与电平兼容}
+
+\subsection{ESD、浪涌与过压}
+
+连接到外部的电源、通信和按键接口应根据预期环境设置 ESD、浪涌、过流和反接保护。
+TVS 二极管的工作电压、钳位电压、结电容和脉冲能力必须与接口电平和速率匹配。
+
+保护器件应靠近能量进入板卡的位置，并提供短而低阻抗的泄放路径。把 TVS 放在敏感器件附近、同时让浪涌电流穿过整块板，会显著降低保护效果。
+
+图~\ref{fig:board-external-input-protection} 给出低速外部数字输入的基本保护链路。TVS 位于连接器侧并就近泄放瞬态电流，串联电阻限制残余钳位电流，$C_F$ 与施密特输入共同抑制窄脉冲和慢边沿误触发。
+
+\begin{figure}[H]
+  \centering
+  \begin{circuitikz}[american,scale=0.95,transform shape]
+    \draw (0.2,2.4) node[left] {Connector}
+          to[short,o-] (1.1,2.4) coordinate (entry)
+          to[R,l=$R_S$] (3.8,2.4) coordinate (protected);
+    \draw (entry) to[D,l_=$D_{TVS}$] (1.1,0) node[ground] {};
+    \draw (protected) to[C,l_=$C_F$] (3.8,0) node[ground] {};
+    \node[draw,rectangle,minimum width=2.5cm,minimum height=1.05cm,
+          right=0.8cm of protected] (input) {Schmitt Input};
+    \draw[->] (protected) -- (input.west);
+    \draw[->] (input.east) -- ++(0.9,0) node[right] {$GPIO_{IN}$};
+  \end{circuitikz}
+  \caption{低速外部输入的 TVS、限流与滤波保护}
+  \label{fig:board-external-input-protection}
+\end{figure}
+
+$R_S C_F$ 的截止频率必须兼顾有效脉冲宽度和输入阈值穿越时间。若信号可能在板卡掉电时仍然存在，还要核对输入钳位电流、反向供电和 TVS 漏电；高速接口则不能直接套用该电路，必须重新评估串联阻抗、器件结电容和差分不平衡。
+
+\subsection{电平转换与总线状态}
+
+电平转换器应匹配方向、驱动类型、速率和掉电行为。I2C 等开漏总线要求上拉电压和等效电阻满足上升时间与灌电流限制；自动方向转换器并不适用于所有推挽、高容性或双向协议。
+
+未上电、复位和固件初始化前的引脚状态同样重要。外部执行器、功率开关和片选信号应通过硬件偏置保持安全状态。
+
+\section{模拟信号链}
+
+传感器到 ADC 的完整链路通常包括激励、保护、放大、偏置、滤波、驱动和参考源。
+误差预算应分解增益误差、失调、噪声、温漂、非线性、参考源误差和 ADC 量化误差。
+
+\subsection{ADC 驱动与抗混叠}
+
+采样保持 ADC 在采样瞬间会从前级吸取动态电荷。运放必须在规定采样时间内建立到所需精度，RC 滤波器既要限制带宽，也不能使源阻抗超过 ADC 要求。
+
+抗混叠滤波器应在采样前抑制超过奈奎斯特频率的能量。数字滤波不能恢复已经混叠到目标频带中的模拟信号。
+
+图~\ref{fig:board-adc-front-end} 给出单端 SAR ADC 的典型驱动链路。运放提供低输出阻抗，$R_{ISO}$ 隔离采样开关的瞬态回灌并改善容性负载稳定性，$C_F$ 在 ADC 引脚附近储存采样电荷并形成末级低通。基准源使用独立 RC 去耦，避免数字转换脉冲直接调制参考节点。
+
+\begin{figure}[H]
+  \centering
+  \begin{circuitikz}[american,scale=0.88,transform shape]
+    \node[op amp,noinv input up] (buffer) at (3.2,2.5) {};
+    \draw (buffer.+) to[short,-o] ++(-2.0,0) node[left] {$V_{SIG}$};
+    \draw (buffer.out) -- ++(0.65,0) coordinate (bufout)
+          to[R,l=$R_{ISO}$] ++(1.55,0) coordinate (adcin);
+    \draw (buffer.out) -- ++(0,-1.3) coordinate (fb_right)
+          -- (fb_right -| buffer.-) -- (buffer.-);
+    \draw (adcin) to[C,l_=$C_F$] ++(0,-2.1) node[ground] {};
+    \node[draw,rectangle,minimum width=2.4cm,minimum height=3.0cm,
+          right=1.0cm of adcin] (adc) {SAR ADC};
+    \draw[->] (adcin) -- (adc.west) node[midway,above] {$ADC_{IN}$};
+
+    \node[draw,rectangle,minimum width=1.8cm,minimum height=0.9cm,
+          below=2.4cm of buffer] (ref) {VREF};
+    \draw (ref.east) to[R,l=$R_{REF}$] ++(1.65,0) coordinate (vref)
+          -| (adc.south);
+    \draw (vref) to[C,l_=$C_{REF}$] ++(0,-1.25) node[ground] {};
+    \node[above] at (vref -| adc.south) {$V_{REF}$};
+    \node[circ] at (adcin) {};
+    \node[circ] at (vref) {};
+  \end{circuitikz}
+  \caption{SAR ADC 缓冲、采样隔离、末级滤波和参考去耦}
+  \label{fig:board-adc-front-end}
+\end{figure}
+
+若把 ADC 采样网络近似为 $R_{SRC}C_{SH}$ 一阶系统，要把满量程阶跃建立到 $N$ 位精度的半个 LSB，可使用下式进行初步检查：
+\begin{equation}
+  t_{ACQ}\geq \ln\!\left(2^{N+1}\right)R_{SRC}C_{SH}
+\end{equation}
+该式不包含运放有限带宽、压摆率、输出过载恢复、开关电荷注入和外部 $R_{ISO}C_F$ 的高阶响应，因此只能作为下限估计。最终元件值应依据 ADC 驱动模型、稳定性仿真和满量程阶跃实测确定。
+
+\subsection{参考、接地与校准}
+
+ADC 参考源的噪声和漂移直接进入测量结果。模拟地与数字地的处理目标是控制回流路径和共享阻抗，而不是机械地把地平面切开。
+高精度系统应通过布局、开尔文连接和校准区分可消除的系统误差与不可预测噪声。
+
+参考源允许的动态负载、最小输出电容和 ESR 范围必须按数据手册实现。$C_{REF}$ 应靠近 ADC 参考引脚，参考回流连接到 ADC 的模拟地基准；若基准同时供给多个转换器，需要分别评估共享阻抗、启动时序和跨通道调制，而不是简单并联长支线。
+
+\section{器件选型、降额与替代}
+
+器件选型应同时考虑电气参数、封装、温度等级、生命周期、供应风险和可测试性。
+电压、电流、功耗和结温应按企业规范或适用行业要求降额，并使用最坏环境温度与实际热阻计算结温。
+
+替代料不能只比较功能描述。必须核对引脚、上电默认状态、时序、电气阈值、寄存器兼容、封装和软件识别，并完成受影响测试。
+
+\section{板级验证计划}
+
+\begin{enumerate}
+  \item 在限流电源下检查所有电源轨阻抗和首次上电电流；
+  \item 验证电源时序、复位、strap 和调试接口；
+  \item 分别验证时钟、片上 SRAM、DDR 和启动存储；
+  \item 对所有外部接口进行电平、协议、负载和异常状态测试；
+  \item 测量满载功耗、纹波、关键器件结温和热稳态；
+  \item 执行电压、温度、频率和器件容差边界测试；
+  \item 验证掉电、短路、热插拔、ESD 后系统的保护和恢复行为；
+  \item 固化测试点、产测命令、判定阈值和硬件版本追踪。
+\end{enumerate}
+
+\section{设计检查清单}
+
+\begin{itemize}
+  \item 是否存在完整的电源树、时序图、负载预算和热预算？
+  \item 时钟源的负载、抖动、布局和启动时间是否满足所有消费者？
+  \item 复位和 strap 在上电、掉电、外设未供电和产测连接时是否确定？
+  \item DDR 拓扑、层叠、阻抗、匹配和训练是否经过边界条件验证？
+  \item 外部接口是否具备与环境和速率匹配的保护及电平兼容性？
+  \item 模拟链路是否具有完整的带宽、噪声、建立时间和误差预算？
+  \item 器件是否完成降额、生命周期和替代料风险评估？
+\end{itemize}
+
+第~\ref{chap:case-programmer-extboard}~章进一步讨论多工位生产工装板中的默认断电、限流、信号隔离、非标准插座封装和机械舌片设计。

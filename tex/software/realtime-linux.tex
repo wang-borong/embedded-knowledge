@@ -1,0 +1,92 @@
+\chapter{实时 Linux}
+\label{chap:realtime-linux}
+
+Linux 可以满足大量软实时和部分严格实时场景，但实时性来自端到端约束，而不是安装一个补丁或提高进程优先级。系统必须同时控制中断、内核临界区、调度、内存、驱动、频率变化和用户程序中的阻塞。
+
+\section{实时指标与预算}
+
+常用指标包括中断响应延迟、调度唤醒延迟、任务周期抖动和从输入到输出的端到端延迟。实时需求应说明最大值、测量区间、负载条件、CPU/内存拓扑和允许的丢周期策略。
+
+端到端最坏延迟可以分解为：
+\begin{equation}
+  L_{e2e}=L_{irq}+L_{wake}+L_{sched}+L_{exec}+L_{io}
+\end{equation}
+
+平均值和普通百分位不足以证明硬实时。长尾延迟往往来自固件 SMI、不可屏蔽中断、驱动关中断区、缺页、锁竞争或热管理降频。
+
+\section{PREEMPT\_RT 的作用}
+
+PREEMPT\_RT 使更多内核路径可抢占，把大多数硬中断线程化，并将部分自旋锁转换为支持优先级继承的可睡眠锁，从而降低不可抢占区长度\cite{linux-preempt-rt}。它不会消除所有延迟来源：NMI、架构低级入口、raw spinlock、部分时钟和硬件固件仍可能不可抢占。
+
+内核配置通常需要启用高分辨率定时器、完整抢占 RT、优先级继承 futex 和适当的调试能力。调试选项会改变时序，验收必须在接近发布的配置上重复。
+
+\section{实时调度策略}
+
+\texttt{SCHED\_FIFO} 任务会一直运行到阻塞、主动让出或被更高优先级任务抢占；\texttt{SCHED\_RR} 在同优先级任务间使用时间片；\texttt{SCHED\_DEADLINE} 用 runtime、deadline 和 period 描述带宽约束。
+
+实时优先级必须来自响应时间分析。把所有关键线程设为最高优先级会造成饥饿，并可能阻塞负责日志、网络或恢复的必要线程。内核 IRQ 线程同样参与优先级体系，应用必须高于哪些 IRQ、低于哪些安全关键 IRQ，需要逐项设计。
+
+\begin{lstlisting}[language=C,caption={实时线程的基本初始化}]
+struct sched_param sp = { .sched_priority = 70 };
+
+if (mlockall(MCL_CURRENT | MCL_FUTURE) != 0)
+    fail("mlockall");
+prefault_stack_and_heap();
+if (pthread_setschedparam(pthread_self(), SCHED_FIFO, &sp) != 0)
+    fail("setschedparam");
+pin_thread_to_cpu(2);
+\end{lstlisting}
+
+实时线程启动前应预分配内存、预触碰栈和工作集、打开文件与设备、建立连接并完成动态链接器的延迟绑定。周期路径中应避免 page fault、不可控日志、DNS、存储写入和无界锁等待。
+
+\section{CPU 隔离与中断亲和性}
+
+可以通过 cpuset、调度域隔离、IRQ affinity 和 housekeeping CPU 减少实时核上的后台活动。完全隔离并不总是最优：定时、RCU 回调、内存回收和驱动工作仍需要执行位置，错误配置可能把干扰集中到实时 CPU。
+
+常见策略是保留至少一个 housekeeping CPU 处理普通进程、非关键 IRQ、RCU 和内核线程，把实时任务及其必要设备 IRQ 放到同一 NUMA 节点或共享缓存域。网络实时流还需要协调 NIC queue、RSS/RPS/XPS、NAPI 和用户线程亲和性。
+
+\section{内存与锁}
+
+\texttt{mlockall()} 防止已映射页被换出，但不能自动预取尚未触碰的匿名页，也不能阻止内核内存回收引发间接抖动。实时程序应禁用或严格控制 swap，预分配固定缓冲，避免运行时扩容，并监控 minor/major fault。
+
+共享锁必须具有有界临界区和明确顺序。普通优先级继承互斥量能缓解优先级反转，但锁持有者若阻塞在 I/O 或被 CPU affinity 排除，延迟仍可能无界。对单生产者单消费者数据流，可考虑有界无锁 ring；对复杂状态，优先选择短临界区和消息传递。
+
+\section{设备 I/O 路径}
+
+实时应用的延迟经常由驱动决定。应审查：
+\begin{itemize}
+  \item IRQ 是否线程化，线程优先级和 affinity 是否合理；
+  \item DMA 是否减少 CPU 搬运，同时保持固定缓冲池和有界完成路径；
+  \item 驱动是否在实时路径执行同步固件加载、内存分配或慢总线访问；
+  \item runtime PM、自动降频和深度 C-state 是否引入不可接受唤醒延迟；
+  \item 用户 ABI 是否支持批量、时间戳和异步 I/O，避免每个样本一次系统调用。
+\end{itemize}
+
+若硬件需要严格微秒级边沿生成，应使用定时器、PWM、PRU、FPGA 或实时协处理器完成，不应依赖普通用户线程忙等待。
+
+\section{测量与追踪}
+
+\texttt{cyclictest} 测量定时唤醒延迟，\texttt{rtla timerlat} 和 osnoise tracer 能进一步定位 IRQ、线程和操作系统噪声。测试必须在 CPU、内存、网络、存储和目标外设同时处于最坏合法负载时运行，并覆盖温度与频率策略。
+
+\begin{lstlisting}[language=bash,caption={实时延迟压力测试示意}]
+cyclictest --mlockall --smp --priority=80 --interval=1000 \
+  --distance=0 --duration=8h --histogram=2000
+rtla timerlat top --cpus 2-3 --duration 1h
+\end{lstlisting}
+
+发现尖峰后，应关联 ftrace 中的 irq/softirq、sched、workqueue、power 和 timer 事件。仅删除最大样本或重复测试到结果好看，会掩盖真实系统风险。
+
+\section{实时 Linux 与 RTOS 的选择}
+
+实时 Linux 适合需要完整 Linux 生态、毫秒到数十微秒级响应且硬件平台可控的系统。独立 RTOS 核更适合安全边界清晰、极短截止期、主核可能重启或休眠，以及需要认证隔离的控制路径。二者也可以按第~\ref{chap:heterogeneous-multicore}~章的方法协同。
+
+\section{验收清单}
+
+\begin{itemize}
+  \item 延迟要求是否包含最坏负载、测量时长和允许违约策略？
+  \item 实时线程、IRQ 线程和恢复线程的优先级是否形成可解释顺序？
+  \item 是否消除了实时路径中的缺页、动态分配和无界 I/O？
+  \item CPU 隔离、IRQ affinity、RCU 和频率策略是否按目标硬件验证？
+  \item 是否记录最大延迟对应的完整 trace，而不仅是统计数值？
+  \item 看门狗和安全输出是否独立于可能饿死普通任务的实时线程？
+\end{itemize}

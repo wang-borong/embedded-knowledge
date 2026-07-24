@@ -252,47 +252,58 @@ LDO 适用于以下场景：
 
 \subsubsection{开关稳压器的基本工作原理}
 
-开关稳压器的基本结构包括开关管、电感、电容、二极管（或同步开关管）和控制电路，如图~\ref{fig:buck-basic} 所示（以 Buck 转换器为例）。
+开关稳压器的功率级通常由开关管、电感、电容和续流器件组成，控制器根据输出反馈调节占空比或开关频率。图~\ref{fig:buck-basic} 给出了异步 Buck 功率级；实际芯片还包含栅极驱动、误差放大器、PWM 比较器、基准源以及过流、欠压和过温保护。
 
 \begin{figure}[H]
   \centering
-  \begin{circuitikz}[american,scale=0.8]
-    \draw
-    (0,3) node[above] {$V_{in}$} to[switch, name=S1] (2,3)
-    (2,3) to[L=$L$] (4,3)
-    (4,3) to[C=$C$] (4,0) node[ground] {}
-    (4,3) to[short] (5,3) node[right] {$V_{out}$}
-    (2,0) node[ground] {}
-    (2,3) to[D, name=D1] (2,0)
-    (0,0) to[short] (5,0);
+  \begin{circuitikz}[american,scale=0.9,transform shape]
+    \coordinate (vin) at (0,3);
+    \coordinate (sw) at (4,3);
+    \coordinate (vout) at (7,3);
+    \coordinate (gnd-left) at (0,0);
+    \coordinate (gnd-right) at (9,0);
+
+    \draw (vin) node[ocirc] {} node[above] {$V_{IN}$}
+          to[short] ++(1.4,0)
+          to[nos,l=$Q_H$] (sw) node[circ,label=above:$SW$] {};
+    \draw (sw) to[L,l=$L$] (vout)
+          to[short] ++(2,0) coordinate (out-terminal)
+          node[ocirc] {} node[above] {$V_{OUT}$};
+
+    \draw (vin) to[C,l_=$C_{IN}$] (vin |- gnd-left);
+    \draw (sw |- gnd-left) to[D,l_=$D_{FW}$] (sw);
+    \draw (vout) to[C,l=$C_{OUT}$] (vout |- gnd-left);
+    \draw (out-terminal) to[R,l=$R_{LOAD}$] (out-terminal |- gnd-left);
+
+    \draw (gnd-left) -- (gnd-right) node[ground] {};
   \end{circuitikz}
   \caption{Buck 转换器基本结构}\label{fig:buck-basic}
 \end{figure}
 
-工作原理：
+在连续导通模式（Continuous Conduction Mode，CCM）下，一个开关周期可分为两个状态：
 \begin{enumerate}
-  \item 开关管导通时，输入电压通过电感和负载，电感储能
-  \item 开关管关断时，电感通过二极管（或同步开关管）续流，向负载供电
-  \item 通过控制开关管的占空比，调节输出电压
+  \item $Q_H$ 导通时，电感两端电压约为 $V_{IN}-V_{OUT}$，电感电流线性上升；
+  \item $Q_H$ 关断时，$D_{FW}$ 导通，电感两端电压约为 $-V_{OUT}$，电感电流线性下降；
+  \item 稳态时电感满足伏秒平衡，控制器通过调节占空比维持输出电压。
 \end{enumerate}
+
+同步 Buck 使用低侧 MOSFET 代替续流二极管，可降低大电流时的导通损耗，但必须设置死区时间，防止高、低侧 MOSFET 同时导通而形成直通电流。
 
 \subsubsection{开关稳压器的拓扑结构}
 
 \paragraph{Buck 转换器（降压）}
 
-Buck 转换器将高电压转换为低电压，输出电压为：
+Buck 转换器将较高输入电压转换为较低输出电压。忽略开关管、二极管、电感直流电阻等压降，并假定工作于 CCM 时：
 
 \begin{equation}
 V_{out} = D \cdot V_{in} \label{eq:buck-output}
 \end{equation}
 
-其中 $D$ 是占空比（$0 < D < 1$）。
-
-特点：
+其中 $D=t_{on}/T_{SW}$，且 $0<D<1$。非理想条件下，输出还受开关管导通压降、二极管正向压降、死区时间和寄生电阻影响。其主要特点为：
 \begin{itemize}
   \item 输出电压低于输入电压
-  \item 效率高（通常 80--95\%）
-  \item 输出电流连续
+  \item 电感使输出电流在 CCM 下连续，便于获得较低的输出纹波
+  \item 输入侧开关电流具有较大的脉动，需要低阻抗输入旁路和紧凑的热回路布局
 \end{itemize}
 
 \paragraph{Boost 转换器（升压）}
@@ -312,10 +323,10 @@ V_{out} = \frac{V_{in}}{1 - D} \label{eq:boost-output}
 
 \paragraph{Buck-Boost 转换器}
 
-Buck-Boost 转换器可以实现升压和降压，输出电压为：
+经典单开关 Buck-Boost 可以实现升压和降压，但其输出极性反相。理想 CCM 电压关系为：
 
 \begin{equation}
-V_{out} = \frac{D}{1 - D} V_{in} \label{eq:buck-boost-output}
+V_{out} = -\frac{D}{1 - D} V_{in} \label{eq:buck-boost-output}
 \end{equation}
 
 特点：
@@ -324,95 +335,218 @@ V_{out} = \frac{D}{1 - D} V_{in} \label{eq:buck-boost-output}
   \item 输出电压与输入电压反相
 \end{itemize}
 
-\paragraph{SEPIC 和 Cuk 转换器}
+\paragraph{SEPIC 和 \texorpdfstring{\v{C}uk}{Cuk} 转换器}
 
-SEPIC（Single-Ended Primary Inductor Converter）和 Cuk 转换器也可以实现升降压，且输出电压与输入电压同相。
+SEPIC（Single-Ended Primary Inductor Converter）和传统 \v{C}uk 转换器均可实现升降压。SEPIC 的输出与输入同相，传统 \v{C}uk 的输出与输入反相；两者都使用能量传递电容，设计时必须校核该电容的纹波电流和耐压。若系统同时要求同相输出和升降压，也可采用四开关非反相 Buck-Boost，但其驱动和控制更复杂。
 
 \subsubsection{开关稳压器的控制方式}
 
+开关频率是否固定与控制器如何形成占空比是两个不同维度，不能简单地用 PWM、PFM 覆盖全部控制架构。常见实现包括：
+
 \begin{enumerate}
-  \item \textbf{脉宽调制（PWM）}
-    \begin{itemize}
-      \item 开关频率固定，调节占空比
-      \item 适用于大功率应用
-      \item 效率高，但轻载效率低
-    \end{itemize}
-
-  \item \textbf{脉冲频率调制（PFM）}
-    \begin{itemize}
-      \item 占空比固定或变化，调节开关频率
-      \item 适用于轻载应用
-      \item 轻载效率高，但输出纹波较大
-    \end{itemize}
-
-  \item \textbf{混合模式}
-    \begin{itemize}
-      \item 重载时使用 PWM，轻载时使用 PFM
-      \item 兼顾效率和性能
-    \end{itemize}
+  \item \textbf{电压模式控制（Voltage-Mode Control）}：误差放大器输出与固定斜坡比较，直接生成占空比。功率级模型清晰，但 Buck 的 LC 双极点会带来接近 $180^\circ$ 的相位滞后，通常需要 Type-III 等补偿网络；
+  \item \textbf{峰值电流模式控制（Peak Current-Mode Control）}：外环调节峰值电感电流指令，内环逐周期比较采样电流。功率级在交越频率附近近似呈单极点特性，并天然支持逐周期限流；当占空比超过约 0.5 时，固定频率实现通常需要斜坡补偿以抑制次谐波振荡；
+  \item \textbf{谷值电流、恒定导通时间和滞环控制}：根据谷值电流、输出纹波或比较器窗口决定下一次开关动作，瞬态响应快，但开关频率可能随输入、负载和纹波注入变化；
+  \item \textbf{轻载模式}：脉冲跳跃、脉冲频率调制、二极管模拟或突发模式可减少轻载开关损耗。代价可能包括低频纹波、可闻噪声、频谱不确定性以及输出电压偏移；
+  \item \textbf{强制 PWM 模式}：在轻载时仍维持固定频率，频谱可预测且瞬态一致，但同步整流器可能允许负电感电流，轻载效率通常低于跳脉冲模式。
 \end{enumerate}
+
+控制方式应根据效率曲线、允许纹波、EMI 频谱、可闻噪声、负载瞬态和多电源同步要求选择，不能只根据额定功率判断。
+
+\subsubsection{反馈采样与闭环稳定性}
+
+图~\ref{fig:buck-feedback-sense} 给出了可调输出稳压器的基本反馈路径。控制器使 FB 引脚电压逼近内部基准 $V_{REF}$，因而在忽略 FB 偏置电流时：
+
+\begin{equation}
+V_{OUT}=V_{REF}\left(1+\frac{R_{TOP}}{R_{BOT}}\right)
+\label{eq:regulator-feedback-divider}
+\end{equation}
+
+\begin{figure}[H]
+  \centering
+  \begin{circuitikz}[american,scale=0.9,transform shape]
+    \node[draw,rounded corners,minimum width=2.5cm,minimum height=1.4cm,
+          align=center] (controller) at (0,2) {控制器\\$V_{REF}$、补偿};
+    \node[draw,rounded corners,minimum width=2.5cm,minimum height=1.4cm,
+          align=center] (power-stage) at (4,2) {Buck\\功率级};
+
+    \draw[->] (controller.east) -- (power-stage.west)
+          node[midway,above] {驱动};
+    \draw (power-stage.east) -- ++(2,0) coordinate (vout-sense)
+          node[circ] {} -- ++(0.8,0) node[ocirc] {}
+          node[above] {$V_{OUT}$};
+
+    \draw (vout-sense) to[R,l=$R_{TOP}$] ++(0,-2) coordinate (fb-node)
+          node[circ] {} to[R,l=$R_{BOT}$] ++(0,-2) node[ground] {};
+    \draw[->] (fb-node) -- (fb-node -| controller.south)
+          -- (controller.south) node[near end,left] {FB};
+  \end{circuitikz}
+  \caption{开关稳压器的反馈分压与闭环路径}
+  \label{fig:buck-feedback-sense}
+\end{figure}
+
+反馈分压器应从输出电容的稳压点作 Kelvin 采样，而不是从电感焊盘或大电流走线中途取样。$R_{BOT}$ 的返回端应连接控制器规定的安静模拟地；FB 走线应短、远离 $SW$ 节点和栅极驱动线，必要时使用接地铜保护。分压电阻过小会增加静态损耗，过大则更容易受到 FB 偏置电流、漏电、污染和电容耦合影响。
+
+某些控制器允许在 $R_{TOP}$ 两端并联前馈电容 $C_{FF}$，用于引入零点、改善瞬态或加快输出启动跟随；其作用取决于内部误差放大器、分压阻值和内部前馈路径，不能把经验电容值直接迁移到不同芯片。远端采样也不能无条件使用：负载连接器与输出电容之间的走线电感可能被纳入反馈环路，降低相位裕度。
+
+\paragraph{环路增益与交越频率}
+
+闭环稳定性由环路增益决定：
+
+\begin{equation}
+T(s)=G_C(s)G_M(s)G_P(s)H(s)
+\label{eq:regulator-loop-gain}
+\end{equation}
+
+其中 $G_C(s)$ 为补偿器，$G_M(s)$ 为调制器及电流内环，$G_P(s)$ 为功率级，$H(s)$ 为反馈网络。在增益交越频率 $f_C$ 处满足 $|T(j2\pi f_C)|=1$。设计不仅要获得足够相位裕度和增益裕度，还要检查不同输入电压、负载、电感偏差、输出电容直流偏置与 ESR 下的变化。
+
+交越频率通常应显著低于开关频率，以避免采样、PWM 延迟和高频寄生进入闭环；具体上限由控制架构和数据手册给出。CCM Boost、反相 Buck-Boost 和部分隔离拓扑还存在右半平面零点。以理想 CCM Boost 为例：
+
+\begin{equation}
+f_{RHPZ}\approx\frac{R_{LOAD}(1-D)^2}{2\pi L}
+\label{eq:boost-rhp-zero}
+\end{equation}
+
+右半平面零点会增加增益却引入相位滞后，不能用普通左半平面零点抵消。因此交越频率必须远低于最坏条件下的 $f_{RHPZ}$，且重载、高占空比通常是更严格的工况。
+
+\paragraph{环路测量与瞬态验证}
+
+环路分析仪通常通过隔离变压器向反馈环路中的小注入电阻施加扫频扰动，并测量扰动点两侧的幅相比。注入点应满足两侧阻抗关系适合电压注入，同时不得改变直流工作点。测量幅度应足够高于噪声底，又不能使控制器进入限流、跳脉冲或大信号非线性状态。
+
+频域裕度不能代替时域验证。应在最小与最大输入、电容和电感容差、轻载与满载、冷态与热态下执行负载阶跃，记录过冲、欠冲、恢复时间、开关节点和电感电流。示波器测量输出纹波时应使用短接地弹簧或同轴探测，避免长接地线把磁场耦合误认为输出噪声。
 
 \subsubsection{开关稳压器的关键参数}
 
 \begin{enumerate}
   \item \textbf{效率}
     \begin{itemize}
-      \item 开关稳压器的效率通常为 80--95\%
-      \item 效率与负载电流、输入输出电压、开关频率等因素有关
+      \item 必须使用覆盖输入电压、负载和温度的效率曲线，而不能用单个典型值代表整个工作区
+      \item 应区分芯片效率、功率级效率和包含输入保护、磁性器件及辅助电源后的系统效率
     \end{itemize}
 
   \item \textbf{开关频率}
     \begin{itemize}
-      \item 典型值：几百 kHz 到几 MHz
-      \item 频率越高，电感和电容可以越小，但开关损耗增加
+      \item 关注标称值、容差、同步范围、轻载变频行为和扩频深度
+      \item 频率影响无源器件尺寸、控制带宽、开关损耗、磁芯损耗和 EMI
     \end{itemize}
 
   \item \textbf{输出纹波}
     \begin{itemize}
-      \item 输出电压的交流分量
-      \item 与开关频率、电感和电容值有关
+      \item 应分别规定周期性纹波、开关尖峰、低频轻载纹波和负载瞬态偏移
+      \item 测量结果高度依赖探头连接、带宽限制和测量位置，测试方法必须随指标一同定义
     \end{itemize}
 
   \item \textbf{负载调整率和线性调整率}
     \begin{itemize}
-      \item 与 LDO 类似，但通常比 LDO 差
+      \item 分别描述负载变化和输入变化引起的稳态输出偏差，并应注明测试范围、采样点及温度
     \end{itemize}
 
   \item \textbf{瞬态响应}
     \begin{itemize}
-      \item 负载突变时输出电压的恢复时间
-      \item 影响动态性能
+      \item 至少包括负载阶跃幅度、边沿速率、输出电容、过冲或欠冲以及恢复时间
+      \item 大信号瞬态还会受到限流、最小导通时间、最大占空比和轻载模式切换影响
     \end{itemize}
 \end{enumerate}
 
 \subsubsection{开关稳压器的设计考虑}
 
+以下关系式以理想器件、固定频率、稳态 CCM 和近似三角形电感纹波为前提。它们适合初步定值，最终设计还应依据控制器数据手册、环路模型和实测波形校核。
+
 \paragraph{电感选择}
 
-电感值影响输出纹波和瞬态响应：
+Buck 电感纹波为：
+
+\begin{equation}
+\Delta I_L = \frac{(V_{IN}-V_{OUT})D}{L f_{SW}} \label{eq:buck-inductor-ripple}
+\end{equation}
+
+因此可按允许的纹波反推电感值：
 
 \begin{equation}
 L = \frac{(V_{in} - V_{out}) D}{f_{sw} \Delta I_L} \label{eq:inductor-selection}
 \end{equation}
 
-其中 $\Delta I_L$ 是电感电流纹波，通常选择为负载电流的 20--40\%。
+纹波比 $\Delta I_L/I_{OUT}$ 并无适用于所有设计的固定值。增大电感可减小纹波和磁芯交流损耗，但会增加体积、直流电阻并减慢电流变化。电感的饱和电流至少应覆盖峰值电流和瞬态裕量：
+
+\begin{equation}
+I_{L,PK}=I_{OUT,MAX}+\frac{\Delta I_L}{2} \label{eq:buck-inductor-peak}
+\end{equation}
+
+同时还要校核电感的温升电流、直流电阻、磁芯损耗以及短路限流期间的峰值应力。
 
 \paragraph{电容选择}
 
-输出电容影响输出纹波：
+忽略控制环路调节作用时，输出纹波可近似分为电容充放电项和等效串联电阻（ESR）项：
 
 \begin{equation}
-C_{out} \geq \frac{\Delta I_L}{8 f_{sw} \Delta V_{out}} \label{eq:capacitor-selection}
+\Delta V_{OUT}\approx
+\frac{\Delta I_L}{8f_{SW}C_{OUT}}+
+\Delta I_L\,ESR \label{eq:buck-output-ripple}
 \end{equation}
 
-其中 $\Delta V_{out}$ 是允许的输出纹波。
+陶瓷电容的有效电容量会随直流偏置、电压和温度变化，不能直接使用标称值代入。输出电容还参与控制环路，容量、ESR 及其零极点必须满足控制器规定的稳定范围。输入电容则要承受脉动电流，其高频陶瓷电容应尽量靠近功率开关回路。
+
+对理想 Buck 功率级作初步估算时，输入电容的 RMS 纹波电流约为：
+
+\begin{equation}
+I_{CIN,RMS}\approx I_{OUT}\sqrt{D(1-D)} \label{eq:buck-input-cap-rms}
+\end{equation}
+
+该应力在 $D\approx 0.5$ 附近较大。实际选型还应计入电感纹波、输入线缆阻抗和多相交错效应，并核查电容在工作频率和温度下允许的纹波电流及自发热。
+
+\paragraph{高 \texorpdfstring{$di/dt$}{di/dt} 热回路}
+
+图~\ref{fig:buck-hot-loop} 以同步 Buck 为例标出输入侧热回路。高侧开关导通和低侧开关导通时，电流路径发生快速换向；两种状态之差所围成的回路即高 $di/dt$ 回路，是传导噪声、辐射噪声和开关过冲的主要来源。
+
+\begin{figure}[H]
+  \centering
+  \begin{circuitikz}[american,scale=0.9,transform shape]
+    \coordinate (vin-bus) at (0,4);
+    \coordinate (sw-node) at (4,4);
+    \coordinate (power-gnd) at (4,0);
+    \coordinate (cin-gnd) at (0,0);
+
+    \draw (vin-bus) node[ocirc] {} node[above] {$V_{IN}$}
+          to[short] ++(1.5,0)
+          to[nos,l=$Q_H$] (sw-node)
+          node[circ,label=right:$SW$] {};
+    \draw (sw-node) to[nos,l=$Q_L$] (power-gnd);
+    \draw (vin-bus) to[C,l_=$C_{IN}$] (cin-gnd);
+    \draw (cin-gnd) -- (power-gnd) node[ground] {};
+    \draw (sw-node) to[L,l=$L$] ++(3,0)
+          node[ocirc] {} node[above] {$V_{OUT}$};
+
+    \draw[red!75!black,very thick,->]
+          ($(vin-bus)+(0.2,-0.18)$) -- ++(1.2,0)
+          -- ($(sw-node)+(-0.18,-0.18)$)
+          -- ($(power-gnd)+(-0.18,0.18)$)
+          -- ($(cin-gnd)+(0.18,0.18)$)
+          -- ($(vin-bus)+(0.18,-0.35)$);
+    \node[red!75!black,align=center]
+          at ($(cin-gnd)!0.5!(power-gnd)+(0,0.55)$)
+          {高 $di/dt$ 热回路};
+  \end{circuitikz}
+  \caption{同步 Buck 的高 $di/dt$ 输入热回路}
+  \label{fig:buck-hot-loop}
+\end{figure}
+
+布局时应使 $C_{IN}$、$Q_H$ 和 $Q_L$ 的换流回路面积最小，并为其提供连续、低电感的功率地回流。$SW$ 节点具有高 $dv/dt$，铜面积应在满足载流和散热的前提下尽量受控，并远离反馈分压、基准、晶振和高阻抗模拟节点。热回路与 $SW$ 节点是两个不同概念：前者关注闭合电流路径及其寄生电感，后者关注电场耦合和寄生电容。
+
+\paragraph{器件电压与电流应力}
+
+MOSFET、二极管和电容的额定值不能只等于稳态输入输出值。输入热插拔、负载突降、布线寄生参数与封装电感会形成过冲；应结合最坏输入、控制器保护阈值、结温降额和实测尖峰保留裕量。MOSFET 的损耗至少包括导通损耗、开关交叠损耗、栅极驱动损耗和输出电容损耗，二极管还需关注正向压降、反向恢复和结温。
+
+\paragraph{CCM、DCM 与临界导通}
+
+当平均输出电流下降到约 $\Delta I_L/2$ 时，电感谷值电流接近零，功率级到达 CCM 与断续导通模式（Discontinuous Conduction Mode，DCM）的边界。进入 DCM 后，电压变换比不仅取决于占空比，还与负载、电感和开关频率有关，前述 CCM 关系不能直接套用。二极管模拟或不允许反向电流的同步整流器会自然进入 DCM；允许负电流的强制 PWM 控制器则可能保持 CCM，但轻载环流损耗会增加。器件选型和环路验证必须覆盖控制器实际采用的轻载模式。
 
 \paragraph{开关频率选择}
 
 开关频率的选择需要在效率和体积之间权衡：
 \begin{itemize}
-  \item 频率高：电感和电容小，但开关损耗大
-  \item 频率低：效率高，但电感和电容大
+  \item 频率升高：无源器件通常可以减小，控制带宽可能提高，但开关、驱动、磁芯和 EMI 损耗趋于增大；
+  \item 频率降低：开关损耗通常减小，但电感、电容和电流纹波约束可能要求更大的无源器件；
+  \item 还应避开敏感采样频段、无线频段及其谐波，并结合扩频、同步和 EMI 滤波策略综合选择。
 \end{itemize}
 
 \subsubsection{LDO 与开关稳压器的比较}
@@ -420,17 +554,17 @@ C_{out} \geq \frac{\Delta I_L}{8 f_{sw} \Delta V_{out}} \label{eq:capacitor-sele
 \begin{table}[H]
   \centering
   \caption{LDO 与开关稳压器的比较}
-  \begin{tabular}{|l|l|l|}
+  \begin{tabular}{|p{0.17\textwidth}|p{0.31\textwidth}|p{0.36\textwidth}|}
     \hline
     特性 & LDO & 开关稳压器 \\
     \hline
-    效率 & 低（30--70\%） & 高（80--95\%） \\
-    输出噪声 & 低 & 高 \\
-    响应速度 & 快 & 较慢 \\
+    效率 & 近似受 $V_{out}/V_{in}$ 限制 & 取决于拓扑、器件和工作点 \\
+    输出频谱 & 无开关纹波，仍有宽带噪声 & 含开关基频、谐波与宽带尖峰 \\
+    瞬态响应 & 受环路带宽、输出电容和限流共同影响 & 受拓扑、控制方式、环路和储能元件共同影响 \\
     成本 & 低 & 较高 \\
     复杂度 & 简单 & 复杂 \\
-    适用电流 & 小（< 1 A） & 大（> 100 mA） \\
-    压差 & 需要 & 不需要 \\
+    适用功率 & 受压差与热耗散约束 & 覆盖范围宽，需校核损耗与散热 \\
+    输入输出关系 & 只能降压并需要压差裕量 & 可降压、升压或反相 \\
     \hline
   \end{tabular}
 \end{table}

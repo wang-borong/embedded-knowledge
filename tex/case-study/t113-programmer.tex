@@ -1,0 +1,287 @@
+\chapter{嵌入式 Linux 专用设备工程实践}
+\label{chap:case-t113-programmer}
+
+专用 Linux 设备需要同时处理板级资源、内核 ABI、并行作业、受限操作界面、根文件系统和可启动镜像。任何一层的局部正确都不能替代整机闭环验证。
+本章以多工位生产设备为抽象模型，说明如何把设备树、多实例驱动、状态机、Buildroot 和 NAND/UBI 发布链组织为可维护的垂直架构。
+
+\section{系统目标}
+
+设备需要同时管理多个物理工位，每个工位能够独立探测、执行操作、回读验证和记录结果。
+系统还必须限制不可逆操作、保护生产配置、支持本地交互和离线导入导出，并生成可在 NAND 设备上启动的完整镜像。
+
+\begin{center}
+\begin{tikzpicture}[node distance=4mm,scale=0.94,transform shape]
+  \tikzset{flow/.style={draw=bookline,fill=bookpaper,rounded corners=1mm,
+    minimum width=34mm,minimum height=10mm,align=center,font=\small}}
+  \node[flow] (socket) {多路物理工位};
+  \node[flow,right=of socket] (gpio) {GPIO 两线总线\\电源/总线隔离};
+  \node[flow,right=of gpio] (driver) {多实例字符驱动\\稳定 ioctl ABI};
+  \node[flow,below=of driver] (app) {多线程 CLI\\Recipe 执行器};
+  \node[flow,left=of app] (ui) {Qt Widgets\\触摸界面};
+  \node[flow,right=of app] (records) {校验、批次记录\\JSON/导出};
+  \draw[->,bookteal] (socket)--(gpio);
+  \draw[->,bookteal] (gpio)--(driver);
+  \draw[->,bookteal] (driver)--(app);
+  \draw[<->,bookteal] (ui)--(app);
+  \draw[->,bookteal] (app)--(records);
+\end{tikzpicture}
+\end{center}
+
+这类系统应按从原理图引脚到量产镜像的完整垂直切片设计，而不能把驱动、应用和镜像视为相互独立的交付物。
+
+\section{为什么不直接使用标准 I2C 传输}
+
+目标器件使用同步两线物理接口，但其命令首字节、读阶段和状态机不完全符合普通固定地址 I2C 设备模型。
+如果只根据 SCL/SDA 外观就调用 \texttt{i2c\_transfer()}，控制器可能自动插入地址、重复 START 或读地址阶段，改变线上序列。
+
+一种可行方法是复用 \texttt{i2c-gpio} adapter 提供的 GPIO 线控制能力，但由专用字符驱动实现器件协议。
+这体现了一个重要原则：Linux 子系统抽象必须与设备真实协议匹配，不能为复用 API 而扭曲线上行为。
+
+设备树中的地址属性只承担设备实例化和同一 adapter 下节点区分，不代表驱动会把该值发送到目标器件。
+
+\section{多路总线的板级资源分配}
+
+多个工位使用相互独立的 SCL/SDA，能够避免空座、接触不良和热插拔故障传播到其他工位。
+其中部分引脚原本属于硬件 TWI、音频、UART 或 LED 功能，因此设备树必须同步关闭冲突控制器和 pinctrl 声明。
+
+设备树应为每个实例提供稳定的 \texttt{channel-id}，从而固定物理工位、字符设备编号和 UI 位置之间的映射。
+如果依赖 probe 顺序分配设备号，内核版本、异步 probe 或节点排列变化都可能导致操作员看到的工位与软件编号错位。
+
+板级设备树修改的验收不应止于 DTB 能编译，还应检查：
+\begin{itemize}
+  \item 原硬件控制器是否真正禁用；
+  \item pinctrl 是否仍有重复占用；
+  \item 每个 GPIO adapter 的上拉、电压和时序是否与母板一致；
+  \item 共享总线上的 RTC 等标准设备在烧录设备关闭后是否恢复正常；
+  \item 物理工位与 \texttt{/dev/programmerN} 的映射是否稳定。
+\end{itemize}
+
+每个通道的物理身份应由设备树显式描述，而不是由 probe 顺序推导：
+
+\begin{lstlisting}[language=dts,caption={多通道 GPIO 两线接口的设备树结构（示意）}]
+channel0_bus: i2c-gpio@0 {
+    compatible = "i2c-gpio";
+    sda-gpios = <&pio 1 0 GPIO_ACTIVE_HIGH>;
+    scl-gpios = <&pio 1 1 GPIO_ACTIVE_HIGH>;
+    status = "okay";
+
+    programmer@0 {
+        compatible = "vendor,programmer-device";
+        reg = <0>;
+        channel-id = <0>;
+    };
+};
+/* Other channels use independent GPIO pairs and unique channel-id values. */
+\end{lstlisting}
+
+\section{多实例字符驱动}
+
+驱动为每个设备实例维护独立锁、认证状态、协议缓冲和字符设备，并保留与既有应用兼容的 ioctl 编号及结构体布局。
+
+\subsection{ABI 稳定性}
+
+ioctl 结构体属于内核与用户空间之间的二进制契约。字段重排、编译器 padding、32/64 位宽度变化和指针类型都可能破坏兼容性。
+固定宽度字段、编译期断言和主机测试可以共同检查结构体大小与关键字段偏移。
+
+\begin{lstlisting}[language=C,caption={可演进 ioctl ABI 的固定布局}]
+struct channel_xfer_v1 {
+    __u16 struct_size;
+    __u16 version;
+    __u32 flags;
+    __u32 tx_len;
+    __u32 rx_len;
+    __u8  data[256];
+    __u8  reserved[16];
+};
+
+#define CHANNEL_IOC_XFER _IOWR('P', 0x01, struct channel_xfer_v1)
+_Static_assert(sizeof(struct channel_xfer_v1) == 288,
+               "userspace ABI changed");
+\end{lstlisting}
+
+长期 ABI 更推荐：
+\begin{itemize}
+  \item 在结构中加入显式版本或长度；
+  \item 预留字段必须初始化为零；
+  \item 避免直接传递用户指针嵌套结构；
+  \item 对每个命令独立验证长度、方向和状态；
+  \item 提供 compat ioctl 或明确只支持的用户 ABI。
+\end{itemize}
+
+\subsection{独占与并发}
+
+单个物理插座在一次烧录会话中需要保持连续协议状态，因此驱动采用设备独占打开，并为每个实例独立加锁。
+四个工位可以并行，但同一工位不会被两个进程交叉操作。
+
+驱动不能只保护单次 read/write；认证、写入、验证和熔丝等多步骤序列还需要由用户空间状态机和设备独占共同保证事务边界。
+
+\subsection{非破坏性探测}
+
+空插座和浮空总线可能返回全零、全一或重复电平。探测应限制为非破坏性短读取，并拒绝常见伪响应。
+这比“写一个已知地址再读回”的开发板 Demo 更适合生产设备，因为探测本身不应改变待烧录芯片状态。
+
+\section{Recipe 驱动的生产流程}
+
+生产步骤应保存在可审查的 Recipe 中，而不是硬编码在 UI 或驱动中。Recipe 描述探测、准备、写入、校验和可选不可逆操作，执行器负责语法检查、状态机和错误分类。
+
+这种设计带来三个好处：
+\begin{enumerate}
+  \item 产品配置与程序版本解耦，同一程序可服务不同批次；
+  \item Recipe 可以离线评审、签名，并记录版本与摘要；
+  \item 生产记录能够关联“程序版本＋Recipe 摘要＋工位＋结果”。
+\end{enumerate}
+
+不可逆操作默认拒绝，只有显式授权并满足前置写入、回读和状态检查后才能执行。
+流程把熔丝操作放在所有可恢复步骤之后，并支持从器件当前状态判断是否允许续接，而不是盲目重放全部命令。
+
+\section{生产配置的保护边界}
+
+敏感 Recipe 可以使用认证加密保护，解密结果只保留在必要的进程内存中，任何密文篡改都必须导致拒绝执行。
+敏感输入不应通过命令行、环境变量或日志传递，主机侧生成工具与目标运行时工具也应严格分离。
+
+该机制可以降低文件拷贝、离线读取和误泄漏风险，但不能抵抗已经获得目标设备 root 权限并能够读取进程内存或记录输入的攻击者。
+更高等级的防护还需要安全启动、安全元件或 TEE、设备身份绑定和调试口治理。
+
+技术书籍描述安全方案时必须同时写清“保护了什么”和“不能保护什么”。
+
+\section{并行用户程序}
+
+用户程序可以为每个字符设备创建独立工作线程，使同一批次的多个工位并行执行。
+上层汇总每个工位的阶段、错误码、校验结果和最终状态，再提交批次记录。
+
+并行烧录需要区分：
+\begin{itemize}
+  \item 工位局部错误，例如空座、接触不良或单芯片认证失败；
+  \item 全局错误，例如 Recipe 无效、全局电源未启用或存储不可写；
+  \item 安全错误，例如凭据尝试次数接近耗尽或器件已进入不可逆状态。
+\end{itemize}
+
+错误分类决定是否只停止一个工位、停止整批、允许重试或要求管理员介入。
+
+工位线程不应自行拼接任意步骤，而应执行经过验证的有限状态机：
+
+\begin{lstlisting}[language=C++,caption={多工位执行器的状态机骨架（伪代码）}]
+for (Step step : recipe.steps()) {
+    if (cancelled()) return finish(Cancelled);
+    Result r = execute_with_timeout(device, step);
+    publish_progress(channel_id, step.id(), r);
+
+    if (!r.ok()) {
+        if (r.scope() == ErrorScope::Global) stop_all_channels();
+        return finish(classify_failure(step, r));
+    }
+}
+return finish(Verified);
+\end{lstlisting}
+
+\section{Qt 触摸界面作为受限操作面}
+
+Qt Widgets 界面使用 linuxfb，不依赖 GPU 或 OpenGL，适合资源受限的固定分辨率设备。
+UI 不是烧录逻辑的唯一实现，而是调用同一策略和执行器，因此 CLI 测试能够覆盖核心行为。
+
+生产 UI 应限制自由文件浏览、终端和任意参数输入，只暴露导入、验证、开始、停止、导出和受控不可逆操作。
+界面状态必须来自后端真实状态机，不能仅根据按钮点击推断操作已经成功。
+
+\section{Buildroot external tree}
+
+工程以 \texttt{BR2\_EXTERNAL} 形式维护自定义 package、rootfs overlay、SysV init 脚本、udev 规则和补丁。
+package 可以使用 CMake 构建目标程序，并按配置选择本地 UI；内核模块必须由目标系统匹配的内核树构建。
+external tree、package 基础设施和目标安装阶段应以对应 Buildroot 版本手册为准\cite{buildroot-manual}。
+
+主机专用的 Recipe 生成和加密工具不会安装到目标 rootfs。Buildroot package 的 host/target 边界应通过安装清单和最终策略检查双重保证，而不能只依赖开发者约定。
+
+\begin{lstlisting}[language=make,caption={Buildroot 目标软件包的最小结构（示意）}]
+DEVICE_APP_SITE = $(BR2_EXTERNAL_DEVICE_PATH)/package/device-app/src
+DEVICE_APP_SITE_METHOD = local
+DEVICE_APP_DEPENDENCIES = host-pkgconf
+DEVICE_APP_CONF_OPTS = -DBUILD_HOST_TOOLS=OFF
+
+define DEVICE_APP_INSTALL_TARGET_CMDS
+	$(INSTALL) -D -m 0755 $(@D)/device-app \
+		$(TARGET_DIR)/usr/bin/device-app
+endef
+
+$(eval $(cmake-package))
+\end{lstlisting}
+
+\section{旧版 Buildroot 与现代主机兼容}
+
+厂商 SDK 使用较旧 Buildroot 和主机工具，现代编译器、glibc、Python 与 C 标准演进会暴露兼容问题。
+兼容修改应保存为可审查补丁，并尽量限定在发生问题的 host package，不直接修改下载后的源码树。
+
+处理旧 SDK 的原则是：
+\begin{itemize}
+  \item 区分 host 构建问题与 target ABI 问题；
+  \item 优先最小、可解释、可重复应用的补丁；
+  \item 锁定工具链和下载摘要；
+  \item 每个兼容补丁记录上游来源、适用版本和删除条件；
+  \item 不为通过构建而关闭全部告警或全局降低安全选项。
+\end{itemize}
+
+\section{受控 rootfs 组装}
+
+受控系统不应复用厂商演示 rootfs 中积累的历史 \texttt{target/} 内容，而应从空目标目录安装明确需要的 BusyBox、设备管理、本地界面、网络、存储工具和业务组件。
+
+生成镜像前执行策略检查，确认 init 链、动态加载器、账户权限、设备表、内核模块、USB 自动挂载和必要工具存在，同时拒绝演示程序、调试服务和 host-only 工具泄漏到目标系统。
+
+Buildroot 的 \texttt{target/} 是 staging 材料，不是可以直接打包的最终根文件系统。
+用户、权限、设备节点和 setuid 位需要在 fakeroot 环境中执行 \texttt{mkusers}、\texttt{makedevs} 和最终 hook 后才能固化。
+
+\section{NAND、UBIFS 与厂商打包链}
+
+典型 SoC SDK 的启动链包含早期引导程序、U-Boot、内核/设备树、UBI/UBIFS 和厂商镜像打包工具。
+板级配置与 NAND 几何参数可从经过验证的参考配置继承，但必须对 rootfs 分区和 grow-to-fill 数据卷重新计算容量，保证 UBI 保留坏块管理空间后数据卷仍满足 UBIFS 最小要求。
+
+镜像生成流程包括：
+\begin{enumerate}
+  \item 验证已知可启动的 Boot0 资源摘要；
+  \item 应用板级内核配置和设备树；
+  \item 构建受控 Buildroot rootfs；
+  \item 在 fakeroot 环境生成 UBIFS；
+  \item 调用厂商 pack 工具生成可烧录镜像；
+  \item 从最终镜像重新提取 Boot0 和 rootfs；
+  \item 与输入资源逐字节或摘要比较；
+  \item 输出镜像摘要、构建信息和 rootfs 元数据。
+\end{enumerate}
+
+“打包命令成功”不足以证明最终镜像包含预期内容；重新提取和比对是关键的闭环验证。
+
+\begin{lstlisting}[language=bash,caption={最终镜像的生成与反向验证（伪代码）}]
+buildroot-clean-target
+buildroot-install-selected-packages
+fakeroot finalize-rootfs.sh
+mkfs.ubifs --config nand-geometry.conf --root rootfs --output rootfs.ubifs
+ubinize --config volumes.ini --output rootfs.ubi
+vendor-pack --boot boot.bin --kernel image.itb --rootfs rootfs.ubi
+
+vendor-unpack final.img --output verify/
+cmp rootfs.ubi verify/rootfs.ubi
+verify-rootfs-policy verify/rootfs/
+\end{lstlisting}
+
+\section{启动服务与可维护性}
+
+目标 rootfs 使用 SysV init 启动网络、设备发现、CLI 后端、Qt UI 和 U 盘自动挂载。
+发现服务通过受限 UDP 协议报告设备型号、序列和管理入口，主机工具使用相同协议扫描设备。
+
+研发登录与量产安全策略必须分离。固定研发口令、开放调试服务和密码登录只适用于隔离环境，交付版本应采用每机凭据或公钥并限制网络面。
+
+\section{测试分层}
+
+工程测试覆盖多个边界：
+\begin{itemize}
+  \item ioctl ABI 大小和字段偏移；
+  \item Recipe 语义、不可逆操作策略和凭据重试保护；
+  \item 生产记录和错误码；
+  \item UI 布局、触摸键盘与工位状态；
+  \item USB 自动挂载与设备发现；
+  \item rootfs 最小化策略；
+  \item 使用 fake ioctl 的主机端失败路径。
+\end{itemize}
+
+主机测试不能证明 GPIO 时序和真实器件行为，因此仍需目标板上的单工位、四工位并发、空座、重复插拔和长时间批量测试。
+
+\section{工程方法总结}
+
+专用 Linux 设备应把硬件资源、驱动 ABI、生产状态机、配置保护、UI、rootfs 和发布镜像纳入同一验证链。
+关键方法是：区分协议物理形态与 Linux 子系统语义、固定物理工位映射、把生产流程数据化、从干净 rootfs 组装镜像，并从最终镜像反向验证关键内容。

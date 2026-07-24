@@ -11,9 +11,30 @@
 | 领域 | 主要内容 |
 | --- | --- |
 | 处理器体系结构 | Armv8-A、AArch64、RISC-V、异常、中断、缓存、MMU、内存序、多核一致性、安全与调试 |
-| 系统软件 | Bootloader、Linux 内核与用户空间、编译链接、程序装载、数据结构与算法 |
+| 实时固件 | MCU 启动、裸机事件模型、中断与 DMA、实时调度、FreeRTOS 内核对象与低功耗 |
+| 系统软件 | Boot ROM 至 PID 1 启动链、Linux 内核与用户空间、BSP、标准子系统驱动、编译链接与程序装载 |
+| 用户空间服务 | 进程边界、Unix Socket、D-Bus、事件循环、服务管理、权限、容器与健康管理 |
+| 实时与异构 | FreeRTOS、PREEMPT_RT、CPU/IRQ 隔离、remoteproc、RPMsg、共享内存与跨核 ABI |
+| 采样与控制 | ADC 误差、抗混叠、数字滤波、定点运算、PID、状态估计与控制安全 |
+| 系统交付 | Buildroot/Yocto、存储可靠性、掉电一致性、可复现构建、A/B OTA 与回滚 |
+| 网络与时间 | Ethernet、NAPI、CAN FD、工业网络、NTP、PTP、硬件时间戳与跨设备同步 |
+| 无线与 IoT | Wi-Fi、BLE、Thread、Matter、低功耗连接、配网、设备身份与无线量产测试 |
+| 质量与安全 | 分层调试、硬件在环、故障注入、看门狗、可靠性、可信启动、密钥与安全更新 |
+| 现场运维 | 结构化日志、指标、分布式追踪、崩溃证据、诊断包、设备管理与分批发布 |
+| 可信计算 | TrustZone、OP-TEE、PMP、TPM、安全元件、设备身份、Measured Boot 与远程证明 |
+| 功能安全 | 危害分析、安全目标、FTTI、诊断覆盖、故障注入与安全生命周期 |
+| 多媒体与 AI | V4L2、DRM/KMS、ALSA、DMA-BUF、音视频同步、端侧 AI、Armv9 与 RISC-V 扩展 |
+| 虚拟化与隔离 | Arm EL2、RISC-V H 扩展、KVM/Xen、virtio、IOMMU、直通与混合关键性 |
+| 低功耗系统 | MCU 深睡、Linux runtime PM、suspend、CPUIdle、DVFS、异构唤醒与能量测量 |
+| 测试工程 | KUnit、kselftest、LTP、QEMU、HIL、电源循环、故障注入、长稳与工装校准 |
+| 二进制工程 | 目标 ABI、链接脚本、启动代码、LTO、ELF/DWARF、二进制分析与可复现构建 |
 | 电路与器件 | 电路基础、半导体器件、运算放大器、集成电路、FPGA、常见外设协议 |
-| 硬件工程 | 原理图、PCB 层叠、布局布线、信号与电源完整性、制造输出 |
+| 硬件工程 | 电源树与时序、时钟复位、DDR、接口保护、模拟信号链、PCB、EMC 与制造输出 |
+| 制造与 DFT | 测试点、ICT、飞针、Boundary Scan、量产固件、校准、身份写入与追溯 |
+| 功率与电机 | MOSFET、Gate Driver、PWM、电流采样、六步换相、FOC、保护、热与 EMC |
+| 系统工程 | 需求、架构视图、接口契约、资源预算、ADR、变更影响与完成定义 |
+| 学习与参考 | MCU、Linux BSP、复杂 SoC 和硬件制造学习路径，以及全书统一术语约定 |
+| 工程实践 | 多平台 FreeRTOS、RISC-V Rust 内核、嵌入式 Linux 专用设备与多工位工装板 |
 | 工程工具 | Linux 命令行、调试与性能分析、OrCAD、Altium Designer、KiCad 与 SPICE |
 
 ## 适合谁阅读

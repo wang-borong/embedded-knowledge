@@ -4,7 +4,7 @@
 \usepackage{lstlangarm}
 
 \usepackage{circuitikz}
-\usetikzlibrary{shadows}
+\usetikzlibrary{shadows,positioning}
 \usepackage{subcaption}
 \usepackage{embedded-book}
 
@@ -145,7 +145,8 @@
   biblio/cseebook.bib,
   biblio/armv8-man.bib,
   biblio/riscv-spec.bib,
-  biblio/tool-man.bib
+  biblio/tool-man.bib,
+  biblio/embedded-systems.bib
 }
 
 % 设置标题，作者与时间
@@ -180,7 +181,11 @@
 
 \input{part-software}
 \input{part-hardware}
+\input{part-case-study}
 \input{part-tool}
+
+\appendix
+\input{part-reference}
 
 \clearpage
 \printbibliography[heading=bibintoc, title=参考文献]

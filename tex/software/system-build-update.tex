@@ -1,0 +1,219 @@
+\chapter{系统构建、存储与 OTA}
+\label{chap:system-build-update}
+
+嵌入式 Linux 产品不是内核、根文件系统和应用的简单拼接，而是一组具有版本、依赖、启动顺序和恢复策略的系统镜像。
+本章说明如何把工具链、Bootloader、内核、设备树、固件、根文件系统和应用组织成可复现、可升级、可恢复的交付物。
+
+\section{交叉编译与系统 ABI}
+
+交叉工具链至少包含编译器、汇编器、链接器、C 库、头文件和目标 sysroot。
+工具链三元组只描述部分目标属性，不能单独保证二进制兼容。工程还应锁定：
+\begin{itemize}
+  \item 目标架构、指令扩展、浮点 ABI 和字节序；
+  \item 内核 UAPI 头文件版本与最低内核要求；
+  \item glibc、musl 或其他 C 库及动态加载器路径；
+  \item C++ ABI、异常和运行时库版本；
+  \item 链接方式、RPATH/RUNPATH 和符号版本策略。
+\end{itemize}
+
+sysroot 应由构建系统管理，不应直接指向某台开发板的根文件系统。否则未声明的头文件和库会造成不可复现构建，并可能把目标机上的临时状态带入发布产物。
+
+\section{根文件系统组成}
+
+根文件系统至少需要提供动态加载器、运行库、设备节点管理、初始化系统、配置、日志和应用。
+BusyBox 适合资源受限系统；systemd 提供完整的服务依赖、日志和设备管理能力。选择应基于启动、维护和资源需求，而不是仅比较镜像大小。
+
+\subsection{启动与服务管理}
+
+用户空间第一个进程 PID 1 负责系统初始化和孤儿进程回收。服务定义应明确依赖、启动超时、失败重启、资源限制和安全权限。
+关键应用不应依靠固定延时等待设备，而应依赖稳定的设备事件、socket 激活、服务依赖或显式健康条件。
+
+\subsection{只读系统与可写数据}
+
+将系统软件与产品数据分离可以降低掉电损坏和升级失败风险。常见设计是只读系统分区配合独立数据分区，必要时使用 OverlayFS 提供有限的可写视图。
+
+必须明确以下数据的归属和生命周期：
+\begin{itemize}
+  \item 出厂配置与设备唯一身份；
+  \item 用户配置和运行数据库；
+  \item 日志、崩溃转储和升级状态；
+  \item 可重新生成的缓存；
+  \item 密钥、证书和防回滚计数器。
+\end{itemize}
+
+\section{Buildroot 与 Yocto Project}
+
+Buildroot 通过 Kconfig 和包描述生成工具链、根文件系统、内核和 Bootloader，结构直接，适合单一产品或较集中配置的系统\cite{buildroot-manual}。
+Yocto Project/OpenEmbedded 使用 recipe、layer 和共享状态缓存管理复杂发行版，适合多产品复用、包级许可追踪和长期产品线\cite{yocto-mega-manual}。
+
+二者不是按项目规模机械选择。评估时应考虑：
+\begin{itemize}
+  \item 产品数量及公共组件复用程度；
+  \item 是否需要运行时包管理和多种镜像组合；
+  \item 供应商 BSP 与社区层的质量；
+  \item 构建时间、缓存、CI 和团队学习成本；
+  \item 许可证报告、SBOM 和长期安全维护要求。
+\end{itemize}
+
+无论采用何种系统，都应把板级差异、产品差异和本地补丁分层管理，禁止长期直接修改下载后的上游源码树。
+
+\section{存储介质与文件系统}
+
+\subsection{NOR、NAND 与管理型闪存}
+
+NOR Flash 支持随机读取并常用于启动固件；原始 NAND 密度高，但需要坏块管理、ECC 和磨损均衡；eMMC、SD 和 UFS 在器件内部提供闪存转换层，对主机表现为块设备。
+
+块设备文件系统不能直接用于原始 NAND。Linux MTD 提供原始闪存抽象，UBI 在其上处理擦除块映射、坏块和磨损均衡，UBIFS 再提供文件系统语义。
+分层关系和镜像生成参数必须与实际页大小、擦除块大小、OOB 和 ECC 布局一致。
+
+\subsection{文件系统选择}
+
+\begin{description}
+  \item[ext4] 适合通用块设备，工具成熟并支持日志；
+  \item[SquashFS] 压缩只读，适合不可变系统镜像；
+  \item[EROFS] 面向高性能只读镜像，并支持压缩；
+  \item[UBIFS] 面向 UBI 之上的原始 NAND；
+  \item[tmpfs] 使用内存保存临时数据，重启后丢失；
+  \item[OverlayFS] 把只读下层与可写上层组合为统一视图。
+\end{description}
+
+文件系统有日志不代表应用事务必然掉电安全。应用必须理解写回、\texttt{fsync()}、目录项持久化、重命名原子性和存储设备缓存策略。
+
+\section{镜像与分区设计}
+
+镜像清单应明确 Boot ROM 可见区域、Bootloader、环境或元数据、内核、设备树、根文件系统、恢复系统和持久化数据区。
+固定偏移、分区表、卷名和 UUID 都属于升级兼容接口。
+
+分区设计应为以下需求保留空间：
+\begin{itemize}
+  \item 镜像增长与文件系统元数据；
+  \item 双系统或恢复镜像；
+  \item 崩溃转储与升级暂存；
+  \item 设备身份和工厂校准数据；
+  \item 坏块、磨损和生产差异裕量。
+\end{itemize}
+
+发布流程应生成机器可读 manifest，记录每个组件的版本、摘要、大小、地址、构建来源和签名信息。
+
+\subsection{镜像的只读检查}
+
+发布前应从最终磁盘镜像重新解析分区表并检查文件系统内容。Linux 可以用 loop 设备把镜像分区映射为块设备，但检查过程应默认只读，并确保异常退出时解除映射：
+
+\begin{lstlisting}[language=bash,caption={磁盘镜像的只读挂载检查}]
+loopdev=$(sudo losetup --find --show --partscan final.img)
+mount_dir=$(mktemp -d)
+sudo mount -o ro,noload "${loopdev}p2" "${mount_dir}"
+
+verify-rootfs-policy "${mount_dir}"
+sudo umount "${mount_dir}"
+sudo losetup --detach "${loopdev}"
+rmdir "${mount_dir}"
+\end{lstlisting}
+
+ext4 使用 \texttt{noload} 可以避免只读检查时回放日志而修改镜像。自动化脚本还应使用 trap 清理 loop 设备，并校验分区 UUID、卷标、文件权限、动态链接器、服务单元和版本 manifest。
+
+\section{可复现构建与软件物料清单}
+
+可复现构建要求相同源码、配置、工具链和输入能够生成内容一致或可解释差异的产物。
+工程应锁定源码提交、下载摘要、容器或构建环境、工具链版本和配置，并消除时间戳、路径和未排序输入等非确定性来源。
+
+软件物料清单（Software Bill of Materials, SBOM）至少应列出组件、版本、许可证、来源和依赖关系。
+SBOM 不是构建结束后人工整理的表格，而应由实际依赖图生成，并与镜像版本关联，用于许可证审查和漏洞响应。
+
+\section{OTA 更新模型}
+
+可靠更新系统至少具有真实性、完整性、原子切换、掉电恢复、防回滚和可观测状态。
+下载成功不等于更新成功；系统必须在重启后验证新系统健康，再把候选版本标记为已确认。
+
+\subsection{A/B 更新}
+
+A/B 模型维护活动槽位和非活动槽位。更新写入非活动槽位，校验完成后仅修改少量启动元数据切换候选槽位。
+Bootloader 维护尝试次数；新系统在完成关键自检后确认启动，否则回退到上一个已知良好版本。
+
+启动状态机至少应区分：
+\begin{itemize}
+  \item 已确认的活动版本；
+  \item 已写入但尚未尝试的候选版本；
+  \item 正在试启动且剩余尝试次数有限的版本；
+  \item 验证失败或被撤销的版本；
+  \item 恢复模式。
+\end{itemize}
+
+状态元数据必须考虑原子写、冗余副本、校验和以及介质擦写粒度。
+
+\subsection{A/B 的实现契约}
+
+一个可落地的 A/B 方案需要 Bootloader、内核命令行、更新客户端和健康确认服务共享同一组最小状态。推荐状态字段包括：
+
+\begin{lstlisting}[language=C,caption={冗余启动控制块的逻辑结构}]
+struct boot_control {
+    uint32_t magic;
+    uint16_t format_version;
+    uint8_t  active_slot;
+    uint8_t  candidate_slot;
+    uint8_t  attempts_left[2];
+    uint8_t  successful[2];
+    uint64_t sequence;
+    uint32_t crc32;
+};
+\end{lstlisting}
+
+介质上保存两个副本。读取时选择 CRC 正确且 \texttt{sequence} 最大的副本；更新时先写较旧副本，刷新介质缓存并回读校验，再把它作为新版本。控制块不能与大镜像共用一次非原子擦写操作。
+
+更新客户端的基本流程如下：
+
+\begin{enumerate}
+  \item 验证签名、产品型号、硬件修订、版本和防回滚计数；
+  \item 选择非活动槽，并确认当前根文件系统未从该槽启动；
+  \item 以分块方式写入镜像，每块处理短写、I/O 错误和取消；
+  \item 对块设备中的最终内容重新计算摘要，而不是只校验下载文件；
+  \item 写入候选槽、尝试次数和新序列号，然后重启；
+  \item Bootloader 每次试启动前递减尝试次数；
+  \item 用户空间完成关键设备、数据分区和核心服务自检后，将当前槽标记为成功；
+  \item 尝试耗尽仍未确认时，Bootloader 自动选择上一个成功槽。
+\end{enumerate}
+
+\begin{lstlisting}[language=bash,caption={健康确认服务的最小策略（伪代码）}]
+current_slot=$(read-kernel-cmdline-slot)
+wait-critical-services --timeout 60
+check-data-mount --read-write
+check-required-devices
+bootctl mark-successful "${current_slot}"
+\end{lstlisting}
+
+“系统启动到登录界面”通常不足以确认成功。健康门槛应包含产品不可缺少的设备、服务和数据访问，但也不能依赖外部云服务永久可达，否则网络故障会导致无意义回滚。
+
+\subsection{Buildroot 中的更新集成}
+
+Buildroot 工程可以在 \texttt{BR2\_EXTERNAL} 中维护分区描述、更新客户端 package、健康服务和 post-image 脚本。post-build 只修改目标根文件系统，post-image 负责生成分区镜像、manifest 与签名；二者不应混用主机临时文件和目标文件。
+
+推荐把构建结果拆分为不可变输入：\texttt{bootloader.bin}、\texttt{kernel.itb}、\texttt{rootfs.squashfs}、分区表描述和签名元数据。A/B 两个系统槽可以引用相同构建产物，但必须具有独立分区标识；持久化数据区不得复制到更新包中。
+
+\subsection{更新包与信任元数据}
+
+更新包应签名并绑定产品型号、硬件修订、版本、依赖和载荷摘要。
+仅给镜像附加单一长期签名密钥难以支持密钥轮换和职责分离，可以参考 TUF 的根、目标、快照和时间戳角色设计\cite{tuf-spec}。
+
+更新客户端必须拒绝错误产品、依赖不满足、签名无效、元数据过期或低于安全版本计数器的载荷。
+传输层加密不能替代离线可验证的更新签名。
+
+\section{配置与数据迁移}
+
+系统软件可以回滚，但持久化数据格式可能已经升级。每个版本都应明确配置 schema、迁移方向、幂等性和失败恢复策略。
+不可逆迁移会破坏 A/B 回退能力，常见解决方案是向前兼容读取、延迟提交迁移或对关键数据使用版本化副本。
+
+\section{构建与更新验收}
+
+\begin{itemize}
+  \item 是否能从干净环境仅依据锁定输入生成发布镜像？
+  \item manifest、SBOM、许可证报告和符号文件是否与镜像版本一一对应？
+  \item 是否验证了存储接近满载、坏块增加和文件系统异常恢复？
+  \item 更新在下载、擦除、写入、校验和切换的每个阶段断电后能否恢复？
+  \item 新系统未确认、反复崩溃或看门狗复位时能否自动回退？
+  \item 版本、防回滚、产品兼容和签名检查是否在受信任边界内执行？
+  \item 数据迁移失败或系统回退后，配置和业务数据是否仍可解释？
+\end{itemize}
+
+第~\ref{chap:case-t113-programmer}~章进一步说明 Buildroot external tree 如何与旧版厂商 SDK、NAND/UBIFS、fakeroot 组装、镜像打包和最终产物反向验证结合。
+
+第~\ref{chap:storage-reliability}~章进一步讨论介质寿命、文件系统持久化语义和真实掉电测试。

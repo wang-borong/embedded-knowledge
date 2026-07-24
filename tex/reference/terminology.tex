@@ -1,0 +1,92 @@
+\chapter{术语与语义约定}
+\label{chap:terminology}
+
+嵌入式领域存在大量跨架构和跨软件栈术语。本附录给出本书采用的基本语义；具体 API 名称仍以对应规范和实现为准。
+
+\section{处理器与地址}
+
+\begin{description}
+  \item[物理地址] 处理器内存系统使用的物理地址空间；它不一定等于设备总线地址。
+  \item[虚拟地址] 经过 MMU 页表转换、由软件访问的地址。
+  \item[总线地址] 某个 interconnect 或设备在其总线视角看到的地址。
+  \item[DMA 地址] DMA API 返回给设备使用的地址，可能是 IOVA、物理地址或 bounce buffer 地址。
+  \item[MMIO] 通过地址空间访问设备寄存器，具有不同于普通内存的顺序和副作用。
+  \item[一致性] 多个观察者对内存值与顺序达成的硬件或软件保证；不等同于持久化一致性。
+\end{description}
+
+\section{软件执行单元}
+
+\begin{description}
+  \item[ISR] 中断服务程序，运行于中断上下文，通常不能阻塞。
+  \item[任务] 在 RTOS 中由调度器管理的执行单元；本文不假定它等同于 Linux process。
+  \item[线程] 共享进程地址空间的调度实体。
+  \item[进程] 具有独立虚拟地址空间和资源表的用户空间执行容器。
+  \item[工作队列] 把工作推迟到可调度上下文执行的机制，具体语义取决于 RTOS 或内核。
+  \item[事件] 状态变化的通知；事件位通常不能保存重复次数或大块数据。
+\end{description}
+
+\section{驱动与平台}
+
+\begin{description}
+  \item[HAL] 隔离芯片或平台差异的硬件抽象接口，不应包含全部业务策略。
+  \item[驱动] 管理具体硬件状态，并接入操作系统设备模型或标准子系统的软件。
+  \item[BSP] Bootloader、内核配置、Device Tree、驱动、固件、rootfs 配置和验证资产的集合。
+  \item[固件] 运行在 MCU、协处理器、设备控制器或早期启动阶段的软件镜像。
+  \item[Device Tree binding] 硬件描述 ABI 的 schema，而不只是某个 DTS 示例。
+  \item[probe] Linux 驱动与设备匹配后的绑定和初始化过程。
+\end{description}
+
+\section{构建与镜像}
+
+\begin{description}
+  \item[ELF] 包含 segment、section、symbol、relocation 和调试信息的目标或可执行格式。
+  \item[BIN] 线性字节镜像，通常不包含地址和符号语义。
+  \item[LMA] section 在镜像中的加载地址。
+  \item[VMA] section 运行时使用的地址。
+  \item[rootfs] Linux 用户空间根文件系统内容，不等同于未经 fakeroot 完成权限处理的 staging 目录。
+  \item[manifest] 描述产物版本、摘要、兼容性和构建来源的机器可读清单。
+\end{description}
+
+\section{实时与时间}
+
+\begin{description}
+  \item[实时] 正确性同时依赖结果与完成时间，不等同于平均运行速度快。
+  \item[截止期] 工作必须完成的时间边界。
+  \item[抖动] 某个周期或延迟相对于期望值的变化。
+  \item[WCET] 最坏执行时间，需要在明确硬件和路径假设下分析或测量。
+  \item[单调时间] 不因人工校时而回退，适合超时与持续时间。
+  \item[实时时间] 表示日历时间，可能被校时或受闰秒策略影响。
+\end{description}
+
+\section{安全与可靠性}
+
+\begin{description}
+  \item[信息安全] 防止未经授权的读取、修改、伪造和服务破坏。
+  \item[功能安全] 故障发生时避免不可接受风险。
+  \item[可靠性] 系统在规定条件和时间内持续完成要求功能的能力。
+  \item[安全启动] 在执行前验证软件真实性和完整性的启动链。
+  \item[Measured Boot] 记录实际加载内容的 measurement，用于本地或远程证明。
+  \item[安全状态] 在特定故障下把风险降至可接受水平的系统状态，不一定等同于断电。
+\end{description}
+
+\section{存储与更新}
+
+\begin{description}
+  \item[原子性] 操作从外部观察为完整发生或未发生；其具体范围必须说明。
+  \item[持久化] 数据已经越过易失缓存并满足介质声明的掉电保持语义。
+  \item[一致性] 文件系统或业务数据满足预定义不变量。
+  \item[回滚] 从候选版本恢复到已知良好版本，不自动意味着数据 schema 也回退。
+  \item[防回滚] 拒绝低于安全版本策略的旧软件，不等同于普通功能回退策略。
+  \item[A/B 更新] 在两个可启动槽位间写入非活动槽、试启动并健康确认的更新模型。
+\end{description}
+
+\section{验证术语}
+
+\begin{description}
+  \item[验证] 确认实现满足规定需求，即“是否正确地构建系统”。
+  \item[确认] 确认系统满足实际使用目的，即“是否构建了正确的系统”。
+  \item[单元测试] 验证可隔离的软件或硬件逻辑单元。
+  \item[集成测试] 验证模块和接口之间的契约。
+  \item[HIL] 使用真实控制器和外部硬件模拟/注入环境的硬件在环测试。
+  \item[故障注入] 主动构造规定故障，以验证检测、隔离和恢复路径。
+\end{description}

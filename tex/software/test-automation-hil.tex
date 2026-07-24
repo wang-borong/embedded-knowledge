@@ -1,0 +1,113 @@
+\chapter{测试自动化与硬件在环}
+\label{chap:test-automation-hil}
+
+嵌入式测试需要同时验证纯软件逻辑、内核接口、完整镜像和真实电气行为。单一测试环境无法覆盖所有故障，因此应建立从主机单元测试到硬件在环的分层体系，并让每一层具有明确的发现目标。
+
+\section{测试金字塔}
+
+推荐层次包括：
+\begin{enumerate}
+  \item 主机单元测试：算法、解析器、状态机和错误分类；
+  \item 仿真与模拟：QEMU、虚拟外设、fake ioctl 和软件故障注入；
+  \item 内核测试：KUnit、kselftest、LTP 和驱动回归；
+  \item 板级接口测试：真实 GPIO、总线、DMA、存储和网络；
+  \item HIL 系统测试：电源、复位、外部信号、温度和长时间运行；
+  \item 生产测试：覆盖装配、器件和身份写入，不重复全部研发测试。
+\end{enumerate}
+
+越靠近硬件，测试速度越慢、成本越高且故障定位越困难。应把可脱离硬件的逻辑尽量下沉到快速测试，但不能用 mock 通过替代目标板电气验证。
+
+\section{可测试架构}
+
+驱动访问、时间、随机数、文件系统和网络应通过窄接口注入，使状态机能在主机上控制输入。测试替身必须模拟错误、短读写、超时和乱序，而不只是返回成功。
+
+协议解析器应采用长度受限的纯函数，适合单元测试和 fuzzing。生产状态机应能使用虚拟时钟推进，避免测试依赖真实长延时。
+
+\section{内核测试}
+
+KUnit 适合测试内核内部纯逻辑和边界条件；kselftest 验证用户可见内核 ABI；LTP 覆盖广泛系统调用和内核功能。BSP 不需要盲目运行全部测试，但应选择与配置和产品功能相关的集合，并记录跳过原因。
+
+驱动测试应覆盖 probe defer、资源获取失败、IRQ 超时、runtime PM、解绑和模块反复加载。使用 fault injection、kmemleak、KASAN、KCSAN 和 lockdep 时，要区分诊断配置引入的时序变化。
+
+\section{HIL 架构}
+
+典型 HIL 由控制主机、可编程电源、继电器或电子开关、串口采集、信号发生器、测量仪器和被测设备组成：
+
+\begin{center}
+\begin{tikzpicture}[node distance=6mm]
+  \tikzset{hil/.style={draw=bookline,fill=bookpaper,rounded corners=1mm,
+    minimum width=32mm,minimum height=10mm,align=center,font=\small}}
+  \node[hil] (host) {测试控制器\\调度与记录};
+  \node[hil,right=of host] (fixture) {电源/继电器\\信号注入};
+  \node[hil,right=of fixture] (dut) {DUT};
+  \node[hil,below=of fixture] (measure) {串口、示波器\\电流与网络};
+  \draw[->,bookteal] (host)--(fixture);
+  \draw[<->,bookteal] (fixture)--(dut);
+  \draw[<->,bookteal] (host)--(measure);
+  \draw[<->,bookteal] (measure)--(dut);
+\end{tikzpicture}
+\end{center}
+
+控制协议应返回机器可读状态和时间戳。测试程序不能只等待固定时间再搜索日志，应等待可观测条件并设置总超时。
+
+\section{测试清单与资产关联}
+
+每次测试必须关联：软件镜像摘要、源码版本、配置、硬件版本、DUT 序列、工装版本、仪器校准状态、环境条件和原始日志。只有测试名称和 Pass/Fail 不能支持复现。
+
+\begin{lstlisting}[language=C,caption={测试结果 manifest 的逻辑字段}]
+struct test_run_record {
+    char run_id[40];
+    char image_digest[65];
+    char hardware_revision[16];
+    char fixture_revision[16];
+    char environment_id[32];
+    uint64_t started_at;
+    uint32_t passed;
+    uint32_t failed;
+    uint32_t infrastructure_errors;
+};
+\end{lstlisting}
+
+基础设施错误必须与产品失败区分，例如串口采集断开、继电器未动作、仪器超量程和网络存储不可用。否则不稳定工装会污染产品质量数据。
+
+\section{电源循环与掉电注入}
+
+HIL 应能直接切断 DUT 主电源，并测量实际下降曲线。软件 reboot、PMIC orderly shutdown 和拔除外部适配器可能具有完全不同的掉电行为。
+
+随机掉电测试需要记录切断时对应的业务阶段，并在恢复后执行文件系统和业务不变量检查。测试分布应覆盖擦除、写入、fsync、rename、数据库提交和 OTA 切换等关键窗口。
+
+\section{信号与总线故障注入}
+
+可通过模拟开关、可编程负载或协议代理注入断线、短路、抖动、延迟、CRC 错误和设备无响应。注入设备必须保证默认状态安全，并在控制主机崩溃时释放危险输出。
+
+总线分析仪看到的线上事务应与驱动 trace 和应用事务 ID 关联。这样可以区分硬件未响应、驱动未发起和应用超时策略错误。
+
+\section{长稳与统计}
+
+长稳测试应持续记录内存、句柄、温度、功耗、错误计数、重连次数和最大延迟。只在结束时检查设备是否仍在线，会遗漏逐步退化。
+
+性能结果应保存分布、最大值和测试条件。若系统要求极低失效率，需要根据样本量与运行时间说明统计置信度，不能以少量“零失败”直接证明目标可靠性。
+
+\section{工装校准与自检}
+
+HIL 本身也是测量系统。电压、电流、时间和温度通道需要校准；继电器和插座有寿命；线缆与探头会改变信号。每次批量测试前应使用参考负载或 loopback 执行工装自检。
+
+工装固件、脚本和接线图必须版本化。修改工装后需要确认历史结果是否仍可比较。
+
+\section{CI 与实验室调度}
+
+硬件资源有限时，CI 应把快速主机测试作为每次提交门禁，把目标板 smoke test 用于合并请求，把长稳、温度和破坏性故障注入安排为周期任务。调度器需要设备锁、超时回收、自动重新上电和隔离故障板。
+
+未经确认不应自动把任意开发分支烧写到共享生产工装。镜像来源、签名和允许的设备池应受到访问控制。
+
+\section{验收清单}
+
+\begin{itemize}
+  \item 每种测试层是否具有明确目标，避免重复和空白？
+  \item mock 是否覆盖错误、短传输、超时和并发，而不仅是成功路径？
+  \item HIL 能否区分 DUT 失败与基础设施失败？
+  \item 测试结果是否关联镜像、硬件、工装、环境和原始日志？
+  \item 掉电与信号注入是否达到真实硬件故障边界？
+  \item 工装是否具有校准、自检、默认安全状态和寿命管理？
+  \item 长稳结果是否保存趋势、最大值和统计条件？
+\end{itemize}

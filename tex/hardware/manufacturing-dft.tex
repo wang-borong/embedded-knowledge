@@ -1,0 +1,145 @@
+\chapter{面向制造与可测试性设计}
+\label{chap:manufacturing-dft}
+
+可制造性设计（DFM）保证产品能够稳定装配，可测试性设计（DFT）保证缺陷能够被经济地检测和定位。它们必须在原理图和 PCB 阶段介入，而不是等试产失败后再增加飞线和人工步骤。
+
+\section{生产测试目标}
+
+生产测试主要发现来料、贴装、焊接、连接和配置缺陷，不应完整重复研发验证。测试覆盖应针对高概率、高影响且可检测的制造失效，例如开路、短路、错件、反向、虚焊、时钟异常和身份写入失败。
+
+测试策略通常组合 AOI、X-ray、ICT、飞针、boundary scan、功能测试和最终整机测试。不同方法具有不同覆盖、节拍和工装成本。
+
+\section{测试点设计}
+
+关键电源、地、复位、时钟、启动配置、调试接口和通信总线应提供可接触测试点。测试点需要考虑探针直径、间距、阻焊开窗、板边距离、治具压合方向和背面器件干涉。
+
+高速差分线不应为方便测试随意增加长 stub。可使用小型焊盘、专用高频探点、连接器或在制造阶段通过芯片内部测试能力观测。
+
+测试点命名应与原理图网络、PCB 和测试程序一致。自动导出测试点清单比手工维护坐标表更可靠。
+
+图~\ref{fig:dft-analog-test-point} 展示模拟输入测试点的通用设计。工装通过保护电阻注入已知电压，板上分压和输入保护保持正常功能；测试程序同时检查输入增益、偏置和饱和边界。探针接触期间必须建立明确的模拟地参考。
+
+\begin{figure}[htbp]
+  \centering
+  \begin{circuitikz}[american,scale=0.9,transform shape]
+    \draw (0,2.5) node[left] {$V_{STIM}$}
+          to[R,l=$R_{PROT}$] (2.1,2.5) coordinate (tp)
+          to[R,l=$R_{TOP}$] (4.25,2.5) coordinate (adc);
+    \draw (adc) to[R,l_=$R_{BOT}$] (4.25,0) node[ground] {};
+    \node[draw,circle,fill=white,inner sep=1.5pt] at (tp) {};
+    \node[above] at (tp) {$TP_{AIN}$};
+    \node[draw,rectangle,minimum width=2.1cm,minimum height=1.0cm,
+          right=0.9cm of adc] (dutadc) {DUT ADC};
+    \draw[->] (adc) -- (dutadc.west) node[midway,above] {$AIN$};
+    \draw (0.4,0) node[ground] {} -- (4.25,0);
+    \node[below] at (1.2,0) {工装与 DUT 共参考地};
+  \end{circuitikz}
+  \caption{Pogo pin 模拟量注入与 ADC 功能测试接口}
+  \label{fig:dft-analog-test-point}
+\end{figure}
+
+测试注入网络不能显著改变正常工作时的输入阻抗、带宽和保护阈值。若外部信号可能在 DUT 未上电时存在，还要验证钳位电流和反向供电路径；工装输出默认应为高阻或安全电平，只有在探针接触和地参考确认后才使能激励。
+
+\section{电源域与安全上电}
+
+生产工装首次接触未知状态 PCB，应使用限流电源并分阶段上电。测试程序先检查输入短路和待机电流，再使能次级电源，避免把焊接短路扩大为器件烧毁。
+
+每个电源域应具备电压测量点，关键轨可增加电流采样或可断开路径。PMIC 编程和 OTP 操作必须在电压、温度和前置测试通过后执行。
+
+图~\ref{fig:dft-current-limited-power-up} 给出首次上电的最小测量链路。$R_{LIM}$ 可由可编程电子限流器替代，$R_{SENSE}$ 用于工装测量输入电流；工装先施加较低限流值并检查 $TP_{VIN}$，随后才逐级使能 DUT 内部电源域。
+
+\begin{figure}[htbp]
+  \centering
+  \begin{circuitikz}[american,scale=0.9,transform shape]
+    \draw (0,0) node[ground] {}
+          to[V,l=$V_{TEST}$] (0,3)
+          to[switch,l=$S_{ENABLE}$] (2,3)
+          to[R,l=$R_{LIM}$] (4,3)
+          to[R,l=$R_{SENSE}$] (6,3) coordinate (vin);
+    \node[draw,circle,fill=white,inner sep=1.5pt] at (vin) {};
+    \node[above] at (vin) {$TP_{VIN}$};
+    \node[draw,rectangle,minimum width=2.0cm,minimum height=1.25cm,
+          right=0.9cm of vin] (dut) {DUT};
+    \draw[->] (vin) -- (dut.west);
+    \draw (dut.south) -- ++(0,-1.55) node[ground] {};
+    \draw[->] (5,2.45) -- (5.65,2.45) node[right] {$I_{IN}$};
+  \end{circuitikz}
+  \caption{未知状态 PCBA 的限流首次上电与输入测量}
+  \label{fig:dft-current-limited-power-up}
+\end{figure}
+
+限流值、允许的浪涌持续时间、稳态电流上下限和电源轨建立时间应来自设计容差，而不是由良品样板经验值直接决定。测试系统还要区分真正短路、输入电容充电和正常启动脉冲，避免过紧限流导致反复 brownout。
+
+\section{调试与量产接口}
+
+SWD/JTAG、UART、USB recovery 和 Boot ROM 下载接口应在研发、生产、维修和量产锁定之间形成生命周期策略。生产工装需要可靠接触，但最终产品不应向未授权人员暴露完整调试权限。
+
+可以使用 pogo pin、Tag-Connect、边缘触点或专用连接器。接口布局应包含地参考和防反接定义，并避免测试探针接错时直接把外部电压送入 SoC 引脚。
+
+\section{Boundary Scan}
+
+IEEE~1149.x boundary scan 可以在不运行正常固件的情况下控制和观察兼容器件引脚，适合检测 BGA 之间难以接触的开短路。板级设计需保证 JTAG chain、TRST、上拉/下拉和多器件 bypass 正确。
+
+Boundary scan 只能观测链中器件与可控制网络，模拟节点、电源质量和非兼容器件仍需要其他测试手段。BSDL 文件、器件版本和链顺序应作为生产资产管理。
+
+\section{ICT、飞针与功能测试}
+
+ICT 适合高产量和稳定板型，可快速测量阻容、二极管和网络连通；飞针无需昂贵针床，适合样板和小批量，但节拍较慢。功能测试验证上电、时钟、存储、接口和传感器等整体行为。
+
+功能测试应优先使用硬件唯一能力和 loopback，而不是只读取软件版本。例如 UART TX/RX 外部回环、Ethernet 包计数、ADC 已知电压和 GPIO 驱动/回读更能发现真实装配缺陷。
+
+\section{自测试固件}
+
+生产测试固件应提供稳定、机器可读、可超时的命令接口。测试项必须独立返回状态、测量值、单位和错误原因。
+
+\begin{lstlisting}[language=C,caption={生产测试结果的逻辑结构}]
+struct production_test_result {
+    uint16_t test_id;
+    uint16_t status;
+    int32_t  measured_value;
+    int32_t  lower_limit;
+    int32_t  upper_limit;
+    uint16_t unit;
+    uint16_t detail_code;
+};
+\end{lstlisting}
+
+测试固件不应包含通用未认证内存读写、任意命令执行和私钥导出接口。量产结束后应切换到正式签名固件，并按生命周期策略关闭或限制测试入口。
+
+\section{校准与身份写入}
+
+校准需要可追溯标准源、测量不确定度和环境条件。校准参数应关联硬件序列号、板卡修订、工站、仪器和时间，并在写入后回读验证。
+
+MAC、序列号、证书和安全计数器等唯一数据必须防止重复、跳号和错板写入。分配服务应采用事务：预留、写入、回读验证、提交；失败的预留记录需要可审计回收策略。
+
+不可逆 OTP/eFuse 操作放在所有可恢复测试之后，并要求电源稳定、数据二次校验和显式授权。
+
+\section{工装机械与寿命}
+
+针床、插座、连接器和定位柱都具有寿命。插拔力不应由板对板连接器或 PCB 单独承担，工装应限制压合行程并保证受力均匀。
+
+测试工装需要周期自检、参考板验证和耗材更换计数。接触电阻逐步增大会表现为偶发通信或电压异常，不能一律判定为 DUT 失败。
+
+\section{数据与追溯}
+
+生产记录至少包含 PCB/PCBA 版本、软件版本、测试规范版本、工站、工装、操作员或自动化身份、测量值和最终判定。只保存 Pass/Fail 会丢失过程趋势和早期预警能力。
+
+测试限值应来自设计容差和测量不确定度。修改限值必须版本化，禁止为提高直通率直接放宽而不进行工程评审。
+
+\section{试产与量产导入}
+
+试产阶段应统计缺陷 Pareto、测试覆盖、假失败、返修成功率和节拍。高频缺陷应优先反馈到设计、器件、钢网、贴装和测试方法，而不是持续依赖人工返修。
+
+量产发布包包括制造文件、BOM、替代料、测试点、测试程序、限值、校准、工装文件和操作指导，并保证所有资产引用同一硬件版本。
+
+\section{检查清单}
+
+\begin{itemize}
+  \item 高风险网络和电源是否具有可接触、可解释的测试点？
+  \item 首次上电是否限流并按电源域分阶段验证？
+  \item 调试、生产和维修接口是否具有生命周期权限？
+  \item 测试固件是否机器可读、有界且不暴露危险通用接口？
+  \item 校准、身份写入和不可逆操作是否事务化并可追溯？
+  \item 工装接触、定位、寿命、校准和自检是否管理？
+  \item 生产数据是否保存测量值、限值、版本和基础设施状态？
+\end{itemize}

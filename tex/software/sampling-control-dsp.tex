@@ -1,0 +1,134 @@
+\chapter{采样、数字信号处理与控制系统}
+\label{chap:sampling-control-dsp}
+
+嵌入式控制系统把连续世界中的电压、位置、速度、温度和声音转换为离散采样，再经过滤波、估计和控制算法驱动执行器。算法正确性依赖采样时刻、量化、数值范围、延迟和执行器约束，不能脱离硬件链路单独讨论。
+
+\section{信号链与误差预算}
+
+典型输入链路包括传感器、偏置/放大、抗混叠滤波、ADC、数字校准和算法。总误差可能来自传感器精度、参考电压、增益误差、offset、噪声、非线性、温漂和量化。
+
+误差预算应区分可校准系统误差与随机噪声。多个独立误差可以用均方根合成，具有共同来源的误差不能简单按独立项处理。
+
+\section{采样与混叠}
+
+理想带限信号需要采样频率高于最高频率两倍，但实际抗混叠滤波具有过渡带，因此采样率必须为模拟滤波器留出裕量。高于 Nyquist 的输入会折叠到低频，数字滤波无法从已混叠样本中恢复原信号。
+
+控制系统的采样率还受闭环带宽约束。常见起点是采样频率达到目标闭环带宽的 10--20 倍，再结合相位裕量、ADC 转换、计算和 PWM 更新延迟验证。
+
+多通道 ADC 若使用单个采样保持电路轮询通道，各通道并非同时采样。高速电流、电压或多轴信号需要确认 channel skew，必要时使用同步 ADC 或外部采样保持。
+
+\section{量化、参考与校准}
+
+理想 $N$ 位 ADC 的 LSB 为：
+\begin{equation}
+  LSB=\frac{V_{ref}}{2^N}
+\end{equation}
+
+有效位数还受噪声、失真和参考稳定性限制。增加分辨率不能弥补前端饱和、接地噪声或参考漂移。
+
+校准模型可以从简单 offset/gain 扩展为分段或温度补偿：
+\begin{equation}
+  y=(x-x_0)k(T)+b(T)
+\end{equation}
+
+校准参数应带 schema、适用硬件版本、单位和 CRC，并明确缺失或越界时的安全策略。
+
+\section{数字滤波}
+
+移动平均容易实现并能抑制高频噪声，但会引入窗口相关延迟。单极点 IIR 可写为：
+\begin{equation}
+  y[n]=y[n-1]+\alpha(x[n]-y[n-1])
+\end{equation}
+
+$\alpha$ 应由实际采样周期和截止频率推导。若任务周期抖动明显，固定系数滤波器的真实频率响应也会变化。
+
+FIR 具有有限脉冲响应和易于线性相位设计的特点；IIR 在较少计算量下获得陡峭响应，但需要关注量化、稳定性和内部状态溢出。高阶 IIR 宜实现为二阶节级联，而不是直接使用高阶多项式。
+
+\section{固定点数值设计}
+
+无 FPU 或要求确定时延的 MCU 常使用 Q 格式。设计必须记录每个信号的小数位、范围和饱和策略。乘法会扩大位宽，右移舍入和截断位置会影响偏差。
+
+\begin{lstlisting}[language=C,caption={带舍入和饱和的 Q15 乘法}]
+static int16_t q15_mul(int16_t a, int16_t b)
+{
+    int32_t product = (int32_t)a * (int32_t)b;
+    product += 1 << 14;                 /* round */
+    product >>= 15;
+    if (product > INT16_MAX) return INT16_MAX;
+    if (product < INT16_MIN) return INT16_MIN;
+    return (int16_t)product;
+}
+\end{lstlisting}
+
+验证时应对比浮点参考模型，覆盖最大输入、长期 DC、脉冲和极限系数组合，并使用 UBSan 或静态分析发现有符号溢出和非法移位。
+
+\section{离散控制与 PID}
+
+连续控制器部署到 MCU 前需要离散化。位置式 PID 的离散表达为：
+\begin{equation}
+  u[k]=K_p e[k]+K_i T_s\sum e[k]+K_d\frac{e[k]-e[k-1]}{T_s}
+\end{equation}
+
+实际实现需要输出限幅、积分抗饱和、微分滤波和模式切换。执行器达到上限后若积分继续累积，会产生 windup，并在误差反向后长时间无法退出饱和。
+
+\begin{lstlisting}[language=C,caption={带条件积分和输出限幅的 PID 骨架}]
+float pid_step(struct pid *p, float setpoint, float measurement)
+{
+    float e = setpoint - measurement;
+    float d = lowpass((e - p->last_error) / p->dt, &p->d_state);
+    float candidate_i = p->integral + p->ki * p->dt * e;
+    float raw = p->kp * e + candidate_i + p->kd * d;
+    float out = clamp(raw, p->out_min, p->out_max);
+
+    if (out == raw || signbit(e) != signbit(raw - out))
+        p->integral = candidate_i;
+    p->last_error = e;
+    return out;
+}
+\end{lstlisting}
+
+控制器从手动切换到自动时应实现 bumpless transfer，使积分状态与当前输出匹配，避免瞬间跳变。
+
+\section{时序与延迟}
+
+控制任务必须由硬件 timer、ADC end-of-conversion 或 PWM 同步事件触发。采样、计算和输出更新时间相对于 PWM 周期的位置会改变闭环相位。
+
+端到端延迟包括采样保持、ADC、DMA/ISR、调度、计算、通信和执行器更新。最坏延迟和抖动都需要进入稳定性分析，不能只使用平均执行时间。
+
+DMA double buffer 可以让 CPU 处理上一批样本，同时硬件采集下一批。buffer ownership、丢块和过载策略必须明确。
+
+\section{状态估计与传感器融合}
+
+多个传感器具有不同带宽、噪声和偏置。互补滤波可以融合高频响应好的陀螺与低频稳定的加速度/磁场信息；Kalman filter 则显式建模状态、过程噪声和测量噪声。
+
+复杂滤波器并不会自动提高精度。模型、坐标系、单位、时间戳和噪声协方差错误，会产生稳定但错误的估计。融合前应先验证单传感器标定和时间同步。
+
+\section{控制安全与降级}
+
+算法输入应检查范围、变化率、新鲜度和一致性。输出还需要独立限幅、斜率限制和硬件保护。控制器数值异常、任务超时或传感器失效时，应进入预定义安全状态或降级模式。
+
+安全限制器应比高级控制算法简单，并位于最终输出路径。即使上层模型预测控制或 AI 策略产生异常值，也不能越过物理安全边界。
+
+\section{验证方法}
+
+\begin{itemize}
+  \item 使用离线记录数据验证滤波、估计与控制输出；
+  \item 将定点实现与高精度参考模型逐样本比较；
+  \item 执行 step、impulse、sine sweep 和边界输入测试；
+  \item 使用 Software-in-the-Loop 验证算法状态机；
+  \item 使用 Processor-in-the-Loop 测量目标数值和执行时间；
+  \item 使用 HIL 模拟传感器、负载、故障和机械极限；
+  \item 在最低电压、最高温度和最大负载下验证最坏延迟。
+\end{itemize}
+
+\section{检查清单}
+
+\begin{itemize}
+  \item 模拟滤波、采样率和控制带宽是否共同设计？
+  \item ADC 参考、量化、通道 skew 和校准误差是否进入预算？
+  \item 滤波器系数是否对应真实采样周期，并验证数值稳定性？
+  \item 固定点中间位宽、舍入和饱和是否明确？
+  \item PID 是否处理积分饱和、微分噪声和模式切换？
+  \item 控制延迟和抖动是否在最坏负载下测量？
+  \item 最终输出是否具有独立安全限幅和故障降级？
+\end{itemize}

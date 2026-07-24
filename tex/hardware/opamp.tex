@@ -248,26 +248,20 @@ SR = \max\left|\frac{dV_{out}}{dt}\right| \label{eq:slew-rate}
 \begin{figure}[H]
   \centering
   \begin{circuitikz}[american,scale=1.0]
-    % Styles
-    \tikzstyle{block} = [draw, rectangle, minimum height=3em, minimum width=3em]
-    \tikzstyle{sum} = [draw, circle, node distance=1cm]
-    \tikzstyle{input} = [coordinate]
-    \tikzstyle{output} = [coordinate]
-    \tikzstyle{pinstyle} = [pin edge={to-,thin,black}]
+    \node[draw,circle,minimum size=8mm] (sum) at (1.4,0) {$\Sigma$};
+    \node[draw,rectangle,minimum width=1.5cm,minimum height=0.9cm]
+          (system) at (4.0,0) {$A(s)$};
+    \node[draw,rectangle,minimum width=1.5cm,minimum height=0.9cm]
+          (feedback) at (4.0,-1.8) {$\beta(s)$};
+    \coordinate (output) at (6.6,0);
 
-    % Nodes
-    \node [input, name=input] {};
-    \node [sum, right of=input] (sum) {};
-    \node [block, right of=sum] (system) {$A$};
-    \node [output, right of=system] (output) {};
-    \node [block, below of=system] (feedback) {$\beta$};
-
-    % Connections
-    \draw [->] (input) -- node {$V_{in}$} node[pos=0.9] {$+$} (sum);
-    \draw [->] (sum) -- node {$V_e$} (system);
-    \draw [->] (system) -- node [name=y] {$V_{out}$}(output);
-    \draw [->] (y) |- (feedback);
-    \draw [->] (feedback) -| node[pos=0.99] {$-$} node [near end] {$V_f$} (sum);
+    \draw[->] (-0.8,0) node[left] {$V_{in}$} -- (sum.west);
+    \draw[->] (sum.east) -- node[above] {$V_e$} (system.west);
+    \draw[->] (system.east) -- node[above] {$V_{out}$} (output);
+    \draw[->] (5.8,0) |- (feedback.east);
+    \draw[->] (feedback.west) -| node[pos=0.25,above] {$V_f$} (sum.south);
+    \node[above left=0.02cm and 0.08cm of sum.west] {$+$};
+    \node[below left=0.02cm and 0.03cm of sum.south] {$-$};
   \end{circuitikz}
   \caption{负反馈系统框图}\label{fig:feedback-block}
 \end{figure}
@@ -523,14 +517,16 @@ GM = -20\log|T(j\omega_{180})| \text{ dB} \label{eq:gain-margin}
 \begin{figure}[H]
   \centering
   \begin{circuitikz}[american,scale=1.0]
-    \draw
-    (0,0) node[op amp] (opamp) {}
-    (opamp.+) to[short] ++(-1,0) to[short, -o] ++(-0.5,0) node[left] {$V_{in}$}
-    (opamp.out) to[short, *-o] ++(1,0) node[right] {$V_{out}$}
-    (opamp.out) to[R=$R_2$] ++(0,-2) coordinate (fb)
-    (fb) to[R=$R_1$] ++(-2,0) coordinate (gnd_node) node[ground] {}
-    (opamp.-) to[short] (opamp.- |- fb) to[short] (fb);
-    \draw (fb) to[short, *-] (fb); % Ensure dot at feedback connection
+    \node[op amp] (opamp) at (4.0,0) {};
+    \draw (opamp.+) to[short,-o] ++(-0.75,0) node[left] {$V_{in}$};
+    \draw (opamp.-) -- ++(-1.8,0) coordinate (sum);
+    \draw (sum) to[R] ++(0,-2.0) coordinate (rg_bottom) node[ground] {};
+    \node[left=0.18cm] at ($(sum)!0.72!(rg_bottom)$) {$R_1$};
+    \draw (opamp.out) -- ++(0,1.6) coordinate (fb_right)
+          to[R] (fb_right -| sum) coordinate (fb_left) -- (sum);
+    \node[above=0.12cm] at ($(fb_left)!0.5!(fb_right)$) {$R_2$};
+    \draw (opamp.out) to[short,*-o] ++(1.0,0) node[right] {$V_{out}$};
+    \node[circ] at (sum) {};
   \end{circuitikz}
   \caption{同相放大器}\label{fig:non-inverting-amp}
 \end{figure}
@@ -562,15 +558,16 @@ A_{CL} = 1 + \frac{R_2}{R_1} \label{eq:non-inverting-closed-loop}
 \begin{figure}[H]
   \centering
   \begin{circuitikz}[american,scale=1.0]
-    \draw
-    (0,0) node[op amp] (opamp) {}
-    (opamp.+) node[ground] {}
-    (opamp.-) to[short] ++(-0.5,0) coordinate (in_node)
-    (in_node) to[R=$R_1$, -o] ++(-2,0) node[left] {$V_{in}$}
-    (in_node) to[short, *-] ++(0,1) coordinate (fb_node)
-    (opamp.out) to[short, *-o] ++(1,0) node[right] {$V_{out}$}
-    (opamp.out) to[short] ++(0,1) coordinate (out_fb)
-    (out_fb) to[R=$R_2$] (fb_node);
+    \node[op amp] (opamp) at (4.0,0) {};
+    \draw (opamp.+) -- ++(0,-1.0) node[ground] {};
+    \draw (opamp.-) -- ++(-0.65,0) coordinate (sum)
+          to[R,l_=$R_1$] ++(-2.0,0) to[short,-o] ++(-0.35,0)
+          node[left] {$V_{in}$};
+    \draw (opamp.out) -- ++(0,1.6) coordinate (fb_right)
+          to[R] (fb_right -| sum) coordinate (fb_left) -- (sum);
+    \node[above=0.12cm] at ($(fb_left)!0.5!(fb_right)$) {$R_2$};
+    \draw (opamp.out) to[short,*-o] ++(1.0,0) node[right] {$V_{out}$};
+    \node[circ] at (sum) {};
   \end{circuitikz}
   \caption{反相放大器}\label{fig:inverting-amp}
 \end{figure}
@@ -602,17 +599,20 @@ A_{CL} = -\frac{R_2}{R_1} \label{eq:inverting-closed-loop}
 \begin{figure}[H]
   \centering
   \begin{circuitikz}[american,scale=1.0]
-    \draw
-    (0,0) node[op amp] (opamp) {}
-    (opamp.+) to[short] ++(-0.5,0) coordinate (p_node)
-    (p_node) to[R=$R_3$, -o] ++(-2,0) node[left] {$V_+$}
-    (p_node) to[R=$R_4$, *-] ++(0,-2) node[ground] {}
-    (opamp.-) to[short] ++(-0.5,0) coordinate (n_node)
-    (n_node) to[R=$R_1$, -o] ++(-2,0) node[left] {$V_-$}
-    (n_node) to[short, *-] ++(0,1) coordinate (fb_node)
-    (opamp.out) to[short, *-o] ++(1,0) node[right] {$V_{out}$}
-    (opamp.out) to[short] ++(0,1) coordinate (out_fb)
-    (out_fb) to[R=$R_2$] (fb_node);
+    \node[op amp] (opamp) at (4.2,0) {};
+    \draw (opamp.-) -- ++(-0.65,0) coordinate (nnode)
+          to[R,l_=$R_1$] ++(-2.0,0) to[short,-o] ++(-0.35,0)
+          node[left] {$V_-$};
+    \draw (opamp.out) -- ++(0,1.7) coordinate (fb_right)
+          to[R] (fb_right -| nnode) coordinate (fb_left) -- (nnode);
+    \node[above=0.12cm] at ($(fb_left)!0.5!(fb_right)$) {$R_2$};
+    \draw (opamp.+) -- ++(-0.65,0) coordinate (pnode)
+          to[R,l=$R_3$] ++(-2.0,0) to[short,-o] ++(-0.35,0)
+          node[left] {$V_+$};
+    \draw (pnode) to[R,l_=$R_4$] ++(0,-2.0) node[ground] {};
+    \draw (opamp.out) to[short,*-o] ++(1.0,0) node[right] {$V_{out}$};
+    \node[circ] at (nnode) {};
+    \node[circ] at (pnode) {};
   \end{circuitikz}
   \caption{差分放大器}\label{fig:differential-amp}
 \end{figure}
@@ -632,18 +632,19 @@ V_{out} = \frac{R_2}{R_1} (V_+ - V_-) \label{eq:differential-gain}
 \begin{figure}[H]
   \centering
   \begin{circuitikz}[american,scale=1.0]
-    \draw
-    (0,0) node[op amp] (opamp) {}
-    (opamp.+) node[ground] {}
-    (opamp.-) to[short] ++(-0.5,0) coordinate (sum_node)
-    (sum_node) to[short, *-] ++(0,1) coordinate (fb_node)
-    (sum_node) to[R=$R_1$, -o] ++(-2,0) node[left] {$V_1$}
-    (sum_node) to[short] ++(0,-1) coordinate (in2_node)
-    (in2_node) to[R=$R_2$, -o] ++(-2,0) node[left] {$V_2$}
-    (sum_node) to[short] (in2_node)
-    (opamp.out) to[short, *-o] ++(1,0) node[right] {$V_{out}$}
-    (opamp.out) to[short] ++(0,1) coordinate (out_fb)
-    (out_fb) to[R=$R_f$] (fb_node);
+    \node[op amp] (opamp) at (4.5,0) {};
+    \draw (opamp.+) -- ++(0,-1.0) node[ground] {};
+    \draw (opamp.-) -- ++(-0.65,0) coordinate (sum);
+    \draw (sum) to[R,l_=$R_1$] ++(-2.1,0) to[short,-o] ++(-0.35,0)
+          node[left] {$V_1$};
+    \draw (sum) -- ++(0,-1.25) coordinate (input2)
+          to[R,l_=$R_2$] ++(-2.1,0) to[short,-o] ++(-0.35,0)
+          node[left] {$V_2$};
+    \draw (opamp.out) -- ++(0,1.8) coordinate (fb_right)
+          to[R] (fb_right -| sum) coordinate (fb_left) -- (sum);
+    \node[above=0.12cm] at ($(fb_left)!0.5!(fb_right)$) {$R_f$};
+    \draw (opamp.out) to[short,*-o] ++(1.0,0) node[right] {$V_{out}$};
+    \node[circ] at (sum) {};
   \end{circuitikz}
   \caption{求和放大器}\label{fig:summing-amp}
 \end{figure}
@@ -661,15 +662,16 @@ V_{out} = -\frac{R_f}{R_1} (V_1 + V_2 + \cdots + V_n) \label{eq:summing-gain}
 \begin{figure}[H]
   \centering
   \begin{circuitikz}[american,scale=1.0]
-    \draw
-    (0,0) node[op amp] (opamp) {}
-    (opamp.+) node[ground] {}
-    (opamp.-) to[short] ++(-0.5,0) coordinate (in_node)
-    (in_node) to[C=$C$, -o] ++(-2,0) node[left] {$V_{in}$}
-    (in_node) to[short, *-] ++(0,1) coordinate (fb_node)
-    (opamp.out) to[short, *-o] ++(1,0) node[right] {$V_{out}$}
-    (opamp.out) to[short] ++(0,1) coordinate (out_fb)
-    (out_fb) to[R=$R$] (fb_node);
+    \node[op amp] (opamp) at (4.0,0) {};
+    \draw (opamp.+) -- ++(0,-1.0) node[ground] {};
+    \draw (opamp.-) -- ++(-0.65,0) coordinate (sum)
+          to[R,l_=$R$] ++(-2.0,0) to[short,-o] ++(-0.35,0)
+          node[left] {$V_{in}$};
+    \draw (opamp.out) -- ++(0,1.6) coordinate (fb_right)
+          to[C] (fb_right -| sum) coordinate (fb_left) -- (sum);
+    \node[above=0.12cm] at ($(fb_left)!0.5!(fb_right)$) {$C$};
+    \draw (opamp.out) to[short,*-o] ++(1.0,0) node[right] {$V_{out}$};
+    \node[circ] at (sum) {};
   \end{circuitikz}
   \caption{积分器}\label{fig:integrator}
 \end{figure}
@@ -700,15 +702,16 @@ H(s) = -\frac{1}{RCs} \label{eq:integrator-transfer}
 \begin{figure}[H]
   \centering
   \begin{circuitikz}[american,scale=1.0]
-    \draw
-    (0,0) node[op amp] (opamp) {}
-    (opamp.+) node[ground] {}
-    (opamp.-) to[short] ++(-0.5,0) coordinate (in_node)
-    (in_node) to[R=$R$, -o] ++(-2,0) node[left] {$V_{in}$}
-    (in_node) to[short, *-] ++(0,1) coordinate (fb_node)
-    (opamp.out) to[short, *-o] ++(1,0) node[right] {$V_{out}$}
-    (opamp.out) to[short] ++(0,1) coordinate (out_fb)
-    (out_fb) to[C=$C$] (fb_node);
+    \node[op amp] (opamp) at (4.0,0) {};
+    \draw (opamp.+) -- ++(0,-1.0) node[ground] {};
+    \draw (opamp.-) -- ++(-0.65,0) coordinate (sum)
+          to[C,l_=$C$] ++(-2.0,0) to[short,-o] ++(-0.35,0)
+          node[left] {$V_{in}$};
+    \draw (opamp.out) -- ++(0,1.6) coordinate (fb_right)
+          to[R] (fb_right -| sum) coordinate (fb_left) -- (sum);
+    \node[above=0.12cm] at ($(fb_left)!0.5!(fb_right)$) {$R$};
+    \draw (opamp.out) to[short,*-o] ++(1.0,0) node[right] {$V_{out}$};
+    \node[circ] at (sum) {};
   \end{circuitikz}
   \caption{微分器}\label{fig:differentiator}
 \end{figure}
@@ -727,6 +730,68 @@ H(s) = -RCs \label{eq:differentiator-transfer}
 
 微分器对高频噪声敏感，实际应用中通常需要添加限制电阻。
 
+\subsection{实用积分器与带限微分器}
+
+理想积分器在直流处具有无限增益，输入失调电压和偏置电流会持续给反馈电容充电，最终使输出饱和。工程电路通常在 $C_F$ 两端并联泄放电阻 $R_F$，如图~\ref{fig:practical-integrator} 所示，使直流闭环增益限制为 $-R_F/R_{IN}$。
+
+\begin{figure}[H]
+  \centering
+  \begin{circuitikz}[american,scale=1.0]
+    \node[op amp] (opamp) at (4.2,0) {};
+    \draw (opamp.+) -- ++(0,-1.0) node[ground] {};
+    \draw (opamp.-) -- ++(-0.65,0) coordinate (sum)
+          to[R,l_=$R_{IN}$] ++(-2.0,0) to[short,-o] ++(-0.35,0)
+          node[left] {$V_{in}$};
+    \draw (opamp.out) -- ++(0,1.45) coordinate (cf_right)
+          to[C] (cf_right -| sum) coordinate (cf_left) -- (sum);
+    \draw (opamp.out) -- ++(0,2.7) coordinate (rf_right)
+          to[R] (rf_right -| sum) coordinate (rf_left) -- (sum);
+    \node[above=0.12cm] at ($(cf_left)!0.5!(cf_right)$) {$C_F$};
+    \node[above=0.12cm] at ($(rf_left)!0.5!(rf_right)$) {$R_F$};
+    \draw (opamp.out) to[short,*-o] ++(1.0,0) node[right] {$V_{out}$};
+    \node[circ] at (sum) {};
+  \end{circuitikz}
+  \caption{具有有限直流增益的实用积分器}
+  \label{fig:practical-integrator}
+\end{figure}
+
+其传递函数为：
+\begin{equation}
+  H(s)=-\frac{R_F/R_{IN}}{1+sR_FC_F}
+\end{equation}
+当 $f\gg 1/(2\pi R_FC_F)$ 时，电路近似理想积分器。$R_F$ 不能仅按目标截止频率选择，还应检查失调导致的输出偏移、低频动态范围以及启动后的恢复时间。
+
+理想微分器的增益随频率上升，会放大宽带噪声并降低相位裕度。图~\ref{fig:band-limited-differentiator} 在输入端增加 $R_{IN}$，并在反馈电阻两端并联 $C_F$，从低频和高频两侧限制有效微分频带。
+
+\begin{figure}[H]
+  \centering
+  \begin{circuitikz}[american,scale=1.0]
+    \node[op amp] (opamp) at (5.0,0) {};
+    \draw (opamp.+) -- ++(0,-1.0) node[ground] {};
+    \draw (opamp.-) -- ++(-0.65,0) coordinate (sum)
+          to[R,l_=$R_{IN}$] ++(-1.65,0)
+          to[C,l_=$C_{IN}$] ++(-1.35,0)
+          to[short,-o] ++(-0.35,0) node[left] {$V_{in}$};
+    \draw (opamp.out) -- ++(0,1.45) coordinate (rf_right)
+          to[R] (rf_right -| sum) coordinate (rf_left) -- (sum);
+    \draw (opamp.out) -- ++(0,2.55) coordinate (cf_right)
+          to[C] (cf_right -| sum) coordinate (cf_left) -- (sum);
+    \node[above=0.12cm] at ($(rf_left)!0.5!(rf_right)$) {$R_F$};
+    \node[above=0.12cm] at ($(cf_left)!0.5!(cf_right)$) {$C_F$};
+    \draw (opamp.out) to[short,*-o] ++(1.0,0) node[right] {$V_{out}$};
+    \node[circ] at (sum) {};
+  \end{circuitikz}
+  \caption{抑制高频噪声的带限微分器}
+  \label{fig:band-limited-differentiator}
+\end{figure}
+
+该电路的传递函数为：
+\begin{equation}
+  H(s)=-\frac{sR_FC_{IN}}
+  {(1+sR_{IN}C_{IN})(1+sR_FC_F)}
+\end{equation}
+两个极点用于限制噪声增益和闭环带宽。实际设计还必须根据运放的增益带宽积、输入电压噪声、压摆率和容性反馈稳定性验证阶跃响应，不能只依据理想传递函数确定元件值。
+
 \subsection{比较器}
 
 比较器（Comparator）用于比较两个电压的大小。虽然可以使用运算放大器作为比较器，但专用的比较器具有更好的性能。
@@ -744,6 +809,41 @@ H(s) = -RCs \label{eq:differentiator-transfer}
 
 经典仪表放大器常采用三个运算放大器，但集成器件也可能使用其他内部结构。
 其关键特性是高输入阻抗、精确可设增益和高共模抑制比，常用于桥式传感器和小信号调理。
+
+\subsection{噪声增益与闭环带宽}
+
+稳定性分析使用噪声增益（Noise Gain），不能只看输入信号到输出的信号增益。噪声增益等于反馈系数的倒数：
+\begin{equation}
+  NG=\frac{1}{\beta}
+\end{equation}
+对于反相放大器，信号增益为 $-R_F/R_{IN}$，而噪声增益为：
+\begin{equation}
+  NG=1+\frac{R_F}{R_{IN}}
+\end{equation}
+在单主极点近似成立时，闭环带宽可粗略估计为 $f_{CL}\approx GBW/NG$。输入电容、传感器电容和 PCB 寄生会使高频噪声增益上升，降低相位裕度；跨阻放大器和高阻传感器接口尤其需要通过反馈电容整形噪声增益，而不能只按直流增益选择反馈元件。
+
+\subsection{容性负载与输出隔离}
+
+运放直接驱动较大电容时，输出阻抗与负载电容形成附加极点，可能造成振铃或自激。图~\ref{fig:opamp-capacitive-load-isolation} 将 $R_{ISO}$ 放在反馈取样点之外，使运放闭环不直接承受全部负载电容。
+
+\begin{figure}[H]
+  \centering
+  \begin{circuitikz}[american,scale=1.0]
+    \node[op amp,noinv input up] (opamp) at (3.8,1.8) {};
+    \draw (opamp.+) to[short,-o] ++(-1.8,0) node[left] {$V_{in}$};
+    \draw (opamp.out) -- ++(0.65,0) coordinate (sense)
+          to[R,l=$R_{ISO}$] ++(1.8,0) coordinate (load);
+    \draw (sense) -- ++(0,-1.35) coordinate (fb_right)
+          -- (fb_right -| opamp.-) -- (opamp.-);
+    \draw (load) to[C,l_=$C_L$] ++(0,-2.0) node[ground] {};
+    \draw (load) to[short,*-o] ++(1.0,0) node[right] {$V_{out}$};
+    \node[circ] at (sense) {};
+  \end{circuitikz}
+  \caption{运放驱动容性负载时的输出隔离电阻}
+  \label{fig:opamp-capacitive-load-isolation}
+\end{figure}
+
+$R_{ISO}$ 的取值需要在稳定性、负载阶跃压降、建立时间和输出噪声之间折中。该连接在直流负载电流变化时会产生 $I_{LOAD}R_{ISO}$ 误差；若把反馈改为从负载端远端取样，虽然可以消除直流压降，但 $R_{ISO}$ 和 $C_L$ 会重新进入环路，必须根据器件开环模型或厂商推荐网络进行补偿。最终应使用最坏负载电容、线缆和探头条件验证阶跃响应。
 
 \section{运算放大器的应用技巧}
 

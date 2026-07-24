@@ -1,0 +1,96 @@
+\chapter{学习路径与实验路线}
+\label{chap:learning-paths}
+
+本书覆盖硬件、固件、Linux 和复杂 SoC，按目录顺序通读并非唯一方式。读者可以依据当前工作方向选择主线，再在遇到跨层问题时回到相关章节。
+
+\section{MCU 与 FreeRTOS 路线}
+
+推荐顺序：
+\begin{enumerate}
+  \item 电路基础、集成电路和外设协议；
+  \item 微处理器体系结构与硬件层 C 编程；
+  \item MCU 启动、裸机事件和 FreeRTOS；
+  \item 采样、滤波、定点数值和控制系统；
+  \item Bootloader、IAP、存储一致性和低功耗；
+  \item 调试、可靠性、功能安全与 HIL；
+  \item 多平台 MCU 与 FreeRTOS 工程实践。
+\end{enumerate}
+
+建议实验：
+\begin{itemize}
+  \item 裸机 timer/USART 事件循环和环形缓冲；
+  \item FreeRTOS 静态任务、队列、任务通知和 ISR 唤醒；
+  \item ADC+DMA 双缓冲和数字滤波；
+  \item 带 anti-windup 的周期 PID；
+  \item 双镜像 IAP、向量表校验和掉电恢复；
+  \item 栈高水位、队列满、总线超时和 watchdog 故障注入。
+\end{itemize}
+
+完成标志不是 LED 能闪烁，而是能够解释最坏响应时间、资源上限、错误路径和复位后的状态。
+
+\section{Linux BSP 与系统交付路线}
+
+推荐顺序：
+\begin{enumerate}
+  \item 处理器、异常、中断、MMU、缓存和内存序；
+  \item Bootloader 与完整 Linux 启动链；
+  \item OS 原理、Linux 设备模型和 BSP；
+  \item platform driver、标准子系统、DMA 和 runtime PM；
+  \item Buildroot、rootfs、存储可靠性和 A/B OTA；
+  \item 用户空间服务、网络、时间同步和可观测性；
+  \item QEMU、kselftest、目标板测试与 HIL；
+  \item 嵌入式 Linux 专用设备工程实践。
+\end{enumerate}
+
+建议实验：
+\begin{itemize}
+  \item QEMU 启动最小内核和 initramfs，并使用 GDB 断在 \texttt{start\_kernel}；
+  \item 编写带 YAML binding 的 IIO 或 hwmon 驱动；
+  \item 实现线程化 IRQ、runtime PM 和错误回滚；
+  \item 用 Buildroot external tree 构建只读系统；
+  \item 实现双槽更新、健康确认和试启动回退；
+  \item 在镜像写入、rename 和数据库事务期间执行真实掉电测试。
+\end{itemize}
+
+\section{复杂 SoC 与端侧 AI 路线}
+
+推荐顺序：
+\begin{enumerate}
+  \item Arm/RISC-V 特权架构、多核一致性和 IOMMU；
+  \item 异构多核、remoteproc、RPMsg 和共享内存；
+  \item 实时 Linux、虚拟化和混合关键性；
+  \item FPGA/SoC、AXI、DMA 和 bitstream 生命周期；
+  \item V4L2、DRM、DMA-BUF、多媒体和端侧 AI；
+  \item TrustZone/TEE、设备身份和远程证明；
+  \item 带宽、热、低功耗和系统级验证。
+\end{enumerate}
+
+建议实验：
+\begin{itemize}
+  \item Linux remoteproc 启动 FreeRTOS，并完成 IPC ABI 握手；
+  \item 对共享内存执行 cache 一致性和队列满测试；
+  \item 建立 V4L2→DMA-BUF→DRM 零拷贝预览；
+  \item 对 CPU 与硬件预处理输出执行 gold tensor 比较；
+  \item 测量摄像头到业务结果的逐阶段延迟和 DDR 带宽；
+  \item 运行实时 guest 或隔离实时核，测量共享资源干扰。
+\end{itemize}
+
+\section{硬件与制造路线}
+
+推荐顺序：电路基础、半导体、运放、集成电路、接口协议、板级系统、PCB、FPGA、电机与功率控制、DFM/DFT 和工装实践。
+
+建议实验应包含电源上电时序、接口保护、ADC 信号链、示波器回流观察、EMC 预扫、1:1 机械检查、限流首次上电和生产测试点覆盖。
+
+\section{每个实验的交付物}
+
+无论方向，实验至少保存：
+\begin{itemize}
+  \item 需求、接口和明确验收指标；
+  \item 原理图或软件架构与资源预算；
+  \item 可复现构建配置和版本 manifest；
+  \item 正常、边界、错误和恢复测试；
+  \item 原始串口、trace、波形或测试日志；
+  \item 已知限制、残余风险和下一步改进。
+\end{itemize}
+
+这种交付方式能把“完成教程”转化为可复用的工程能力。

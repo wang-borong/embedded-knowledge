@@ -1,0 +1,89 @@
+\chapter{嵌入式网络与时间同步}
+\label{chap:embedded-network-time}
+
+嵌入式网络不仅负责传输数据，还承担设备发现、控制闭环、日志、升级和时间同步。系统设计需要把 PHY、电气接口、MAC/DMA、内核网络栈、传输协议和应用语义作为一条链分析。
+
+\section{Ethernet 硬件路径}
+
+以太网链路通常由 MAC、DMA descriptor、MII/RMII/RGMII/SGMII 接口、PHY、变压器和连接器组成。Device Tree 需要准确描述 PHY 地址、接口模式、时钟延迟、复位、电源和中断。
+
+RGMII 在 1~Gb/s 下要求时钟与数据具有规定偏移。延迟可能由 MAC、PHY 或 PCB 走线提供，只能选择一个明确实现位置；同时在 PHY 和 MAC 启用内部 delay 会造成重复补偿。
+
+PHY 驱动应尽量使用 phylink/phylib 管理自动协商、链路状态和接口模式。固定链路也应通过标准 fixed-link 描述，而不是在驱动中硬编码速率与双工。
+
+\section{DMA、NAPI 与队列}
+
+MAC 驱动使用 RX/TX descriptor ring 在设备和内核之间传递 packet buffer。RX 中断通常只调度 NAPI，poll 函数在预算内批量收包并重新补充 descriptor，从而避免高包率下的中断风暴。
+
+多队列 NIC 可以把不同流分散到 CPU，但 RSS、IRQ affinity、RPS/XPS 和应用线程亲和性必须协调。实时流量若在多个 CPU 和缓存域间反复迁移，会增加长尾延迟。
+
+队列大小并非越大越好。大 ring 能吸收突发，却会增加 bufferbloat 和故障恢复时间。应同时测量吞吐、丢包、排队延迟和内存占用。
+
+\section{Linux 网络配置边界}
+
+驱动提供链路和数据面，IP 地址、路由、VLAN、bridge、防火墙和服务监听属于用户空间策略。BSP 不应用驱动私有参数替代标准 netlink 配置。
+
+设备若同时具有管理网、业务网和工厂网，应划分接口、路由表和访问控制。发现协议不能默认等价于管理授权；广播或组播发现只返回最小信息，敏感操作仍需认证通道。
+
+\section{TCP、UDP 与应用语义}
+
+TCP 提供有序字节流，不保留应用消息边界；应用必须实现长度或分隔协议，并限制最大帧。TCP 写成功不代表对端业务已经处理，关键操作仍需应用层事务 ID 和确认。
+
+UDP 适合低延迟、允许丢失或自行恢复的消息，但要处理乱序、重复、分片和路径 MTU。控制协议应避免依赖 IP 分片，并对每个报文设置版本、长度、序号、时间戳和完整性校验。
+
+\section{CAN FD 与诊断网络}
+
+CAN 仲裁保证高优先级 ID 更早发送，但持续高优先级流量会使低优先级报文饥饿。总线负载分析应包含最坏帧长度、stuff bit、发送周期、错误重发和网关流量。
+
+Linux SocketCAN 把 CAN 设备表示为网络接口，应用可以复用 socket、过滤和时间戳机制。CAN FD 提高数据段速率和载荷，但所有节点、收发器和终端必须兼容相应位时序。
+
+UDS、DoIP、CANopen 和工业协议具有不同状态机和安全假设。诊断刷写、会话切换和执行器测试必须经过授权，不能因为位于“内部 CAN”就默认可信。
+
+\section{工业以太网与 TSN}
+
+工业网络常要求确定延迟、时间同步和冗余。TSN 是一组 IEEE~802.1 机制，包括时间感知整形、流量分类、帧抢占和集中配置。启用某个 qdisc 并不等于形成确定性系统，还需要交换机、终端时钟、队列和流量工程一致支持。
+
+EtherCAT 等协议把帧处理和从站时序压缩到专用数据路径，适合严格周期控制。选择工业协议应依据周期、拓扑、生态、认证和诊断要求，而不是只比较理论带宽。
+
+\section{Linux 时间体系}
+
+Linux 区分 clocksource、clockevent、单调时钟和实时时钟。\texttt{CLOCK\_MONOTONIC} 适合超时与持续时间；\texttt{CLOCK\_REALTIME} 可能被校时，不应用于内部超时；\texttt{CLOCK\_TAI} 适合需要避免闰秒跳变的时间戳系统。
+
+硬件时间戳应尽可能靠近 MAC/PHY 收发边界。软件在 socket 层记录的时间包含 IRQ、NAPI 和调度延迟，不能代表线上真实时刻。
+
+\section{NTP、PTP 与 PPS}
+
+NTP 适合通用网络时间同步；PTP/IEEE~1588 通过硬件时间戳和路径延迟测量实现更高精度；GNSS PPS 可以提供稳定秒边沿，但日期时间和 PPS 需要正确关联。
+
+PTP 系统通常包含 PHC、\texttt{ptp4l} 和 \texttt{phc2sys}。前者同步网卡硬件时钟，后者协调 PHC 与系统时钟。Boundary Clock 和 Transparent Clock 用于降低多跳交换网络的误差。
+
+时间同步的质量至少用 offset、frequency drift、path delay 和 holdover 表示。只显示“已同步”状态无法判断是否满足业务精度。
+
+\section{跨设备时间戳协议}
+
+采样数据应携带采样发生时的硬件时间戳，而不是发送时间。协议还应标识时间域、时钟质量和同步状态：
+
+\begin{lstlisting}[language=C,caption={带时间域信息的采样头}]
+struct timed_sample_header {
+    uint16_t version;
+    uint16_t clock_domain;
+    uint32_t sequence;
+    uint64_t timestamp_ns;
+    int32_t  estimated_offset_ns;
+    uint32_t uncertainty_ns;
+};
+\end{lstlisting}
+
+同步丢失时，系统应继续提供带不确定度的本地单调时间，或明确拒绝需要全局时间的操作，不能悄悄把无效 RTC 当作可信时间。
+
+\section{网络与时间验证}
+
+\begin{itemize}
+  \item 不同速率、双工、线缆和交换机下是否稳定协商？
+  \item 满负载、短包和双向流量下的丢包、吞吐与长尾延迟是多少？
+  \item link flap、DHCP 变化、路由切换和对端重启能否恢复？
+  \item TCP 重连、半开连接和应用重复事务是否处理正确？
+  \item CAN 总线在最坏错误重发和高优先级占用下是否满足截止期？
+  \item PTP offset、漂移和 holdover 是否在目标拓扑与温度下测量？
+  \item 所有业务时间戳是否声明时钟域、精度和失同步行为？
+\end{itemize}

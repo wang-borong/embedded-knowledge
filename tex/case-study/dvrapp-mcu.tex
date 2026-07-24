@@ -1,0 +1,272 @@
+\chapter{多平台 MCU 与 FreeRTOS 工程实践}
+\label{chap:case-dvrapp-mcu}
+
+多平台 MCU 固件的核心难点并不是分别驱动若干外设，而是在芯片、板卡、工具链和镜像布局不断变化时，仍然维持清晰的依赖方向、确定的实时行为和可验证的启动契约。
+本章围绕 Cortex-M、FreeRTOS、DMA 串口、共享总线和处理器间通信，给出一套可迁移的工程组织方法。
+工程使用的 FreeRTOS 配置与 API 应结合其固定内核版本和对应参考手册理解\cite{freertos-reference}。
+
+\section{需求与约束}
+
+典型辅助控制固件会承担电源时序、外部信号检测、ADC 采样、RTC 和运动传感器访问、串口转发、看门狗协同以及 MCU 在线升级。
+与单一开发板示例相比，它具有以下工程约束：
+\begin{itemize}
+  \item 同一代码库支持 Cortex-M3 与 Cortex-M23 两类处理器；
+  \item 同一上层接口适配不同厂商 SDK；
+  \item 支持 GCC、LLVM/Clang 与 Arm Compiler 6；
+  \item 应用镜像位于 Bootloader 之后，向量表和链接地址必须同步；
+  \item UART 接收使用 DMA 和环形缓冲，协议任务与外设任务并发运行；
+  \item 板卡可能选择不同 RTC、加速度计和串口资源。
+\end{itemize}
+
+这些约束决定了工程不能把芯片 SDK API 直接扩散到全部业务代码中。
+
+\section{分层架构}
+
+工程按芯片、硬件抽象、设备、协议和应用五层组织：
+
+\begin{center}
+\begin{tikzpicture}[node distance=4mm]
+  \tikzset{casebox/.style={draw=bookline,fill=bookpaper,rounded corners=1mm,
+    minimum width=105mm,minimum height=8mm,align=center,font=\small}}
+  \node[casebox] (app) {应用层：电源控制、信号检测、数据转发和产品状态};
+  \node[casebox,below=of app] (proto) {协议层：MCP 编解码、命令分派和 MCU--CPU 传输};
+  \node[casebox,below=of proto] (dev) {设备层：RTC、加速度计及板级器件驱动};
+  \node[casebox,below=of dev] (hal) {HAL：GPIO、ADC、UART、I2C、Timer 和 IRQ 接口};
+  \node[casebox,below=of hal] (chip) {芯片层：厂商 SDK、启动文件、链接脚本和 FreeRTOS Port};
+  \draw[->,bookteal] (app)--(proto);
+  \draw[->,bookteal] (proto)--(dev);
+  \draw[->,bookteal] (dev)--(hal);
+  \draw[->,bookteal] (hal)--(chip);
+\end{tikzpicture}
+\end{center}
+
+HAL 的价值不只是统一函数名，而是隔离厂商类型、时钟枚举、引脚复用和 DMA 配置。
+例如 UART 上层接口以端口、波特率、数据位和停止位描述需求；芯片实现层负责把这些属性转换为具体寄存器和 SDK 调用。
+
+设备层只依赖 I2C 等抽象接口，使 RTC 和传感器驱动可以在不同芯片之间复用。
+应用层仍需要板级组合代码，因为电源引脚、串口用途和传感器装配属于产品差异，不宜全部塞入通用 HAL。
+
+\section{构建矩阵与配置分解}
+
+CMake 顶层负责选择工具链、板卡和构建类型，再由板卡配置映射到芯片、应用源文件与设备驱动，芯片配置进一步选择启动文件、链接脚本、FreeRTOS Port、编译选项和 SDK 源文件。
+
+选择逻辑应表达为配置关系，而不是在源文件中堆叠条件编译。例如：
+
+\begin{lstlisting}[language=bash,caption={板卡、芯片与工具链的声明式选择（伪代码）}]
+set(BOARD "control_a" CACHE STRING "target board")
+set(TOOLCHAIN "gcc" CACHE STRING "compiler family")
+
+include(board/${BOARD}.cmake)     # CHIP, DEVICES, APP_ORIGIN
+include(chip/${CHIP}.cmake)       # startup, SDK, RTOS port
+include(toolchain/${TOOLCHAIN}.cmake)
+
+configure_file(linker.ld.in linker.ld @ONLY)
+target_sources(firmware PRIVATE ${BOARD_SOURCES} ${DEVICE_SOURCES})
+\end{lstlisting}
+
+\begin{table}[htbp]
+  \centering
+  \caption{MCU 工程构建维度}
+  \begin{tabular}{p{25mm}p{42mm}p{72mm}}
+    \hline
+    维度 & 示例 & 决定的内容 \\
+    \hline
+    板卡 & 两种产品板 & 应用目录、器件驱动和版本文件 \\
+    芯片 & Cortex-M3/Cortex-M23 & 启动文件、CPU 选项、SDK、FreeRTOS Port \\
+    工具链 & GCC/Clang/ArmClang & 编译、链接、二进制转换和调试工具 \\
+    构建类型 & Debug/Release & 优化、调试段保留和诊断能力 \\
+    镜像地址 & Bootloader 后偏移 & 链接区间、向量表和烧录地址 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+这种分解避免为每个“板卡×芯片×工具链”复制一份工程文件。
+新增板卡时，优先增加声明式映射；只有出现新的芯片编程模型时才增加 HAL 实现和芯片配置。
+
+工程同时保留 Keil 项目作为兼容入口，但 CMake 是跨工具链构建的统一来源。
+技术债务治理的关键是明确哪个入口负责定义源文件和编译宏，避免多个工程文件长期独立演化。
+
+\section{Bootloader 与应用镜像契约}
+
+采用 IAP 时，Bootloader 通常占用固定 Flash 区域，应用从非零地址开始链接。
+这一设计至少包含四个相互一致的契约：
+\begin{enumerate}
+  \item 链接脚本的 Flash \texttt{ORIGIN} 指向应用槽位；
+  \item 启动后的 VTOR 指向应用镜像中的向量表；
+  \item 烧录工具使用相同的目标地址；
+  \item 升级标志区不与 Bootloader 或应用段重叠。
+\end{enumerate}
+
+CMake 可以由同一板级配置生成链接脚本，并从链接符号取得向量表地址，降低手工维护常量产生的不一致风险。
+应用请求升级时，先确认通信响应已经发出，再写升级标志、停用相关外设、关闭中断、恢复 Bootloader 栈指针并跳转到复位入口。
+
+从应用跳回 Bootloader 比普通函数调用严格得多。稳健实现还应：
+\begin{itemize}
+  \item 停止 SysTick、DMA 和所有可能继续访问内存的外设；
+  \item 清除 NVIC enable 和 pending 状态；
+  \item 恢复时钟到双方约定状态，或保证 Bootloader 完整重初始化；
+  \item 校验目标 MSP 位于有效 SRAM、复位入口位于 Bootloader Flash；
+  \item 使用系统复位进入 Bootloader 作为更容易证明的替代路径。
+\end{itemize}
+
+跳转前必须先验证目标向量，而不是直接信任固定地址中的两个字：
+
+\begin{lstlisting}[language=C,caption={Bootloader 跳转的最小校验框架}]
+bool vector_is_valid(uint32_t base)
+{
+    uint32_t new_msp = *(uint32_t *)(base + 0U);
+    uint32_t reset   = *(uint32_t *)(base + 4U);
+    return in_sram(new_msp) && aligned(new_msp, 8U) &&
+           in_boot_flash(reset & ~1U) && ((reset & 1U) != 0U);
+}
+
+void jump_to_bootloader(uint32_t base)
+{
+    if (!vector_is_valid(base)) fault_stop(FAULT_BAD_VECTOR);
+    quiesce_systick_dma_peripherals();
+    disable_and_clear_all_irqs();
+    SCB->VTOR = base;
+    __set_MSP(*(uint32_t *)base);
+    ((void (*)(void))(*(uint32_t *)(base + 4U)))();
+}
+\end{lstlisting}
+
+\section{任务模型}
+
+可以用相互独立的工作任务分离输入接收、传感器采集和数据转发：
+
+\begin{table}[htbp]
+  \centering
+  \caption{典型任务及其阻塞条件}
+  \begin{tabular}{p{34mm}p{55mm}p{55mm}}
+    \hline
+    任务 & 职责 & 主要阻塞或节流方式 \\
+    \hline
+    MCP 接收任务 & 解析 CPU 命令并分派处理器 & UART 无数据时短延时 \\
+    GPS 转发任务 & 从辅助串口读取并转发 & 数据可用性与周期延时 \\
+    传感器任务 & RTC、加速度和 ADC 采集 & I2C 互斥量与固定采样周期 \\
+    RS485 转发任务 & 双向透明数据转发 & 端口启用状态与 RX 数据 \\
+    电源控制任务 & CPU 及外设电源状态机 & 时间条件、事件与延时 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+这种分解便于定位问题，但周期轮询会产生固定唤醒和响应粒度。
+后续优化可以用任务通知或队列替代短周期空轮询：UART ISR/DMA 只投递数据到环形缓冲并通知协议任务，任务被唤醒后持续处理到缓冲区为空。
+
+初始化代码必须把资源创建失败作为启动失败处理：
+
+\begin{lstlisting}[language=C,caption={可检查的 FreeRTOS 启动骨架}]
+int main(void)
+{
+    board_early_init();
+    SCB->VTOR = (uint32_t)&__vector_table_start__;
+
+    configASSERT(xTaskCreate(protocol_task, "proto", 512, NULL,
+                             PRI_PROTOCOL, NULL) == pdPASS);
+    configASSERT(xTaskCreate(sensor_task, "sensor", 384, NULL,
+                             PRI_SENSOR, NULL) == pdPASS);
+    health_monitor_init();
+    vTaskStartScheduler();
+    fault_stop(FAULT_SCHEDULER_RETURNED);
+}
+\end{lstlisting}
+
+\section{DMA UART 与环形缓冲}
+
+UART 实现使用 DMA 接收缓冲区和独立 TX/RX 环形缓冲。
+DMA 负责连续搬运，ISR 根据 DMA 写指针确认新增区间，再通知任务消费；任务上下文通过统一 \texttt{uart\_read()} 读取。
+
+环形缓冲解耦了三种速率：线路字节速率、ISR 处理速率和协议任务消费速率。
+容量设计必须满足最坏调度阻塞期间的输入量：
+
+\begin{equation}
+  C_{rx} \geq R_{byte} \times T_{block,max} + B_{burst} + M
+\end{equation}
+
+其中 $R_{byte}$ 为线路有效字节率，$T_{block,max}$ 为任务最长不可运行时间，
+$B_{burst}$ 为协议突发量，$M$ 为实现与测量裕量。
+
+实现还应统计 RX overflow、TX queue full、DMA error 和最大占用水位。
+如果溢出策略是覆盖旧数据，协议层必须能够重新同步帧边界；如果拒绝新数据，则应暴露丢弃计数。
+
+DMA 缓冲区的生产者与消费者所有权应显式化：DMA 只写入固定接收区，ISR 只发布新的写入位置，任务才负责解析和推进读指针。
+
+\begin{lstlisting}[language=C,caption={DMA 接收与任务通知的所有权边界（伪代码）}]
+void UART_IRQHandler(void)
+{
+    BaseType_t wake = pdFALSE;
+    if (uart_idle_or_dma_event()) {
+        rx_dma_publish(dma_write_index());  /* no parsing in ISR */
+        vTaskNotifyGiveFromISR(rx_task_handle, &wake);
+    }
+    portYIELD_FROM_ISR(wake);
+}
+
+static void protocol_task(void *arg)
+{
+    for (;;) {
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        while (rx_ring_has_data())
+            protocol_feed(rx_ring_get());
+    }
+}
+\end{lstlisting}
+
+\section{协议适配与命令分派}
+
+MCP 使用固定起止字节、紧凑头部、可变长度数据和 CRC8，在资源受限 MCU 与主处理器之间传输控制消息和数据消息。
+协议实现通过读、写、加锁和解锁回调与 UART 解耦，并使用命令表把消息类型映射到处理函数。
+
+这一模式适合设备内部受控链路，但应明确其边界：CRC 只能发现随机传输错误，不能提供身份认证、重放保护或抗恶意输入能力。
+解析器必须在读取载荷前验证长度上限，并在起止字节、CRC 或长度错误后有界地重新同步。
+
+版本演进时建议增加显式协议版本、能力查询和错误响应，避免通过固件版本字符串猜测双方能力。
+
+\section{共享总线与故障恢复}
+
+RTC 和加速度计共享 I2C 总线，任务与命令处理路径通过互斥量串行访问。
+访问失败后执行总线复位或重新初始化，体现了产品固件不能假设外设永远响应。
+
+互斥量只能保护软件访问顺序，不能解决 SDA 被从设备持续拉低、器件掉电或时钟伸展超时。
+完整恢复路径应包括：
+\begin{enumerate}
+  \item 带上限地等待总线控制器完成；
+  \item 停止并复位 I2C 外设；
+  \item 必要时以 GPIO 产生恢复时钟；
+  \item 重新初始化总线和目标器件；
+  \item 记录连续失败次数并实施降级或电源循环。
+\end{enumerate}
+
+\section{ISR 与任务同步的审查点}
+
+ISR 只能调用允许的 \texttt{FromISR} API，而且不能阻塞。更重要的是，任务互斥与中断事件通知是两类不同语义，不应由同一个二值信号量混合承担。
+
+ISR 获取失败时不能等待，也不能在未获得所有权时继续访问共享发送状态。
+更容易证明的设计是：ISR 只把待发送事件写入固定队列或环形缓冲，由单一 TX 任务拥有 UART 发送器；任务间通过队列提交完整消息或不可变缓冲区描述符。
+
+\section{FreeRTOS 配置分析}
+
+资源受限固件通常使用抢占调度、固定 tick、有限优先级、受约束的内核堆和明确的 Cortex-M 中断优先级边界。
+软件定时器与 trace 默认关闭，以控制资源占用。
+
+产品发布前应把以下检查自动化：
+\begin{itemize}
+  \item 计算并核对 \texttt{configMAX\_SYSCALL\_INTERRUPT\_PRIORITY} 与实际 NVIC 配置；
+  \item 启用栈溢出和分配失败钩子；
+  \item 记录每个任务栈高水位和最小剩余堆；
+  \item 验证所有 \texttt{xTaskCreate()} 返回值；
+  \item 调度器异常返回时进入明确故障处理，而不是继续执行普通代码。
+\end{itemize}
+
+\section{可复现构建与发布}
+
+工程构建输出 ELF、BIN、映射和反汇编等诊断资产，并提供 OpenOCD 下载、GDB 调试、版本更新和发布后处理脚本。
+多工具链构建不仅用于方便开发，也可以发现对编译器扩展、链接器行为和未定义行为的隐性依赖。
+
+发布清单应至少保存板卡、芯片、工具链版本、构建类型、Flash 起始地址、源代码版本、固件摘要和对应符号文件。
+
+\section{工程方法总结}
+
+可维护的多平台固件应把“板卡选择”“芯片选择”“工具链选择”和“应用镜像布局”显式建模，
+并通过 HAL 与设备层限制厂商 SDK 的影响范围。事件驱动、运行时资源测量、协议版本化、任务创建失败处理以及 ISR 到任务的单向所有权，是从可运行原型走向可验证固件的关键步骤。

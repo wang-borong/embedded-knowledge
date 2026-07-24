@@ -1,0 +1,100 @@
+\chapter{嵌入式虚拟化与系统隔离}
+\label{chap:virtualization-isolation}
+
+虚拟化使多个操作系统共享处理器，同时隔离 CPU、内存、中断和设备。嵌入式系统采用虚拟化通常是为了安全域分离、旧软件复用、混合关键性或故障 containment，而不是提高单一应用性能。
+
+\section{虚拟化与 AMP 的区别}
+
+AMP 把物理核和设备静态分配给不同固件，各执行域通常知道平台的物理布局；虚拟化由 hypervisor 为 guest 提供虚拟 CPU、内存和设备，并截获特权操作。二者可以组合：Linux guest 使用虚拟设备，同时独立实时核运行 FreeRTOS。
+
+若系统只需要一个 Linux 和一个固定实时核，remoteproc/OpenAMP 往往比引入完整 hypervisor 更简单。需要运行多个通用 OS、强隔离或旧 guest 时，虚拟化价值更明显。
+
+\section{处理器虚拟化支持}
+
+Arm 使用 EL2 提供 stage-2 地址转换、中断虚拟化和 trap 控制；RISC-V H 扩展提供 HS/VS 模式和二阶段地址转换。具体实现还取决于 GIC/IMSIC、SMMU/IOMMU 和定时器虚拟化。
+
+guest 的虚拟地址先经 stage-1 转换为 guest physical address，再由 stage-2 转换为 host physical address。TLB、页表和 VMID 管理错误会造成跨域访问或严重性能问题。
+
+\section{Hypervisor 架构}
+
+常见模型包括：
+\begin{description}
+  \item[Type-1] hypervisor 直接运行在硬件上，guest 位于其上；
+  \item[Type-2] VMM 作为宿主操作系统进程运行；
+  \item[静态分区] 启动时固定分配 CPU、内存和设备，运行时调度较少；
+  \item[动态虚拟化] 支持 vCPU 调度、内存 overcommit 和丰富虚拟设备。
+\end{description}
+
+KVM 适合利用 Linux 作为资源管理宿主；Xen 提供独立 hypervisor 和 domain 模型；Jailhouse 等静态分区方案强调已启动系统的资源隔离。选择应基于安全模型、实时性、设备支持和维护生态。
+
+\section{CPU 与调度隔离}
+
+vCPU 可以独占物理 CPU，也可以由 hypervisor 调度。共享 CPU 会引入调度延迟和缓存干扰；独占 CPU 仍会受到共享 LLC、内存控制器、中断和电源管理影响。
+
+实时 guest 需要固定 vCPU、物理 IRQ、内存和设备，并限制宿主在同一 CPU 上执行 housekeeping 工作。实时性必须测量从物理中断到 guest handler 和最终输出的完整路径。
+
+\section{内存与 DMA 隔离}
+
+stage-2 页表限制 CPU 访问，IOMMU/SMMU 限制设备 DMA。设备直通时，hypervisor 必须把设备 stream ID 绑定到对应 guest 地址空间，并处理 reset、错误中断和移除。
+
+共享内存应作为显式授权区域映射到双方，具有固定协议和所有权。不能因为两个 guest 都能访问某段内存，就假定它具备同步与安全语义。
+
+\section{中断虚拟化}
+
+物理中断可以由 hypervisor 捕获后注入虚拟中断，也可以通过硬件辅助直接投递 guest。直接注入降低延迟，但增加资源配置和恢复复杂度。
+
+一个直通设备的全部中断、DMA、MMIO、时钟和复位通常应归同一 guest。只直通 MMIO 而由宿主持有 reset 或电源管理，会形成跨域隐式依赖。
+
+\section{设备模型}
+
+设备可以采用 emulation、paravirtualization 或 passthrough：
+\begin{itemize}
+  \item 模拟设备兼容性好，但 trap 和仿真开销大；
+  \item virtio 等半虚拟设备提供标准高效接口；
+  \item 直通设备性能与确定性较好，但迁移和共享困难；
+  \item mediator 在多个 guest 之间受控复用真实设备，复杂度最高。
+\end{itemize}
+
+virtio queue 仍依赖共享内存、descriptor、通知和内存顺序。恶意 guest 提供的 descriptor 地址和长度必须由 VMM 完整验证。
+
+\section{启动与设备树}
+
+Hypervisor 应为每个 guest 构造只包含其可见 CPU、内存、IRQ 和设备的 Device Tree 或 ACPI 表。guest 不应看到无权访问的保留内存和控制寄存器。
+
+启动镜像需要绑定 hypervisor、guest、虚拟硬件配置和资源分区。单独升级 guest 内核时，必须保持 virtio ABI、Device Tree 和安全策略兼容。
+
+\section{混合关键性与故障隔离}
+
+安全关键 guest 与普通 Linux guest 共存时，需要证明空间、时间和通信隔离。Linux 崩溃不应关闭安全 guest 所需电源、时钟或看门狗；安全 guest 也不应依赖 Linux 文件系统才能进入安全状态。
+
+共享缓存、DDR、热限制和 PMIC 属于潜在共因资源。仅通过页表隔离不足以证明 freedom from interference。
+
+\section{安全边界}
+
+Hypervisor 是高权限组件，攻击面包括 hypercall、虚拟设备、共享内存和管理接口。应最小化设备模拟、限制管理域权限，并对 guest 输入执行与网络协议相同级别的边界检查。
+
+调试接口需要按域授权。能够读取 hypervisor 或其他 guest 内存的调试器会绕过所有软件隔离，因此量产生命周期必须治理 JTAG、crash dump 和管理 console。
+
+\section{性能与验证}
+
+验证不应只运行 CPU benchmark，还应测量：
+\begin{itemize}
+  \item 物理 IRQ 到 guest 的延迟与抖动；
+  \item virtio 网络、块设备和 console 吞吐；
+  \item stage-2 TLB miss 和内存带宽；
+  \item 多 guest 并发下的缓存和 DDR 干扰；
+  \item guest 重启、恶意 DMA、设备超时和 hypervisor 故障；
+  \item suspend/resume、热管理和 OTA 后的资源分区一致性。
+\end{itemize}
+
+\section{验收清单}
+
+\begin{itemize}
+  \item 使用虚拟化的目标是否明确，是否存在更简单的 AMP 方案？
+  \item CPU、内存、IRQ、DMA、时钟和复位是否形成完整分区？
+  \item IOMMU 是否覆盖所有可发起 DMA 的直通设备？
+  \item 虚拟设备是否验证 guest 提供的地址、长度和状态？
+  \item 实时 guest 是否在最坏共享资源干扰下测量？
+  \item 普通 guest 崩溃或重启是否影响安全域？
+  \item hypervisor、guest 配置和资源清单是否作为原子发布集合管理？
+\end{itemize}

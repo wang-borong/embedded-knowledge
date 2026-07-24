@@ -1,0 +1,338 @@
+\chapter{MCU、裸机与 FreeRTOS}
+\label{chap:mcu-freertos}
+
+微控制器（Microcontroller Unit, MCU）把处理器核、片上存储器、时钟、复位和常用外设集成在单一芯片中。
+与运行完整 Linux 的应用处理器相比，MCU 系统通常具有更确定的启动路径、更有限的存储资源和更严格的实时、功耗约束。
+本章以通用 32 位 MCU 为对象，说明从复位入口、裸机运行时到 FreeRTOS 多任务系统的关键机制。
+寄存器地址、中断号和时钟配置均属于芯片实现细节，实际工程必须以目标器件参考手册、数据手册和勘误表为准。
+
+\section{MCU 系统模型}
+
+典型 MCU 包含处理器核、片上 Flash、SRAM、中断控制器、DMA 控制器以及 GPIO、定时器、串行接口和模拟外设。
+处理器通过存储器映射 I/O 访问外设寄存器；外设通过中断报告异步事件，也可以通过 DMA 在外设与存储器之间传输数据。
+
+\subsection{存储器与地址空间}
+
+MCU 固件通常由以下区域组成：
+\begin{itemize}
+  \item \textbf{代码和只读数据}：保存在非易失性存储器中，复位后可直接取指或复制到 RAM 执行；
+  \item \textbf{已初始化数据段}：初值保存在镜像中，启动代码在进入 C 运行时前将其复制到 RAM；
+  \item \textbf{未初始化数据段}：启动代码把 BSS 区清零；
+  \item \textbf{堆与栈}：由链接脚本划定边界，必须结合最坏情况进行容量设计；
+  \item \textbf{外设窗口}：用于访问控制、状态和数据寄存器，通常具有强顺序或设备内存属性。
+\end{itemize}
+
+链接脚本不是单纯的构建配置，它定义了固件镜像与芯片地址空间之间的契约。
+工程至少应通过链接期断言或镜像检查确认代码、数据、启动向量、持久化区和 Bootloader 保留区互不重叠。
+
+\subsection{时钟、复位与启动模式}
+
+复位释放后，处理器从架构定义或芯片配置指定的入口开始执行。
+启动代码通常依次完成栈指针建立、异常向量安装、数据段初始化、BSS 清零、必要的时钟和存储器初始化，最后进入 \texttt{main()}。
+
+时钟树决定处理器、总线和外设的实际工作频率。修改 PLL、分频器或时钟源时必须遵守电压、Flash 等待周期、锁定时间和切换顺序约束。
+对于安全相关或高可靠系统，还应记录复位原因，区分上电复位、看门狗复位、欠压复位、软件复位和外部复位，并据此选择冷启动或受控恢复路径。
+
+\section{裸机软件结构}
+
+裸机并不等同于“没有架构”。一个可维护的裸机系统通常仍应区分板级初始化、硬件抽象、设备驱动、协议与业务逻辑，并明确中断上下文和主循环上下文之间的接口。
+
+\subsection{主循环与事件驱动}
+
+最简单的固件采用轮询主循环。轮询便于理解，但当处理时间不可控或外设数量增加时，会造成响应延迟和无效功耗。
+更常见的实现是由中断产生事件，主循环按优先级或状态机处理事件：
+
+\begin{lstlisting}[language=C]
+for (;;) {
+    uint32_t events = atomic_exchange(&pending_events, 0U);
+
+    if ((events & EVENT_RX_READY) != 0U)
+        protocol_process_rx();
+    if ((events & EVENT_SAMPLE_READY) != 0U)
+        control_process_sample();
+    if ((events & EVENT_FAULT) != 0U)
+        system_enter_safe_state();
+
+    if (events == 0U)
+        platform_wait_for_interrupt();
+}
+\end{lstlisting}
+
+事件位只能表达“某类事件已经发生”，不能保留重复次数或携带大量数据。
+需要无丢失传递时，应使用计数器、环形缓冲区或固定容量消息队列，并定义队列满时的策略。
+
+\subsection{中断设计}
+
+中断服务程序（Interrupt Service Routine, ISR）的首要目标是有界、可分析地完成紧急处理。
+通常只读取或确认硬件状态、保存时间敏感数据并通知后续处理，不在 ISR 中执行阻塞操作、复杂协议解析或不可预测的动态内存分配。
+
+设计中断时应明确：
+\begin{itemize}
+  \item 中断源的触发方式、清除顺序和重复触发条件；
+  \item 优先级分组、抢占关系和最大嵌套深度；
+  \item ISR 与线程或主循环共享对象的原子性与内存可见性；
+  \item 最坏中断响应时间和最长关中断时间；
+  \item 中断风暴、外设失效和队列溢出时的降级措施。
+\end{itemize}
+
+\subsection{DMA 与缓存一致性}
+
+DMA 可以降低 CPU 搬运负担，但会引入缓冲区所有权和一致性问题。
+在没有数据缓存的 MCU 上，仍需防止 CPU 与 DMA 同时修改同一缓冲区；在带缓存的 MCU 或 SoC 上，还必须按照平台规则执行缓存清理、失效或使用一致性内存。
+DMA 缓冲区还应满足地址对齐、可访问存储区、传输长度和外设突发边界等要求。
+
+\section{实时系统基础}
+
+实时系统的正确性同时取决于计算结果和结果产生的时间。
+“运行得快”不等于实时；实时设计要求关键路径的最坏执行时间、阻塞时间和调度延迟能够被约束，并在规定截止期内完成。
+
+\subsection{实时性分类}
+
+\begin{description}
+  \item[硬实时] 任何关键截止期违约都可能造成不可接受的系统后果；
+  \item[固实时] 偶发超期结果通常已经失去价值，但不一定立即导致灾难性后果；
+  \item[软实时] 延迟主要影响服务质量，可以用统计分位数描述。
+\end{description}
+
+实时需求应写成可测量指标，例如“外部中断到执行器更新的最坏延迟不超过 $200\,\mu s$”，而不是笼统地写成“响应迅速”。
+
+\subsection{调度与优先级}
+
+FreeRTOS 默认采用基于优先级的抢占式调度，也可以按配置使用协作式调度和同优先级时间片\cite{freertos-kernel-book}。
+高优先级任务只应承担更紧迫的工作，不能用优先级表达模块重要程度。
+如果一个高优先级任务长期处于就绪态，所有较低优先级任务都可能饥饿。
+
+周期任务应优先使用绝对周期延时，避免把任务执行时间累积到周期误差中：
+
+\begin{lstlisting}[language=C]
+static void control_task(void *argument)
+{
+    TickType_t release = xTaskGetTickCount();
+
+    for (;;) {
+        acquire_inputs();
+        run_control_loop();
+        update_outputs();
+        vTaskDelayUntil(&release, pdMS_TO_TICKS(10));
+    }
+}
+\end{lstlisting}
+
+调度节拍的分辨率不是系统真实时间精度。亚节拍级时间戳、脉冲捕获或精确输出应由硬件定时器完成，而不是依赖任务延时。
+
+\section{FreeRTOS 内核对象}
+
+FreeRTOS 内核提供任务、队列、信号量、互斥量、事件组、流缓冲区、消息缓冲区、软件定时器和任务通知等基本机制。
+对象选择应以通信语义为依据，而不是以 API 熟悉程度为依据。
+
+\subsection{任务与栈}
+
+每个任务具有独立栈、任务控制块、优先级和运行状态。任务栈至少需要容纳最深调用链、局部对象、保存的上下文以及库函数的额外需求。
+栈容量应通过静态分析、压力场景下的高水位测量和溢出检测共同验证，不能只根据正常运行结果估算。
+
+任务函数通常不应返回；需要删除任务时，应先释放由任务独占的资源，再调用 \texttt{vTaskDelete()}。
+对于长期运行的产品，优先采用静态创建或启动阶段一次性创建，减少堆碎片和运行时资源耗尽的不确定性。
+
+\subsection{队列与任务通知}
+
+队列按值复制固定大小的元素，适合传递小型命令、采样结果或指针所有权。
+向队列发送指针时必须定义所指对象的生命周期、所有者和回收责任。
+
+任务通知直接存放在任务控制块中，开销通常低于单独创建信号量或队列，适合一对一事件、计数或位标志通知。
+如果多个生产者需要传递不同类型的数据，或者需要独立排队和背压，队列通常更清晰。
+
+\subsection{互斥量、信号量与优先级反转}
+
+互斥量用于保护具有所有权概念的共享资源，并支持优先级继承；二值或计数信号量用于表示事件或可用资源数量。
+ISR 不能获取可能阻塞的互斥量。
+
+当低优先级任务持有高优先级任务所需的锁，而中优先级任务持续抢占低优先级任务时，会发生无界优先级反转。
+FreeRTOS 互斥量的优先级继承能够缓解典型场景，但不能替代良好的锁设计。临界区应保持短小，避免在持锁期间进行阻塞 I/O、长时间计算或调用未知时延的回调。
+
+\subsection{中断安全 API}
+
+FreeRTOS 为 ISR 提供带 \texttt{FromISR} 后缀的 API。ISR 唤醒更高优先级任务后，应按照移植层规定请求一次上下文切换：
+
+\begin{lstlisting}[language=C]
+void DMA_IRQHandler(void)
+{
+    BaseType_t higher_priority_woken = pdFALSE;
+
+    dma_acknowledge_interrupt();
+    vTaskNotifyGiveFromISR(data_task_handle, &higher_priority_woken);
+    portYIELD_FROM_ISR(higher_priority_woken);
+}
+\end{lstlisting}
+
+能够调用 FreeRTOS API 的中断优先级范围由端口和 \texttt{FreeRTOSConfig.h} 共同约束。
+在采用数值越小优先级越高的中断控制器上，配置错误尤其容易造成误解。
+工程必须按照目标端口文档核对 \texttt{configMAX\_SYSCALL\_INTERRUPT\_PRIORITY} 等参数，并启用内核断言发现非法调用。
+
+\section{时间、内存与低功耗}
+
+\subsection{软件定时器}
+
+软件定时器回调在定时器服务任务中串行执行，不属于硬件中断。
+回调不得长时间阻塞，否则会推迟其他定时器命令和回调。需要较长处理时，回调应只通知工作任务。
+
+\subsection{动态内存策略}
+
+FreeRTOS 提供多种示例堆实现，但它们具有不同的分配、释放、合并和确定性特征。
+安全或硬实时系统应明确是否允许调度器启动后继续动态分配，并为分配失败设置可验证的处理路径。
+无论采用静态还是动态分配，都应统计峰值使用量并保留设计裕量。
+
+\subsection{Tickless Idle}
+
+当一段时间内没有任务需要运行时，Tickless Idle 可以停止周期节拍并进入低功耗状态。
+其正确实现依赖低功耗定时源、唤醒源、时钟恢复时间和移植层补偿。
+系统必须验证睡眠前后的时间连续性、外设状态、调试接口影响以及最短可获益睡眠时间。
+
+\section{FreeRTOS 工程配置}
+
+\texttt{FreeRTOSConfig.h} 是应用与内核之间的重要配置接口。至少应审查：
+\begin{itemize}
+  \item CPU 时钟、tick 频率和最大优先级；
+  \item 抢占、时间片、低功耗和软件定时器配置；
+  \item 静态与动态内存支持；
+  \item 栈溢出、分配失败、断言和运行时统计钩子；
+  \item 中断优先级位宽及可调用内核 API 的边界；
+  \item 启用的 API 与对象数量，避免无意扩大资源占用。
+\end{itemize}
+
+内核配置属于系统架构的一部分，应纳入代码评审和版本管理，不能由单个示例工程直接复制后长期不审查。
+
+\section{最小可运行 FreeRTOS 工程}
+
+一个适合验证移植层的最小工程应同时覆盖任务切换、阻塞队列、ISR 唤醒和周期调度，而不是只创建一个永不阻塞的闪灯任务。建议目录如下：
+
+\begin{lstlisting}[language=bash]
+freertos-minimal/
+  CMakeLists.txt
+  linker.ld
+  startup.S
+  include/FreeRTOSConfig.h
+  src/main.c
+  src/board.c
+  src/interrupts.c
+  third_party/FreeRTOS-Kernel/
+\end{lstlisting}
+
+示例由按键 ISR 产生事件，控制任务切换 LED 模式，周期任务按照绝对周期刷新输出。队列、任务和栈均静态分配，从而使启动后的内存需求固定。
+
+\begin{lstlisting}[language=C,caption={静态对象和任务入口}]
+#include "FreeRTOS.h"
+#include "queue.h"
+#include "task.h"
+#include "board.h"
+#include <stdatomic.h>
+
+typedef enum { LED_SLOW, LED_FAST } led_mode_t;
+static StaticQueue_t mode_queue_cb;
+static uint8_t mode_queue_storage[sizeof(led_mode_t)];
+static QueueHandle_t mode_queue;
+
+static StaticTask_t control_tcb, led_tcb;
+static StackType_t control_stack[256], led_stack[256];
+static _Atomic led_mode_t current_mode = LED_SLOW;
+
+static void control_task(void *arg)
+{
+    led_mode_t mode;
+    for (;;) {
+        xQueueReceive(mode_queue, &mode, portMAX_DELAY);
+        atomic_store_explicit(&current_mode, mode, memory_order_release);
+    }
+}
+
+static void led_task(void *arg)
+{
+    TickType_t release = xTaskGetTickCount();
+    for (;;) {
+        board_led_toggle();
+        led_mode_t mode = atomic_load_explicit(&current_mode,
+                                               memory_order_acquire);
+        TickType_t period = mode == LED_FAST ?
+            pdMS_TO_TICKS(100) : pdMS_TO_TICKS(500);
+        vTaskDelayUntil(&release, period);
+    }
+}
+\end{lstlisting}
+
+\begin{lstlisting}[language=C,caption={系统初始化与 ISR 事件投递}]
+int main(void)
+{
+    board_init();
+    mode_queue = xQueueCreateStatic(1, sizeof(led_mode_t),
+        mode_queue_storage, &mode_queue_cb);
+    configASSERT(mode_queue != NULL);
+
+    configASSERT(xTaskCreateStatic(control_task, "control", 256, NULL,
+        2, control_stack, &control_tcb) != NULL);
+    configASSERT(xTaskCreateStatic(led_task, "led", 256, NULL,
+        1, led_stack, &led_tcb) != NULL);
+
+    board_button_irq_enable();
+    vTaskStartScheduler();
+    board_fault_stop();
+}
+
+void BUTTON_IRQHandler(void)
+{
+    static led_mode_t next = LED_FAST;
+    BaseType_t wake = pdFALSE;
+
+    board_button_irq_ack();
+    xQueueOverwriteFromISR(mode_queue, &next, &wake);
+    next = next == LED_FAST ? LED_SLOW : LED_FAST;
+    portYIELD_FROM_ISR(wake);
+}
+\end{lstlisting}
+
+\texttt{xQueueOverwriteFromISR()} 只适用于长度为 1 的队列，因此这里的对象语义是“最新模式邮箱”，而不是保留每一次按键的事件队列。若业务要求不丢失每次边沿，应改用多元素队列和 \texttt{xQueueSendFromISR()}，并定义满队列处理策略。
+
+关键配置至少应启用抢占、静态分配、断言和栈溢出检查，并关闭未使用的动态分配：
+
+\begin{lstlisting}[language=C,caption={最小 FreeRTOSConfig.h 关键项}]
+#define configUSE_PREEMPTION                 1
+#define configSUPPORT_STATIC_ALLOCATION      1
+#define configSUPPORT_DYNAMIC_ALLOCATION     0
+#define configCHECK_FOR_STACK_OVERFLOW       2
+#define configUSE_MALLOC_FAILED_HOOK         0
+#define configTICK_RATE_HZ                    1000
+#define configMAX_PRIORITIES                  5
+#define configASSERT(x) do { if (!(x)) board_fault_stop(); } while (0)
+\end{lstlisting}
+
+工程的 CMake 目标应显式包含 FreeRTOS 内核、目标架构 port、heap 实现（仅在启用动态分配时）、启动文件和链接脚本。验收时必须观察 LED 周期、连续按键、队列覆盖语义、任务栈高水位和非法中断优先级断言；仅能编译链接不代表移植正确。
+
+\section{架构与验证方法}
+
+推荐把系统划分为中断层、驱动层、服务层和应用层。中断层只完成硬件事件收敛；驱动层管理外设状态和缓冲区；服务层提供协议、存储或控制能力；应用层实现产品状态机。
+跨层接口应显式描述执行上下文、阻塞属性、超时、缓冲区所有权和错误返回。
+
+FreeRTOS 系统的验证至少包括：
+\begin{enumerate}
+  \item 测量关键 ISR、任务和临界区的最长执行时间；
+  \item 在最大输入速率下验证队列深度、背压和溢出处理；
+  \item 检查所有任务栈高水位和堆最小剩余量；
+  \item 注入超时、总线错误、传感器失效和内存分配失败；
+  \item 验证看门狗只能由健康监控路径喂狗，而不是由任意周期任务喂狗；
+  \item 验证复位后的故障记录、持久化数据和安全状态；
+  \item 在发布构建与目标优化等级下重复实时性测试。
+\end{enumerate}
+
+\section{设计检查清单}
+
+\begin{itemize}
+  \item 是否为每个任务定义了周期或触发条件、优先级依据、截止期和最坏执行时间？
+  \item ISR 是否有明确的最大执行时间，且只调用允许的中断安全 API？
+  \item 队列满、通知合并、缓冲区耗尽和锁超时是否都有确定策略？
+  \item 是否验证了所有栈、堆、DMA 缓冲区和持久化区域的边界？
+  \item 中断优先级与 FreeRTOS 系统调用优先级配置是否经过目标板验证？
+  \item 系统在外设失效、任务卡死、欠压和看门狗复位后是否进入可解释状态？
+  \item 测试是否覆盖最坏负载、最低电压、最高温度和低功耗切换？
+\end{itemize}
+
+第~\ref{chap:case-dvrapp-mcu}~章进一步说明如何把多类 Cortex-M 芯片、多套工具链、IAP、DMA UART、传感器和 MCU--CPU 协议组织为可迁移的 FreeRTOS 工程。
+
+第~\ref{chap:sampling-control-dsp}~章进一步讨论采样、滤波、定点数值与控制任务的时序约束。

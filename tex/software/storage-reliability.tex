@@ -1,0 +1,106 @@
+\chapter{嵌入式存储可靠性与掉电一致性}
+\label{chap:storage-reliability}
+
+存储系统的正确性不只取决于正常读写，还取决于擦写寿命、坏块、控制器缓存、文件系统提交和任意时刻掉电后的恢复结果。应用看到的文件 API 与介质上的物理提交之间存在多层缓存和重排。
+
+\section{介质故障模型}
+
+\begin{description}
+  \item[NOR Flash] 支持随机读取，擦除粒度大于写入粒度，位翻转通常只能从 1 写为 0；
+  \item[原始 NAND] 具有坏块、页编程和擦除块约束，需要 ECC、坏块管理与磨损均衡；
+  \item[eMMC/SD/UFS] 内部具有 FTL，主机无法直接观察物理页、垃圾回收和磨损状态；
+  \item[FRAM/MRAM] 写入耐久度和掉电行为较好，但容量、成本和接口约束不同。
+\end{description}
+
+管理型闪存向主机表现为块设备，但内部仍可能因突然掉电产生映射表或在途数据风险。产品必须依据器件的 power-loss protection、可靠写、cache flush 和寿命指标设计，而不能假设所有 eMMC 行为相同。
+
+\section{ECC、坏块与数据保持}
+
+ECC 能纠正一定数量的随机位错误，但不能修复超出能力的页，也不能替代冗余和备份。原始 NAND 的 ECC 强度、step size 和 OOB 布局必须与控制器、Boot ROM 和生产工具一致。
+
+读取时出现可纠正位错误是介质退化信号。系统应统计 corrected/failed ECC，并在阈值达到前刷新或迁移关键数据。坏块表和 UBI 元数据同样需要保留空间，容量规划不能按标称总容量满配。
+
+\section{磨损与写放大}
+
+介质寿命可粗略估计为：
+\begin{equation}
+  Life \approx \frac{Capacity \times P/E}{DailyWrites \times WA}
+\end{equation}
+
+其中 $WA$ 为写放大。日志、数据库、频繁更新的小文件和 FTL 垃圾回收都会增加实际写入量。平均写入量还不足以描述风险，热点块可能远早于全盘平均值耗尽。
+
+应把高频计数器、临时缓存和可丢失日志与关键配置分开。对小型 MCU Flash，可以使用追加日志、双页切换和序列号轮转，避免反复擦写同一页。
+
+\section{块层、缓存与持久化语义}
+
+应用的 \texttt{write()} 成功通常只表示数据进入内核缓存。\texttt{fsync(fd)} 要求文件数据和必要元数据提交，替换文件后还需要对父目录执行 fsync，才能保证新目录项在掉电后存在。
+
+安全更新配置的常见流程是：
+
+\begin{lstlisting}[language=C,caption={原子替换配置文件的持久化顺序（伪代码）}]
+fd = open("config.new", O_CREAT | O_TRUNC | O_WRONLY, 0640);
+write_all(fd, data, length);
+fsync(fd);
+close(fd);
+
+rename("config.new", "config.json");
+dirfd = open(".", O_RDONLY | O_DIRECTORY);
+fsync(dirfd);
+close(dirfd);
+\end{lstlisting}
+
+该模式依赖同一文件系统内 rename 的原子性。它不能保证底层设备在谎报 flush 完成或缺乏掉电保护时绝对安全，因此仍应执行实际断电测试。
+
+\section{文件系统故障边界}
+
+ext4 日志主要保护文件系统元数据一致性，不自动保证应用事务。SquashFS 和 EROFS 只读，适合不可变系统。OverlayFS 的上层仍需独立处理掉电和空间耗尽。
+
+UBI 在原始 NAND 上提供逻辑擦除块映射、坏块和磨损均衡，UBIFS 在其上使用 journal 与 commit。生成参数必须匹配最小 I/O、物理擦除块、子页和保留块；直接把块设备文件系统写入原始 NAND 是错误分层。
+
+文件系统恢复时间也属于需求。大容量 ext4 的检查、UBIFS 扫描和日志回放必须在最坏损坏与接近满盘条件下测量。
+
+\section{eMMC 的工程接口}
+
+eMMC 通常提供 user area、boot partition、RPMB 和多个硬件分区。Boot partition 用于早期启动，不应被普通应用写入；RPMB 提供带认证和单调写计数的受保护存储，适合防回滚状态和小型安全元数据，但容量和写入次数有限。
+
+EXT\_CSD 中的寿命估计和预寿命状态只能提供粗粒度健康信息。系统应结合实际写入统计、温度和现场故障数据制定更换或降级策略。
+
+\section{数据库与业务数据}
+
+SQLite 等数据库通过 journal 或 WAL 实现事务，但调用方仍需配置同步级别、检查返回值并处理磁盘满。把数据库放在不支持所需锁和持久化语义的网络或特殊文件系统上，可能破坏其假设。
+
+配置 schema 迁移应在事务中执行，保留版本和失败恢复路径。A/B 系统回滚时，旧软件必须能够读取新数据，或使用版本化副本避免不可逆迁移破坏回退。
+
+\section{空间耗尽与只读降级}
+
+满盘不仅会导致日志失败，还可能阻止数据库提交、OTA 下载和服务启动。系统应为关键写入保留空间，限制日志与崩溃转储，监控 inode、UBI volume 和临时目录，而不是只监控总字节数。
+
+检测到不可恢复 I/O 错误或文件系统转为只读后，应进入明确降级状态：停止非必要写入、保存最小告警、避免无限重启，并允许维护工具导出诊断和重建受损分区。
+
+\section{掉电测试}
+
+掉电测试应在写入的不同阶段随机切断目标设备电源，而不是执行软件关机。测试夹具需要控制电源、记录串口和测量电压下降，确保切断速度符合目标故障模型。
+
+测试矩阵至少覆盖：
+\begin{itemize}
+  \item 文件创建、rename、删除和目录扩展；
+  \item 数据库事务与 schema 迁移；
+  \item 日志轮转和接近满盘；
+  \item UBI/UBIFS commit 与垃圾回收；
+  \item OTA 下载、擦除、写入、校验和槽位切换；
+  \item 首次启动初始化和恢复流程。
+\end{itemize}
+
+每次恢复后应验证文件系统、应用不变量、启动元数据和业务记录，而不只是确认设备能够再次启动。
+
+\section{验收清单}
+
+\begin{itemize}
+  \item 存储介质的 ECC、P/E、坏块、flush 和掉电保证是否来自具体器件？
+  \item 文件替换和数据库事务是否包含正确 fsync 边界？
+  \item 是否量化日志、数据库和 OTA 的写放大与寿命？
+  \item 接近满盘、只读挂载和不可恢复 I/O 错误是否具有降级策略？
+  \item eMMC boot partition、RPMB 和普通数据区是否权限隔离？
+  \item 是否使用真实断电而非软件重启验证恢复？
+  \item 恢复后的业务数据是否满足明确的不变量？
+\end{itemize}

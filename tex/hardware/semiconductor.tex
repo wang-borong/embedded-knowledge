@@ -616,49 +616,31 @@ A_v = \frac{(R_E \parallel R_L)}{r_e + (R_E \parallel R_L)} \approx 1 \label{eq:
 
 \begin{figure}[htbp]
   \centering
-  \begin{circuitikz}[american,scale=1.0]
-    % Common Base Amplifier
-    % Transistor
-    \node[npn] (Q) at (7.75, 5.25){};
+  \begin{circuitikz}[american,scale=0.95,transform shape]
+    \node[npn] (Q) at (5.0,3.4) {};
 
-    % Bias Network (Base)
-    \node[ground] at (6.5, 2){};
-    \draw (6.5, 8) to[american resistor, l={$R_{B1}$}] (6.5, 6);
-    \draw (6.5, 4.5) to[american resistor, l={$R_{B2}$}] (6.5, 2.5);
-    \draw (6.5, 6) -- (6.5, 4.5); % Connect resistors
-    \draw (6.5, 2.5) -- (6.5, 2);
-    \draw (6.5, 5.25) to[short, *-] (Q.B); % Dot at Base
+    \draw (5.0,6.0) node[vcc] {$V_{CC}$}
+          to[R,l=$R_C$] (5.0,4.25) -- (Q.C);
+    \draw (5.0,6.0) -- (2.1,6.0)
+          to[R,l=$R_{B1}$] (2.1,3.4) coordinate (basebias)
+          to[R,l=$R_{B2}$] (2.1,0) node[ground] {};
+    \draw (basebias) -- (Q.B);
+    \draw (basebias) -- (1.0,3.4)
+          to[C,l=$C_B$] (1.0,0) node[ground] {};
 
-    % Base Capacitor to Ground
-    \draw (6.5, 5.25) -- (5.5, 5.25) to[capacitor, l={$C_B$}] (5.5, 2) node[ground]{};
+    \draw (Q.E) -- (5.0,2.35) coordinate (emitter)
+          to[R,l=$R_E$] (5.0,0) node[ground] {};
+    \draw (3.65,0) node[ground] {}
+          to[sV,l=$v_{in}$] (3.65,1.15)
+          to[C,l=$C_1$] (3.65,2.35) -- (emitter);
 
-    % Input (to Emitter)
-    \node[ground] at (4.5, 2){};
-    \draw (4.5, 2.5) to[sinusoidal voltage source, l={$v_{in}$}] (4.5, 4.5);
-    \draw (4.5, 2.5) -- (4.5, 2);
-    \draw (4.5, 4.5) -- (5, 4.5) to[capacitor, l={$C_1$}] (7.75, 4.5); % Connect to Emitter node
-
-    % Collector
-    \draw (7.75, 8) to[american resistor, l={$R_C$}] (7.75, 6);
-    \draw (Q.C) -- (7.75, 6);
-
-    % Emitter
-    \draw (7.75, 4.5) to[american resistor, l={$R_E$}] (7.75, 2.5);
-    \draw (Q.E) -- (7.75, 4.5);
-    \draw (7.75, 2.5) -- (7.75, 2) node[ground]{};
-    \draw (7.75, 4.5) node[circ]{}; % Dot at Emitter junction
-
-    % VCC
-    \node[vcc] at (7.75, 8.5){$V_{CC}$};
-    \draw (7.75, 8) -- (7.75, 8.5);
-    \draw (6.5, 8) |- (7.75, 8.25) node[circ]{}; % Dot at VCC
-
-    % Output (from Collector)
-    \draw (7.75, 6) to[short, *-] (9, 6) to[capacitor, l={$C_2$}] (10.5, 6); % Dot at Collector
-    \draw (10.5, 5) to[american resistor, l={$R_L$}] (10.5, 3);
-    \draw (10.5, 6) -- (10.5, 5);
-    \draw (10.5, 3) -- (10.5, 2) node[ground]{};
-    \draw (10.5, 6) to[short, *-o] (11, 6) node[right]{$v_{out}$}; % Dot and circle
+    \draw (Q.C) -- (5.0,4.25) coordinate (collector)
+          to[C,l=$C_2$] (7.4,4.25) coordinate (output);
+    \draw (output) to[R,l=$R_L$] (7.4,0) node[ground] {};
+    \draw (output) to[short,*-o] (8.35,4.25) node[right] {$v_{out}$};
+    \node[circ] at (basebias) {};
+    \node[circ] at (emitter) {};
+    \node[circ] at (collector) {};
   \end{circuitikz}
   \caption{共基极（CB）放大器电路}
   \label{fig:cb-amplifier}

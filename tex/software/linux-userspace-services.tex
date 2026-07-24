@@ -1,0 +1,122 @@
+\chapter{嵌入式 Linux 用户空间服务架构}
+\label{chap:linux-userspace-services}
+
+嵌入式 Linux 产品的主要业务通常运行在多个长期服务中。服务架构需要同时处理启动依赖、IPC、权限、资源限制、状态持久化、崩溃恢复和版本兼容，而不是把全部功能堆入一个具有 root 权限的进程。
+
+\section{进程边界}
+
+进程隔离可以限制崩溃和内存破坏，但也引入 IPC、部署和状态同步成本。适合独立进程的边界通常包括：
+\begin{itemize}
+  \item 权限或信任等级不同；
+  \item 生命周期和重启策略不同；
+  \item 需要独立资源限制；
+  \item 使用不稳定第三方库或复杂解析器；
+  \item 提供可版本化的稳定接口。
+\end{itemize}
+
+高频细粒度调用和共享大量可变状态的组件更适合位于同一进程，通过线程或消息队列协作。进程数量不是架构质量指标。
+
+\section{IPC 选择}
+
+\begin{description}
+  \item[Unix domain socket] 支持流或报文、凭据传递和文件描述符传递，适合本机服务 API；
+  \item[D-Bus] 提供对象、方法、信号和策略，适合控制面与桌面/系统服务集成；
+  \item[共享内存] 适合大数据与低拷贝，但需要额外同步、生命周期和权限设计；
+  \item[pipe/FIFO] 适合简单字节流与父子进程；
+  \item[netlink] 主要用于内核与用户空间的结构化控制和事件；
+  \item[消息中间件] 适合跨设备或需要持久队列的场景，但不应替代简单本机 IPC。
+\end{description}
+
+控制面与数据面可以分离：Unix socket 传递命令和 DMA-BUF fd，共享 buffer 承载视频或采样数据。
+
+\section{本机协议契约}
+
+IPC 协议仍需版本、长度、请求 ID、错误码和超时。不要直接把编译器相关 C++ 对象或裸指针写入 socket。
+
+\begin{lstlisting}[language=C,caption={本机服务协议头}]
+struct service_message_header {
+    uint16_t version;
+    uint16_t operation;
+    uint32_t total_length;
+    uint64_t request_id;
+    uint32_t flags;
+    int32_t  status;
+};
+\end{lstlisting}
+
+服务升级时应保持至少一个兼容窗口，或通过能力协商拒绝不支持的请求。连接建立成功不代表业务版本兼容。
+
+Unix socket 可通过 \texttt{SO\_PEERCRED} 获取对端 PID/UID/GID，但 PID 可能复用，授权应主要依据凭据和安全策略，不能只维护进程号白名单。
+
+\section{事件循环与线程模型}
+
+设备服务常同时处理 socket、timer、signal、设备 fd 和异步完成。\texttt{epoll} 适合集中事件循环；耗时计算和阻塞库调用应进入有界 worker pool。
+
+每个连接一个线程容易在异常客户端下耗尽资源。worker pool 需要固定上限、排队容量、取消和 shutdown 协议。队列满时应产生可观测背压，而不是无限增长。
+
+\section{服务启动与依赖}
+
+PID~1 或服务管理器负责启动、重启、超时、环境和权限。服务不应通过固定 sleep 猜测依赖是否就绪，而应等待设备节点、socket、mount 或明确健康条件。
+
+启动顺序应区分“进程已经 fork”“IPC 已监听”“硬件已初始化”和“核心功能可用”。其他服务依赖的是最后一种状态时，需要 readiness 通知或健康 API。
+
+\section{崩溃与重启}
+
+自动重启只能恢复无持久副作用的瞬时故障。若服务在执行不可幂等操作时崩溃，重启后必须通过 journal、事务 ID 或设备状态判断操作是否已经完成。
+
+重启策略应包含速率限制和最大失败次数。反复崩溃时进入降级或恢复模式，并保留 core dump、日志和版本信息，避免无限重启覆盖首个故障证据。
+
+\section{权限最小化}
+
+服务应使用独立用户、组和最小文件权限。需要少量特权时优先使用 Linux capability，而不是整个进程以 root 运行。
+
+进一步隔离可以使用 namespace、seccomp、只读文件系统、设备访问白名单和 MAC 策略。沙箱规则必须覆盖动态加载库、配置、证书、socket 和必要设备，且在升级时进行兼容测试。
+
+\section{配置与状态}
+
+配置应具有 schema、版本、默认值、范围和迁移路径。环境变量适合启动时少量非敏感覆盖，不适合作为大型持久配置数据库。
+
+运行状态分为可重建缓存、临时状态、用户配置和安全关键状态。不同类型应放入不同目录或分区，并采用第~\ref{chap:storage-reliability}~章定义的持久化语义。
+
+配置热更新需要明确事务边界。解析成功不代表可应用；服务应先验证完整候选配置，再一次性切换，失败时继续使用旧配置。
+
+\section{资源管理}
+
+长期服务必须限制文件描述符、线程、内存、CPU、日志和临时文件。cgroup 可以实施资源上限和统计，但 OOM kill 后的业务恢复仍需应用设计。
+
+内存压力测试应覆盖缓存增长、消息积压和第三方库行为。使用 RSS 单值无法区分匿名页、共享库、page cache 和 DMA buffer，需要结合 smaps、cgroup 与子系统统计。
+
+\section{容器化应用}
+
+容器可以封装用户空间依赖并提供 namespace/cgroup 隔离，但共享宿主内核，不是虚拟机安全边界。嵌入式设备采用容器前应评估镜像体积、只读 rootfs、设备直通、启动时间和离线更新。
+
+硬件访问应通过稳定设备 ABI 或宿主代理服务，不应把大量 \texttt{/dev} 和特权 capability 直接授予容器。容器镜像、宿主 BSP 和设备配置需要兼容矩阵。
+
+\section{健康与 watchdog}
+
+服务健康检查应验证关键依赖和工作进展，不只是进程存在。system watchdog、进程 watchdog 和硬件 watchdog 应形成层次：局部服务先尝试重启，系统失去核心能力时再触发整机恢复。
+
+喂狗线程不能与核心业务完全独立，否则业务死锁而 watchdog 仍被刷新。可使用阶段计数、任务心跳和关键事务进展形成健康谓词。
+
+\section{测试方法}
+
+\begin{itemize}
+  \item 使用 socket 测试验证协议版本、短消息、超长消息和错误凭据；
+  \item 注入依赖晚启动、设备消失、磁盘满和 IPC 对端重启；
+  \item 在请求处理中杀死服务，验证幂等与恢复；
+  \item 执行连接洪泛、队列满、fd 耗尽和内存压力；
+  \item 验证升级过程中新旧服务和配置 schema 的兼容窗口；
+  \item 检查 sandbox/capability 是否既满足功能又没有过度授权。
+\end{itemize}
+
+\section{检查清单}
+
+\begin{itemize}
+  \item 进程边界是否对应权限、生命周期或故障隔离需求？
+  \item IPC 是否定义版本、长度、超时、错误和调用方身份？
+  \item 事件循环和 worker pool 是否有界并支持关闭？
+  \item 服务 readiness 是否区别于进程已启动？
+  \item 崩溃重启是否处理不可幂等操作和速率限制？
+  \item 配置、缓存、用户数据和安全状态是否分开管理？
+  \item root、capability、设备和文件访问是否最小化？
+\end{itemize}
