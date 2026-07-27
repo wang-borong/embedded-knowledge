@@ -1,92 +1,314 @@
 \chapter{实时 Linux}
 \label{chap:realtime-linux}
 
-Linux 可以满足大量软实时和部分严格实时场景，但实时性来自端到端约束，而不是安装一个补丁或提高进程优先级。系统必须同时控制中断、内核临界区、调度、内存、驱动、频率变化和用户程序中的阻塞。
+Linux 可以满足大量软实时和部分严格实时场景，但实时性来自端到端约束，而不是安装一个补丁或提高进程优先级。系统必须同时控制中断、内核临界区、调度、内存、驱动、共享资源、频率变化和用户程序中的阻塞。PREEMPT\_RT 缩短并暴露了许多操作系统延迟，却不能替产品定义截止期，也不能消除硬件与固件噪声。
 
-\section{实时指标与预算}
+实时 Linux 工程的目标不是得到一张漂亮的 \texttt{cyclictest} 截图，而是在规定硬件、镜像、负载和环境下，使关键事务的截止期、违约策略和故障证据都可验证。基础实时调度理论见\mbox{第~\ref{chap:realtime-language-memory-model}~章}；本章重点讨论 Linux 平台上的实现边界和验收方法。
 
-常用指标包括中断响应延迟、调度唤醒延迟、任务周期抖动和从输入到输出的端到端延迟。实时需求应说明最大值、测量区间、负载条件、CPU/内存拓扑和允许的丢周期策略。
+\section{把实时要求写成契约}
 
-端到端最坏延迟可以分解为：
-\begin{equation}
-  L_{e2e}=L_{irq}+L_{wake}+L_{sched}+L_{exec}+L_{io}
-\end{equation}
+“响应要快”无法指导优先级分配和测试。每条实时需求至少应说明：
 
-平均值和普通百分位不足以证明硬实时。长尾延迟往往来自固件 SMI、不可屏蔽中断、驱动关中断区、缺页、锁竞争或热管理降频。
-
-\section{PREEMPT\_RT 的作用}
-
-PREEMPT\_RT 使更多内核路径可抢占，把大多数硬中断线程化，并将部分自旋锁转换为支持优先级继承的可睡眠锁，从而降低不可抢占区长度\cite{linux-preempt-rt}。它不会消除所有延迟来源：NMI、架构低级入口、raw spinlock、部分时钟和硬件固件仍可能不可抢占。
-
-内核配置通常需要启用高分辨率定时器、完整抢占 RT、优先级继承 futex 和适当的调试能力。调试选项会改变时序，验收必须在接近发布的配置上重复。
-
-\section{实时调度策略}
-
-\texttt{SCHED\_FIFO} 任务会一直运行到阻塞、主动让出或被更高优先级任务抢占；\texttt{SCHED\_RR} 在同优先级任务间使用时间片；\texttt{SCHED\_DEADLINE} 用 runtime、deadline 和 period 描述带宽约束。
-
-实时优先级必须来自响应时间分析。把所有关键线程设为最高优先级会造成饥饿，并可能阻塞负责日志、网络或恢复的必要线程。内核 IRQ 线程同样参与优先级体系，应用必须高于哪些 IRQ、低于哪些安全关键 IRQ，需要逐项设计。
-
-\begin{lstlisting}[language=C,caption={实时线程的基本初始化}]
-struct sched_param sp = { .sched_priority = 70 };
-
-if (mlockall(MCL_CURRENT | MCL_FUTURE) != 0)
-    fail("mlockall");
-prefault_stack_and_heap();
-if (pthread_setschedparam(pthread_self(), SCHED_FIFO, &sp) != 0)
-    fail("setschedparam");
-pin_thread_to_cpu(2);
-\end{lstlisting}
-
-实时线程启动前应预分配内存、预触碰栈和工作集、打开文件与设备、建立连接并完成动态链接器的延迟绑定。周期路径中应避免 page fault、不可控日志、DNS、存储写入和无界锁等待。
-
-\section{CPU 隔离与中断亲和性}
-
-可以通过 cpuset、调度域隔离、IRQ affinity 和 housekeeping CPU 减少实时核上的后台活动。完全隔离并不总是最优：定时、RCU 回调、内存回收和驱动工作仍需要执行位置，错误配置可能把干扰集中到实时 CPU。
-
-常见策略是保留至少一个 housekeeping CPU 处理普通进程、非关键 IRQ、RCU 和内核线程，把实时任务及其必要设备 IRQ 放到同一 NUMA 节点或共享缓存域。网络实时流还需要协调 NIC queue、RSS/RPS/XPS、NAPI 和用户线程亲和性。
-
-\section{内存与锁}
-
-\texttt{mlockall()} 防止已映射页被换出，但不能自动预取尚未触碰的匿名页，也不能阻止内核内存回收引发间接抖动。实时程序应禁用或严格控制 swap，预分配固定缓冲，避免运行时扩容，并监控 minor/major fault。
-
-共享锁必须具有有界临界区和明确顺序。普通优先级继承互斥量能缓解优先级反转，但锁持有者若阻塞在 I/O 或被 CPU affinity 排除，延迟仍可能无界。对单生产者单消费者数据流，可考虑有界无锁 ring；对复杂状态，优先选择短临界区和消息传递。
-
-\section{设备 I/O 路径}
-
-实时应用的延迟经常由驱动决定。应审查：
 \begin{itemize}
-  \item IRQ 是否线程化，线程优先级和 affinity 是否合理；
-  \item DMA 是否减少 CPU 搬运，同时保持固定缓冲池和有界完成路径；
-  \item 驱动是否在实时路径执行同步固件加载、内存分配或慢总线访问；
-  \item runtime PM、自动降频和深度 C-state 是否引入不可接受唤醒延迟；
-  \item 用户 ABI 是否支持批量、时间戳和异步 I/O，避免每个样本一次系统调用。
+  \item 事件释放点、结果完成点以及两者使用的时钟域；
+  \item 周期、最小到达间隔、相位、突发上限和允许并发数；
+  \item 相对或绝对截止期，以及连续违约和窗口内违约率限制；
+  \item CPU、内存、网络、存储、温度和外设的最坏合法负载；
+  \item 输入过期时是丢弃、合并、补算、使用旧值还是进入安全状态；
+  \item 可观测证据、测试时长、样本量、发布门槛和责任模块。
 \end{itemize}
 
-若硬件需要严格微秒级边沿生成，应使用定时器、PWM、PRU、FPGA 或实时协处理器完成，不应依赖普通用户线程忙等待。
+端到端最坏延迟可以按因果路径分解为：
 
-\section{测量与追踪}
+\begin{equation}
+  L_{e2e}=L_{irq}+L_{wake}+L_{sched}+L_{block}+L_{exec}+L_{io}
+\end{equation}
 
-\texttt{cyclictest} 测量定时唤醒延迟，\texttt{rtla timerlat} 和 osnoise tracer 能进一步定位 IRQ、线程和操作系统噪声。测试必须在 CPU、内存、网络、存储和目标外设同时处于最坏合法负载时运行，并覆盖温度与频率策略。
+其中 $L_{block}$ 包含锁、队列和资源等待。若阶段并行，该式是预算与归因框架，不能机械相加。预算表应同时记录目标上限、当前最大值、测量条件和未解释余量；否则某一层“只用了 30\%”并不代表端到端还有 70\% 裕量。
 
-\begin{lstlisting}[language=bash,caption={实时延迟压力测试示意}]
-cyclictest --mlockall --smp --priority=80 --interval=1000 \
-  --distance=0 --duration=8h --histogram=2000
-rtla timerlat top --cpus 2-3 --duration 1h
+实时等级还应与违约后果匹配。音视频偶发晚帧通常可以丢弃；运动控制可能需要保持最后安全输出并触发受控停机；保护回路若要求在极短窗口内必然动作，更适合由定时器、FPGA、实时协处理器或独立 RTOS 承担。把不同关键性的工作都塞入一个最高优先级进程，会同时削弱可分析性和故障隔离。
+
+\section{PREEMPT\_RT 的能力与边界}
+
+PREEMPT\_RT 使更多内核路径可抢占，把大多数硬中断线程化，并将许多普通自旋锁转换为基于 rt-mutex、支持优先级继承的可睡眠锁，从而缩短不可抢占区并减少优先级反转\cite{linux-preempt-rt,linux-rt-mutex}。这些变化让 IRQ 线程、内核线程和用户实时线程能够进入同一套优先级设计，而不是让中断永远凌驾于任务之上。
+
+它不会消除所有延迟来源：
+
+\begin{itemize}
+  \item NMI、架构低级入口、\texttt{raw\_spinlock} 保护区和极短硬中断仍不可抢占；
+  \item SMI 或平台管理固件、总线仲裁、内存刷新和设备内部状态机不受 Linux 调度器控制；
+  \item 驱动可以通过长时间关中断、轮询、同步固件调用或不当锁顺序重新引入长尾；
+  \item page fault、直接内存回收、文件系统写回和 runtime PM 唤醒仍会阻塞执行路径；
+  \item 共享 cache、DDR、互连和 thermal budget 会让独立 CPU 上的任务彼此干扰。
+\end{itemize}
+
+内核配置通常需要启用高分辨率定时器、实时抢占、PI futex 以及与目标一致的时钟源。调试锁、内存检测、函数追踪和覆盖率选项会改变时序；定位构建可以开启它们，但最终门槛必须在接近发布的内核、Device Tree、固件和启动参数上重新验证。内核升级也应视为实时平台变更，不能只做功能回归。
+
+\section{调度策略与准入控制}
+
+Linux 常见实时调度策略具有不同契约：
+
+\begin{table}[H]
+  \centering
+  \caption{Linux 实时调度策略的适用边界}
+  \begin{tabular}{p{28mm}p{45mm}p{56mm}}
+    \hline
+    策略 & 核心语义 & 主要工程风险 \\
+    \hline
+    \texttt{SCHED\_FIFO} & 同优先级按就绪顺序运行，直到阻塞、让出或被更高优先级抢占 & 无时间片；忙循环可饿死低优先级恢复和观测任务 \\
+    \texttt{SCHED\_RR} & 在同优先级实体间按时间片轮转 & 时间片不能替代响应时间分析，仍可能挤压普通任务 \\
+    \texttt{SCHED\_DEADLINE} & 以 runtime、deadline、period 描述保留带宽，采用 EDF/CBS 语义 & 参数错误、资源共享和不可计入的 IRQ 时间会破坏预期 \\
+    \texttt{SCHED\_OTHER} & 普通公平调度，适合非关键服务和后台工作 & 负载升高时唤醒时间无严格上界 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+\texttt{SCHED\_DEADLINE} 会对所请求带宽执行准入检查，基本约束为 $runtime \le deadline \le period$；其 Constant Bandwidth Server 机制用于限制任务在周期内消耗的 CPU 带宽\cite{linux-sched-deadline}。不过，CPU affinity、热插拔、cgroup、内核版本和共享锁都会影响部署方式。准入成功只说明调度器接受参数，不表示端到端 I/O 截止期已经得到证明。
+
+\texttt{SCHED\_FIFO/RR} 还受实时带宽限制影响。默认配置通常为每个周期保留一小段时间给非实时任务，具体值由 \texttt{sched\_rt\_period\_us} 和 \texttt{sched\_rt\_runtime\_us} 控制；cgroup 也可能进一步限制实时运行时间\cite{linux-sched-rt-group}。简单地把 runtime 设为无限会移除一道防饥饿保护，必须先证明看门狗、故障恢复、日志转储和远程维护不会因此失去执行机会。
+
+优先级设计应从事件依赖和最坏响应时间出发，而不是从线程名称出发。建议建立一张包含下列信息的表：
+
+\begin{itemize}
+  \item 线程或 IRQ 的触发源、周期、WCET、CPU affinity 和调度策略；
+  \item 它等待和唤醒的对象、持有的锁、最坏阻塞以及下游依赖；
+  \item 可抢占它的实体和它可以抢占的实体；
+  \item 预算耗尽、超时或进程退出后的恢复责任；
+  \item 是否允许迁移，以及迁移造成的 cache 和 NUMA 成本。
+\end{itemize}
+
+所有关键线程都设为优先级 99 通常是设计失败：同优先级 FIFO 任务不能按关键性互相抢占，且任何未阻塞的循环都可能冻结系统。应保留少量、可解释的优先级层级，并通过 trace 验证实际抢占关系。
+
+\section{周期任务与超周期处理}
+
+周期线程应使用单调时钟和绝对唤醒时间。相对睡眠会把每次执行与调度误差累积到下一周期，长期形成相位漂移；日历时间可能因校时跳变，不适合作为控制周期基准。Linux 时钟域和跨设备时间戳见\mbox{第~\ref{chap:embedded-network-time}~章}。
+
+\begin{lstlisting}[language=C,caption={使用绝对时间驱动周期任务的基本结构}]
+const int64_t period_ns = 1000 * 1000; /* 1 ms */
+struct timespec next;
+clock_gettime(CLOCK_MONOTONIC, &next);
+
+for (;;) {
+    add_ns(&next, period_ns);
+    int rc = clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME,
+                             &next, NULL);
+    if (rc != 0)
+        record_clock_error(rc);
+
+    struct timespec now;
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    if (timespec_after(&now, &next))
+        handle_deadline_miss(now, next);
+
+    acquire_bounded_input();
+    compute_and_publish();
+}
 \end{lstlisting}
 
-发现尖峰后，应关联 ftrace 中的 irq/softirq、sched、workqueue、power 和 timer 事件。仅删除最大样本或重复测试到结果好看，会掩盖真实系统风险。
+代码必须明确超周期策略。若一次执行已经晚了三个周期，立即连续补跑三次可能进一步放大拥塞；对只关心最新传感器状态的控制或显示任务，跳到下一个未来释放点通常更合理。对计量、协议重传或必须逐样本处理的任务，则需要有界 backlog、容量证明和过载降级。无论选择哪种策略，都应分别计数 release late、execution overrun 和 output deadline miss。
+
+线程初始化应在进入实时循环前完成动态链接、文件和设备打开、连接建立、缓冲池分配、栈与工作集预触碰，并固定必要的 locale、日志和名称解析状态。创建线程后再用另一个普通优先级线程异步配置 affinity 和调度策略，会留下一个不可控启动窗口；更稳妥的做法是在线程开始处理真实输入前完成握手。
+
+\section{IRQ、softirq 与延后工作}
+
+PREEMPT\_RT 上大多数设备中断会表现为可调度的 IRQ 线程，但顶部硬中断仍需完成确认、屏蔽或唤醒等最小工作。应用线程、IRQ 线程和设备内部队列共同决定输入到输出的延迟：应用优先级高于 IRQ 时，可能及时运行却收不到新数据；IRQ 优先级过高时，突发中断又会压制控制计算。
+
+需要逐项检查：
+
+\begin{itemize}
+  \item \texttt{/proc/interrupts} 中实际命中的 CPU、速率和是否存在共享 IRQ；
+  \item IRQ 是否已线程化，\texttt{IRQF\_NO\_THREAD} 或硬件限制是否使其仍在硬中断上下文执行；
+  \item IRQ 线程优先级、affinity 与消费线程是否匹配设备数据流；
+  \item 驱动在禁中断区、锁内和完成回调中执行了多少有界工作；
+  \item 中断合并、DMA descriptor 数量和设备 FIFO 深度对吞吐与延迟的权衡。
+\end{itemize}
+
+网络接收通常还经过 softirq 和 NAPI。高包速率或过大的 poll budget 可能让工作落入 \texttt{ksoftirqd}，形成难以从应用 CPU 利用率看出的长尾。NIC queue、RSS、RPS、XPS、qdisc、NAPI、IRQ 和用户线程应作为同一条路径配置。把 IRQ 固定到实时核却让 NAPI 或协议栈工作迁移到别的核，会增加 cache 抖动和跨核唤醒；把所有网络工作留在实时核又可能被无关流量淹没。
+
+workqueue、tasklet 替代路径、timer callback 和驱动内核线程也会参与关键路径。应记录它们使用的 worker pool、并发上限、CPU mask 和优先级，避免关键完成工作与慢速固件更新、设备复位或日志 I/O 共享无界队列。
+
+\section{CPU 隔离与 housekeeping}
+
+CPU 隔离的目标是控制干扰源，而不是让某个核在工具输出中看起来空闲。cpuset cgroup 适合管理任务和内存节点；\texttt{nohz\_full} 可减少单 runnable task CPU 上的调度 tick；\texttt{rcu\_nocbs} 可把部分 RCU callback 移出；\texttt{isolcpus}、managed IRQ 和其他启动参数则有各自边界\cite{linux-nohz,linux-kernel-parameters}。启动参数的语义会随内核版本变化，必须以部署版本文档和启动日志为准。
+
+通常应保留至少一个 housekeeping CPU，承载普通进程、非关键 IRQ、未绑定 workqueue、RCU callback、定时维护和恢复服务。实时 CPU 上仍可能出现 scheduler tick、vmstat、watchdog、stop-machine、TLB shootdown 和跨核调用；“隔离”不是消除所有内核活动。
+
+一个可审计的 CPU 布局应同时描述：
+
+\begin{itemize}
+  \item 实时线程、IRQ、内核线程和普通服务的 CPU mask；
+  \item SMT sibling、共享 LLC、cluster、NUMA node 和内存控制器关系；
+  \item irqbalance 是否运行，以及静态 affinity 是否会被热插拔或驱动重置；
+  \item workqueue、RCU、timer 和网络 steering 的去向；
+  \item CPU offline、进程重启或设备重置后的重新绑定逻辑。
+\end{itemize}
+
+把实时线程和设备 IRQ 放在同一 CPU 可减少跨核唤醒，但会增加直接抢占；分开放置能并行，却需要承担 cache line 迁移和互连成本。选择应由端到端 trace 和最坏负载实验决定，不能只依据通用调优模板。
+
+\section{内存确定性}
+
+\texttt{mlockall(MCL\_CURRENT | MCL\_FUTURE)} 可以防止已映射页被换出，但不会自动触碰尚未建立页表的匿名页，也不能避免 copy-on-write、栈增长、文件映射 fault 和内核直接回收。实时进程还受 \texttt{RLIMIT\_MEMLOCK}、容器能力与 cgroup 配置限制，必须检查调用结果而不是假定成功。
+
+进入实时阶段前通常需要：
+
+\begin{itemize}
+  \item 预分配固定大小对象池，并逐页读写栈、堆、共享内存和 DMA buffer；
+  \item 禁止实时路径中的容器扩容、异常首次初始化、\texttt{dlopen()} 和首次符号解析；
+  \item 控制 swap/zram、匿名页过量承诺、page cache 写回和内存压力；
+  \item 评估 Transparent Huge Pages 的 fault/compaction 代价，按映射选择显式策略；
+  \item 在 NUMA 系统上固定内存策略，并在目标节点完成 first touch；
+  \item 预热 IOMMU 映射、DMA 映射和设备队列，避免每周期建立与销毁映射。
+\end{itemize}
+
+通用 allocator 的 fast path 很快，但扩 arena、向内核申请页、合并块和锁竞争没有自然的实时上界。固定尺寸 slab、每线程池或初始化后冻结分配更容易分析。线程退出、异常处理和日志丢弃路径同样不能偷偷执行无界释放或格式化。
+
+验收时应记录实时线程的 minor/major fault、reclaim、compaction、swap、OOM 和 PSI 内存压力。一次测试中 fault 为零只证明已覆盖的路径；升级共享库、改变输入上限或增加诊断字段后都要重新验证。
+
+\section{优先级反转、锁与有界 IPC}
+
+高优先级线程等待低优先级线程持有的锁，而低优先级线程又被中优先级工作抢占，会形成优先级反转。支持优先级继承的 pthread mutex/PI futex 可临时提升锁持有者优先级，但不能修复所有问题：锁持有者若在临界区执行 I/O、等待另一个无界锁或被排除在可运行 CPU 之外，阻塞仍可能超出预算。
+
+锁设计应满足：
+
+\begin{itemize}
+  \item 临界区短、无缺页、无动态分配、无阻塞 I/O，并具有可测上界；
+  \item 全局锁顺序明确，嵌套深度和跨进程 robust mutex 恢复语义可解释；
+  \item 超时不破坏共享状态不变量，进程崩溃后有 owner-death 处理；
+  \item 读写锁不会因读者持续到达而让关键写者长期饥饿；
+  \item trace 能关联等待者、持有者、持锁时间和优先级提升链。
+\end{itemize}
+
+无锁结构也不是自动实时。CAS 重试次数、ABA、防回收方案、cache line 争用和多生产者突发都可能无界。单生产者单消费者 ring 在固定容量和明确覆盖策略下容易分析；复杂共享状态通常更适合所有权转移、双缓冲或短临界区。
+
+IPC 必须连同队列容量和过载语义设计。Unix Socket、消息队列、pipe 和共享内存通知都可能因 buffer 满而阻塞。实时发送者需要明确使用非阻塞失败、覆盖旧数据、合并状态还是把工作交给较低优先级代理线程；不能把“正常情况下不会满”作为边界条件。
+
+\section{设备 I/O 的实时路径}
+
+用户线程唤醒延迟很低，并不表示设备动作及时。完整路径可能包括总线访问、DMA 排队、IOMMU、驱动锁、设备固件、物理转换和返回中断。应在真正的输入/输出边界使用 GPIO、硬件时间戳、逻辑分析仪或设备计数器校验软件 trace。
+
+DMA 能减少 CPU 搬运，但 descriptor、buffer ownership、cache maintenance 和完成中断仍需有界。固定缓冲池应定义耗尽策略；循环 DMA 应检测生产者追上消费者；非一致性平台必须遵守 DMA API，而不是依靠偶然 cache 状态。批处理可降低每样本开销，却会增加等待首个样本的时间，批大小应进入延迟预算。
+
+不同 I/O 子系统具有典型风险：
+
+\begin{description}
+  \item[网络] NAPI budget、中断合并、socket buffer、qdisc、重传和邻居解析会改变长尾；关键流应与扫描、遥测和 OTA 流量隔离。
+  \item[存储] 文件系统日志、块层队列、设备 FTL/GC 和 \texttt{fsync()} 可产生毫秒至秒级尾部，不应位于严格周期路径。
+  \item[串行与现场总线] UART FIFO、CAN 仲裁、SPI controller queue 和共享总线事务长度决定最坏等待，平均总线占用率不足以证明截止期。
+  \item[传感与执行器] runtime PM、校准、模式切换和设备内部滤波会增加首次样本或首次动作延迟。
+\end{description}
+
+若硬件需要严格微秒级边沿、脉冲宽度或保护动作，应使用定时器、PWM、PRU、FPGA 或实时协处理器完成，不应依赖普通用户线程忙等待。Linux 可负责设定参数、监督状态和处理较慢策略。
+
+\section{功耗、热与平台噪声}
+
+实时性与低功耗存在直接权衡。DVFS 改变执行时间，深度 C-state 增加唤醒延迟，设备 runtime PM 增加首次事务成本；禁止全部省电状态虽然简单，却可能导致温升和 thermal throttling，最终产生更严重的长尾。低功耗状态机的系统设计见\mbox{第~\ref{chap:low-power-system}~章}。
+
+验收配置应记录 governor、每核频率范围、idle state、PM QoS、设备 runtime PM、thermal trip 和冷却策略。应分别测试冷机、热稳态、环境温度上限和电源限制状态，并确认恢复策略不会在运行数十分钟后改变频率或迁移任务。
+
+Linux trace 看不到的延迟可能来自 SMI、可信固件、中断控制器、DRAM refresh、ECC scrub、BMC 或芯片安全管理核。若某次 500\,$\mu$s 空洞中 CPU 上没有可解释事件，应同时检查硬件 trace、固件日志、PMU、GPIO 脉冲和供应商勘误。无法消除的固件噪声必须进入平台最坏预算，或把更严格的功能迁移到独立实时域。
+
+CPU 隔离也不能隔离共享 DDR 和互连。GPU/NPU 推理、显示刷新、摄像头 DMA、网络和存储可以在别的核上运行，却仍抢占内存带宽。实时测试矩阵应覆盖所有合法高带宽 master 的并发，而不是只运行 CPU 压力程序。
+
+\section{测量工具与归因方法}
+
+\texttt{cyclictest} 用高分辨率定时器和实时线程测量唤醒延迟，适合发现平台基线和回归；\texttt{rtla timerlat} 可关联定时器 IRQ 与线程唤醒，\texttt{rtla osnoise} 和 osnoise tracer 用于量化 IRQ、softirq、线程及其他操作系统噪声\cite{linux-rtla,linux-osnoise}。它们测量的是特定探针路径，不自动等于产品事务延迟。
+
+\begin{lstlisting}[language=bash,caption={实时延迟与操作系统噪声测试示意}]
+cyclictest --mlockall --smp --priority=80 --interval=1000 \
+  --distance=0 --duration=8h --histogram=2000
+
+rtla timerlat top --cpus 2-3 --duration 1h
+rtla osnoise top --cpus 2-3 --duration 1h
+\end{lstlisting}
+
+命令参数应按已安装的 rt-tests 和内核版本确认。测试线程优先级不能无意中高于产品关键 IRQ，直方图上限也不能把更大样本静默归入不可见区间。完整报告至少保存工具版本、命令行、内核配置、启动参数、CPU/IRQ mask、频率、温度、负载生成器和原始 histogram。
+
+定位尖峰时可按以下顺序缩小范围：
+
+\begin{enumerate}
+  \item 用业务时间戳或外部 GPIO 确认尖峰真实存在，并排除时钟域换算错误；
+  \item 同步记录 sched、irq、softirq、timer、workqueue、power 和目标驱动 tracepoint；
+  \item 判断线程当时是未被唤醒、处于 runnable 等待、被高优先级实体抢占，还是阻塞在锁/I/O；
+  \item 若 CPU trace 存在空洞，检查 firmware、NMI、SMI、频率、idle 和硬件计数器；
+  \item 改变一个变量复现，例如移动单个 IRQ、禁用一个设备或固定一个频率，以验证因果；
+  \item 保留触发最大值的完整 trace，而不是只导出汇总表。
+\end{enumerate}
+
+追踪本身会扰动系统。buffer 太小会丢事件，buffer 太大或记录调用栈会增加内存和 CPU 开销。应先以低开销计数器长期发现窗口，再在可复现条件下短时开启详细 trace，并用无追踪的发布配置确认修复仍有效。
+
+\section{压力场景与统计解释}
+
+实时测试必须把“最坏合法负载”做成可复现矩阵，而不是泛泛运行一个 CPU burner。至少应组合：
+
+\begin{itemize}
+  \item 每核计算、cache/TLB 抖动、内存带宽和跨核共享写；
+  \item 网络小包洪峰、最大合法吞吐、重传以及非关键流量并发；
+  \item 存储写回、日志轮转、OTA 校验和设备 GC；
+  \item 摄像头、显示、GPU/NPU、音频和其他 DMA master；
+  \item 服务重启、设备 reset、链路断开重连和诊断采集；
+  \item 冷启动、热稳态、温度上限、低电压和不同功耗模式。
+\end{itemize}
+
+平均值和普通百分位不足以证明硬实时。最大值会随测试时长与事件数增加，长测未违约只能提供经验置信度，不能证明不存在更坏路径。对严格等级，应结合响应时间分析、WCET/阻塞上界、代码和驱动审查、硬件约束以及有针对性的故障注入。性能分位数、样本窗口和容量测试的通用方法见\mbox{第~\ref{chap:performance-capacity-engineering}~章}。
+
+测试失败不能通过删除“异常值”、缩短窗口或重复到结果好看来解决。应判断样本是否属于规定运行条件；若属于，就必须修复、重新分配预算或明确产品降级。如果样本来自测量错误，也要保留排除依据，例如时钟回退、trace overflow 或负载发生器自身暂停。
+
+\section{违约处置与故障遏制}
+
+即使设计目标是零违约，系统也必须定义违约后的动作。高优先级线程持续忙循环、驱动中断风暴或硬件不响应时，普通 systemd watchdog 可能完全得不到调度，因此监控链应具有独立执行资源或更高可信边界。
+
+常见策略包括：
+
+\begin{itemize}
+  \item 对过期输入丢弃或合并，避免补算积压形成死亡螺旋；
+  \item 将输出保持在最后已知安全值，并设置最大保持时间；
+  \item 由独立线程、核、MCU 或硬件 watchdog 检测 heartbeat 和 deadline；
+  \item 限流日志和诊断，在保留首因证据的同时避免故障放大；
+  \item 隔离并重置单个设备或服务，而不是立即重启整个系统；
+  \item 超过连续违约门槛后进入受控降级或安全状态，并记录恢复条件。
+\end{itemize}
+
+watchdog 喂狗点应证明关键工作真正完成，而不是证明某个循环仍在运行。若线程在使用旧输入重复计算也能喂狗，监控就无法发现数据路径失效。更稳妥的 heartbeat 应携带 generation、最近输入/输出时间戳、状态和错误计数，并由监督者检查其单调推进。
+
+\section{数字化验收矩阵}
+
+实时结论应落到可自动判定的门槛。下面的矩阵只是模板，数值必须由产品风险和目标硬件确定：
+
+\begin{table}[H]
+  \centering
+  \caption{实时 Linux 验收矩阵示例}
+  \begin{tabular}{p{31mm}p{45mm}p{27mm}p{29mm}}
+    \hline
+    场景 & 条件与持续时间 & 指标 & 通过条件 \\
+    \hline
+    调度基线 & 发布镜像、空闲系统、每 CPU 1 h & 唤醒延迟 & 最大值不超过预算 \\
+    业务满载 & 全部关键流和最大后台负载、8 h & 端到端截止期 & 零违约，trace 无丢失 \\
+    热稳态 & 环境上限、达到 thermal steady state 后 4 h & 延迟与频率 & 门槛内且无非预期节流 \\
+    故障恢复 & 中断风暴、设备超时、服务崩溃各重复规定次数 & 遏制与恢复时间 & 不破坏安全输出，限时恢复 \\
+    长稳与维护 & 日志轮转、诊断、OTA 检查并发，72 h & fault、reclaim、最大延迟 & 无未解释增长或违约 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+每个门槛都应链接需求 ID、测试脚本版本、原始数据、最大样本 trace 和镜像摘要。平台、内核、驱动、固件、编译器、CPU 布局或功耗策略变化时，应通过影响分析决定重跑范围；影响关键路径而没有重测证据的版本不能仅凭功能测试放行。
 
 \section{实时 Linux 与 RTOS 的选择}
 
-实时 Linux 适合需要完整 Linux 生态、毫秒到数十微秒级响应且硬件平台可控的系统。独立 RTOS 核更适合安全边界清晰、极短截止期、主核可能重启或休眠，以及需要认证隔离的控制路径。二者也可以按第~\ref{chap:heterogeneous-multicore}~章的方法协同。
+实时 Linux 适合需要完整 Linux 生态、复杂网络与存储、动态应用管理，并且截止期允许由可控平台满足的系统。独立 RTOS 或硬件实时域更适合极短截止期、主核可能重启或休眠、需要认证隔离，或平台固件噪声无法约束的控制路径。
 
-\section{验收清单}
+二者可以按\mbox{第~\ref{chap:heterogeneous-multicore}~章}的方法协同：实时核完成采样、保护和执行器闭环，Linux 负责策略、界面、联网和更新。跨核队列仍需定义容量、时间戳、generation、超时和复位后的状态重建；把关键任务移到 RTOS 并不会自动消除共享 DDR、电源和外设争用。
+
+\section{评审清单}
 
 \begin{itemize}
-  \item 延迟要求是否包含最坏负载、测量时长和允许违约策略？
-  \item 实时线程、IRQ 线程和恢复线程的优先级是否形成可解释顺序？
-  \item 是否消除了实时路径中的缺页、动态分配和无界 I/O？
-  \item CPU 隔离、IRQ affinity、RCU 和频率策略是否按目标硬件验证？
-  \item 是否记录最大延迟对应的完整 trace，而不仅是统计数值？
-  \item 看门狗和安全输出是否独立于可能饿死普通任务的实时线程？
+  \item 实时需求是否定义释放点、完成点、截止期、负载和违约策略？
+  \item 端到端预算是否包含 IRQ、调度、锁、I/O、固件和共享资源等待？
+  \item 实时线程、IRQ 线程、内核工作和恢复线程的优先级是否形成可解释顺序？
+  \item \texttt{SCHED\_DEADLINE} 带宽或 FIFO/RR 实时带宽限制是否经过准入和防饥饿验证？
+  \item CPU 隔离、IRQ affinity、RCU、workqueue、网络 steering 和 NUMA 是否作为整体配置？
+  \item 是否消除了实时路径中的缺页、动态扩容、同步存储、名称解析和无界锁等待？
+  \item DVFS、C-state、runtime PM、thermal 与平台固件噪声是否按目标硬件验证？
+  \item 是否在 CPU、内存、网络、存储、DMA、温度和恢复操作并发时运行长测？
+  \item 最大延迟是否能关联到完整 trace、输入、CPU、频率、温度和设备状态？
+  \item watchdog、安全输出和故障证据是否独立于可能饿死普通任务的实时线程？
 \end{itemize}

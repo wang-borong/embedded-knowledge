@@ -36,6 +36,30 @@
   \item[probe] Linux 驱动与设备匹配后的绑定和初始化过程。
 \end{description}
 
+\section{接口与数据}
+
+\begin{description}
+  \item[API] 源代码层面的类型、函数和行为契约，不自动保证独立编译模块的二进制兼容。
+  \item[ABI] 独立编译或独立升级组件之间的调用、布局、符号和数据解释约定。
+  \item[schema] 规定字段、类型、约束和演进规则的机器可读数据模型。
+  \item[framing] 在字节流或链路上恢复消息边界的方法，例如长度前缀、固定长度或 TLV。
+  \item[幂等] 同一逻辑操作执行一次或重复执行，对规定外部状态产生等价结果。
+  \item[背压] 下游容量不足时向上游传播减速、限流或拒绝信号的机制。
+\end{description}
+
+\section{无线与物联网}
+
+\begin{description}
+  \item[链路裕量] 估算接收功率高于规定 PHY 接收灵敏度的差值；它会被遮挡、衰落、干扰和制造偏差消耗。
+  \item[配网] 在受控窗口内建立设备身份、链路凭据和管理权限的过程，不只是写入 Wi-Fi 口令。
+  \item[会话] 协议端点之间可跨一次或多次传输连接保留的逻辑状态；其持久范围取决于具体协议。
+  \item[Retained Message] MQTT broker 为 topic 保存并向新订阅者发送的最后保留消息，不等同于完整事件历史。
+  \item[设备影子] 云端保存的设备状态模型，通常区分期望状态与设备已确认的实际状态。
+  \item[desired/reported] 设备影子中的期望状态与已报告状态；desired 写入成功不表示设备已经执行。
+  \item[generation] 随逻辑状态更新而递增的版本，用于识别陈旧命令、乱序响应和并发冲突。
+  \item[LwM2M] 基于 CoAP 的设备管理协议，定义对象模型、注册、bootstrap 与固件更新。
+\end{description}
+
 \section{构建与镜像}
 
 \begin{description}
@@ -52,21 +76,136 @@
 \begin{description}
   \item[实时] 正确性同时依赖结果与完成时间，不等同于平均运行速度快。
   \item[截止期] 工作必须完成的时间边界。
+  \item[截止期违约] 工作未在规定截止期前完成；是否允许、如何计数和如何降级必须由需求定义。
   \item[抖动] 某个周期或延迟相对于期望值的变化。
   \item[WCET] 最坏执行时间，需要在明确硬件和路径假设下分析或测量。
+  \item[优先级反转] 高优先级任务因低优先级任务持有资源而阻塞，且锁持有者可能继续被中优先级工作抢占的现象。
+  \item[优先级继承] 锁持有者临时继承最高等待者优先级，以限制部分优先级反转的协议；它不能消除锁内无界 I/O 等阻塞。
+  \item[housekeeping CPU] 承载普通进程、RCU 回调、非关键 IRQ 和内核维护工作的 CPU，用于减少实时 CPU 上的背景活动。
+  \item[OS noise] 操作系统 IRQ、softirq、内核线程、定时器和其他活动对目标任务造成的执行干扰。
   \item[单调时间] 不因人工校时而回退，适合超时与持续时间。
   \item[实时时间] 表示日历时间，可能被校时或受闰秒策略影响。
+  \item[时钟域] 共享同一 epoch、速率和同步关系的时间系统；不同域的时间戳需要映射后才能比较。
+  \item[offset] 两个时钟对同一时刻给出的时间差估计，不等同于测量不确定度。
+  \item[频率偏差] 两个时钟走时速率的相对差异，会使 offset 随时间累积。
+  \item[不确定度] 时间戳或时钟映射误差的估计范围，必须声明其统计或最坏值语义。
+  \item[holdover] 外部时间参考丢失后，使用已估计频率和环境模型维持时间的阶段。
+  \item[PHC] Linux PTP Hardware Clock，由支持硬件时间戳的设备通过 \texttt{/dev/ptpN} 暴露。
+  \item[硬件时间戳] 在 MAC、PHY 或其他硬件边界捕获的事件时刻，减少软件排队和调度误差。
+\end{description}
+
+\section{虚拟化与隔离}
+
+\begin{description}
+  \item[hypervisor] 运行在较高特权级、创建和隔离虚拟机并仲裁 CPU、内存、中断与设备的软件层。
+  \item[guest] 在虚拟平台上运行的操作系统或执行域，不应默认拥有宿主物理资源的直接控制权。
+  \item[vCPU] hypervisor 向 guest 提供的虚拟处理器调度实体，需要映射或调度到物理 CPU。
+  \item[IPA/GPA] guest stage-1 页表输出的中间或 guest physical address，仍需经过 stage-2 转换。
+  \item[HPA] host physical address，最终由宿主物理内存系统解释的地址。
+  \item[stage-2] 由 hypervisor 控制、把 IPA/GPA 转换为 HPA 并限制 guest CPU 访问的第二阶段页表。
+  \item[VMID] 标识虚拟机地址转换上下文的硬件标签；复用前必须按架构要求完成 TLB 失效。
+  \item[VM exit] guest 执行因 trap、I/O、异常或调度事件离开虚拟执行并进入 hypervisor 的过程。
+  \item[hypercall] guest 主动请求 hypervisor 服务的受控调用接口，参数与资源消耗必须按不可信输入验证。
+  \item[半虚拟化] guest 使用面向虚拟环境设计的接口与 backend 协作，以减少完整硬件模拟开销的方法。
+  \item[passthrough] 把真实设备的 MMIO、IRQ 和 DMA 能力受控分配给 guest 的设备直通方式。
+  \item[virtio] 通过 feature negotiation、共享队列和通知定义的一组标准半虚拟设备接口。
+  \item[IOMMU group] 按平台实际 DMA 隔离粒度组合的设备集合，同组设备通常不能安全分给互不信任的 domain。
+  \item[管理域] 负责创建、停止、配置和监控虚拟机的控制域，其高权限仍应被最小化和审计。
+\end{description}
+
+\section{性能与容量}
+
+\begin{description}
+  \item[延迟] 一个事务从规定起点到终点经历的时间，是否包含排队必须明确。
+  \item[吞吐] 单位时间内成功完成的有效工作量。
+  \item[利用率] 资源处于忙碌状态的时间比例，不等同于可用容量。
+  \item[饱和] 资源无法立即服务新工作而形成排队、节流或拒绝的状态。
+  \item[分位数] 给定比例样本不超过的统计值，例如 P99；其结果依赖样本和窗口。
+  \item[容量] 在规定负载条件下仍满足延迟、错误率和资源门槛的最大工作量。
+  \item[裕量] 资源上限与最坏已验证使用量之间保留的差额。
+\end{description}
+
+\section{功耗与电源管理}
+
+\begin{description}
+  \item[动态功耗] 节点充放电和开关活动产生的功耗，通常随活动率、电容、电压平方和频率变化。
+  \item[静态功耗] 电路保持状态时由漏电等机制产生的功耗，通常随工艺、电压和温度变化。
+  \item[静态电流] 稳压器、PMIC 或器件在无主要负载时自身消耗的 quiescent current；它仍应计入电池预算。
+  \item[收支平衡时间] 进入更深功耗状态所节省的能量刚好抵消进入和退出开销所需的驻留时间。
+  \item[退出延迟] 从低功耗状态收到唤醒事件到恢复可执行或可服务状态的时间。
+  \item[target residency] CPUIdle 等机制认为某状态具有能量收益所需的预计最小驻留时间。
+  \item[唤醒源] 在目标低功耗状态中仍能触发恢复的事件或设备；启用能力不表示它一定是本次唤醒原因。
+  \item[反向供电] 已上电电源域通过信号、保护二极管或上拉向已关闭电源域注入电流的现象。
+  \item[保持 retention] 关闭部分电源或时钟时仍保存规定状态，使恢复无需完全冷初始化的能力。
+\end{description}
+
+\section{多媒体与端侧 AI}
+
+\begin{description}
+  \item[Media Controller] Linux media 子系统中用 entity、pad 和 link 描述传感器、接收器、ISP 与视频节点拓扑的框架。
+  \item[fourcc] 用四字符编码标识像素或码流格式的值；它通常不足以单独描述平面布局、modifier 和颜色语义。
+  \item[stride] 图像相邻两行或平面元素起点之间的字节跨度，可能大于有效像素宽度对应的字节数。
+  \item[modifier] 与 fourcc 配合描述 linear、tiled 或压缩等具体内存布局的标识，生产者和消费者必须共同支持。
+  \item[DMA-BUF] Linux 中跨设备和进程共享 DMA 内存对象的机制；文件描述符表示共享对象，不自动转移读写所有权。
+  \item[fence] 表示异步硬件工作达到规定完成点的同步对象，用于约束缓冲区生产、消费和复用顺序。
+  \item[atomic modeset] DRM/KMS 把多个显示对象属性作为一个整体校验并提交的机制，避免外部可见的中间状态。
+  \item[玻璃到玻璃时延] 从真实场景的规定光学事件到对应像素在显示面板呈现之间的端到端时延，必须明确曝光和扫描边界。
+  \item[XRUN] 音频播放 underrun 或采集 overrun，表示软件和硬件未能在规定时间内交换 PCM 数据。
+  \item[caps] GStreamer 中描述媒体类型、格式和相关属性的能力集合；caps feature 还可表达特定内存类型。
+  \item[tensor ABI] 独立模型、运行时和应用之间关于 tensor 名称、dtype、layout、shape、量化及输出语义的兼容契约。
+  \item[letterbox] 保持纵横比缩放后，用 padding 填充目标尺寸的预处理方法；坐标还原必须扣除 padding 并应用缩放。
+  \item[frame token] 贯穿采集、处理和业务结果的一帧身份记录，通常包含 source、sequence、时间戳、generation 和坐标变换。
 \end{description}
 
 \section{安全与可靠性}
 
 \begin{description}
+  \item[攻击面] 在规定攻击者能力下可被触达并可能影响安全状态的接口、数据路径、权限和状态转换集合。
+  \item[信任边界] 数据或控制跨越不同信任假设组件的位置，跨越时必须重新验证身份、权限、完整性和资源约束。
+  \item[TCB] Trusted Computing Base，其失效可能破坏安全策略的硬件、固件和软件集合，应尽量小且可审计。
+  \item[TEE] Trusted Execution Environment，在受保护边界内执行可信服务并隔离密钥和高价值操作的环境，不自动保证其中应用或外设安全。
+  \item[PCR] Platform Configuration Register，通过有序 extend 保存度量链状态的受保护寄存器；相同 PCR 只说明所选度量序列相同。
+  \item[sealed storage] 把数据解封条件绑定到指定身份、度量、策略或授权状态的存储机制，不自动提供掉电一致性和无限防回放能力。
+  \item[Attestation Evidence] Attester 签名产生、包含身份和状态 claims 的证明证据，供 Verifier 结合外部资料评估。
+  \item[Attestation Result] Verifier 根据 Evidence、Endorsement、Reference Value 和策略生成的短期判定，供 Relying Party 消费。
+  \item[Endorsement] 由制造商或其他授权方签名的供应链事实，例如证明公钥与硬件型号的绑定关系。
+  \item[Reference Value] 验证策略用于比较设备状态的已知或允许值，例如特定组件 measurement 与安全版本。
+  \item[Verifier] 校验证明证据并依据背书、参考值和策略产生 Attestation Result 的参与方。
+  \item[Relying Party] 消费 Attestation Result，并结合账户、资源和业务策略作出接入或授权决定的参与方。
+  \item[DICE] Device Identifier Composition Engine，把设备秘密和逐层 measurement 组合以派生分层设备身份的体系结构思路。
+  \item[secure by default] 产品在用户不修改高级配置时即采用最小暴露和合理保护的默认状态。
+  \item[SBOM] Software Bill of Materials，记录软件组件、版本、供应商、标识和依赖关系的机器可读清单，不自动等于漏洞结论。
+  \item[VEX] Vulnerability Exploitability eXchange，表达特定漏洞对特定产品版本是否受影响及其依据的机器可读状态。
+  \item[PSIRT] Product Security Incident Response Team，负责接收、评估、协调修复和披露产品安全漏洞的组织职能。
+  \item[CVE] 公开漏洞实例的稳定标识，不表示漏洞严重度或特定产品一定受影响。
+  \item[CWE] 软件或硬件缺陷类型的分类体系，用于描述漏洞根因类别。
+  \item[CVSS] 漏洞技术严重度评分体系，是产品风险决策的输入之一，不包含全部部署与业务后果。
   \item[信息安全] 防止未经授权的读取、修改、伪造和服务破坏。
-  \item[功能安全] 故障发生时避免不可接受风险。
   \item[可靠性] 系统在规定条件和时间内持续完成要求功能的能力。
   \item[安全启动] 在执行前验证软件真实性和完整性的启动链。
   \item[Measured Boot] 记录实际加载内容的 measurement，用于本地或远程证明。
-  \item[安全状态] 在特定故障下把风险降至可接受水平的系统状态，不一定等同于断电。
+\end{description}
+
+\section{功能安全工程}
+
+\begin{description}
+  \item[功能安全] 系统或设备在故障和失效行为发生时，把相关风险保持在可接受范围内的能力。
+  \item[安全状态] 在特定故障和运行场景下把风险降至可接受水平的系统状态，不一定等同于断电或完全停机。
+  \item[FTTI] Fault Tolerant Time Interval，从故障发生到可能形成危害之间允许完成检测和安全反应的最大时间间隔。
+  \item[SIL] Safety Integrity Level，IEC~61508 等标准用于规定安全功能所需风险降低或完整性目标的离散等级；在功能安全语境中不要与 Software-in-the-Loop 混淆，测试文档应在首次出现时写明“软件在环”及所指被测对象。
+  \item[ASIL] Automotive Safety Integrity Level，ISO~26262 根据严重度、暴露率和可控性导出的汽车安全完整性等级，包括 A 至 D。
+  \item[PL] Performance Level，ISO~13849-1 用于表示控制系统安全相关部分实现风险降低能力的等级，包括 a 至 e。
+  \item[HARA] Hazard Analysis and Risk Assessment，结合运行场景识别危险事件、评估风险并导出安全目标的方法。
+  \item[FMEA] Failure Modes and Effects Analysis，从组件或功能的失效模式向上分析局部影响、系统后果和已有控制的方法。
+  \item[FMEDA] Failure Modes, Effects and Diagnostic Analysis，在 FMEA 基础上结合失效率、失效分类和安全机制评估诊断覆盖及硬件安全指标的方法。
+  \item[FTA] Fault Tree Analysis，从顶层不期望事件向下推导必要故障、逻辑组合和共同依赖的分析方法。
+  \item[Diagnostic Coverage] 对规定危险失效集合，能由相关安全机制在要求时间内检测并产生有效反应的比例；必须同时声明故障集合、检测间隔和反应条件。
+  \item[Common Cause Failure] 单一共同原因导致两个或多个原本用于冗余或独立保护的通道失效的现象。
+  \item[Freedom from Interference] 证明较低完整性组件不会通过空间、时间、通信或共享资源破坏较高完整性组件安全职责的属性。
+  \item[SEooC] Safety Element out of Context，在最终 Item 和全部使用条件尚未确定时，基于显式假设开发并提供安全手册的安全元素。
+  \item[Safety Case] 以 claim、argument、evidence 和 assumption 组成的结构化安全论证，用于说明限定产品和运行条件下的安全目标如何得到支持。
+  \item[Proof Test] 按规定间隔执行、用于发现在线诊断未覆盖的潜伏危险失效，并验证保护路径仍然有效的周期测试。
+  \item[Black Channel] 不依赖底层传输系统提供安全完整性，而由通信端点通过身份、序号、新鲜度、长度和端到端校验建立保护的通信模型。
 \end{description}
 
 \section{存储与更新}
@@ -75,6 +214,16 @@
   \item[原子性] 操作从外部观察为完整发生或未发生；其具体范围必须说明。
   \item[持久化] 数据已经越过易失缓存并满足介质声明的掉电保持语义。
   \item[一致性] 文件系统或业务数据满足预定义不变量。
+  \item[torn write] 一次逻辑写入只有部分字节或 sector 在故障前到达介质，形成新旧内容混合的结果。
+  \item[P/E cycle] Flash erase block 完成一次擦除及后续编程所经历的循环，用于描述有限擦写耐久度。
+  \item[磨损均衡] 把擦写分散到多个物理块，避免少量热点块过早耗尽的映射策略。
+  \item[写放大] 介质实际写入量与主机请求写入量之比，来源包括元数据、日志、搬迁和垃圾回收。
+  \item[FTL] Flash Translation Layer，把主机逻辑块地址映射到闪存物理页，并管理垃圾回收与磨损均衡。
+  \item[flush] 请求下层把先前缓存写入推进到其声明的稳定存储边界，并建立规定的写入顺序。
+  \item[FUA] Force Unit Access，要求特定写入在报告完成前到达设备声明的稳定介质，具体支持取决于协议和设备。
+  \item[PLP] Power-Loss Protection，设备利用保持能量和固件协议保护规定范围内的在途数据或映射元数据。
+  \item[scrub] 主动读取、校验并在必要时迁移或重写数据，以在错误超出纠正能力前刷新介质内容。
+  \item[RPMB] Replay Protected Memory Block，提供认证读写和防重放计数的小容量受保护存储区域。
   \item[回滚] 从候选版本恢复到已知良好版本，不自动意味着数据 schema 也回退。
   \item[防回滚] 拒绝低于安全版本策略的旧软件，不等同于普通功能回退策略。
   \item[A/B 更新] 在两个可启动槽位间写入非活动槽、试启动并健康确认的更新模型。

@@ -1,0 +1,280 @@
+\chapter{接口、协议与数据契约}
+\label{chap:interface-protocol-data-contracts}
+
+嵌入式系统中的数据会跨越函数、任务、进程、处理器、设备、网络、文件和软件版本。只要数据越过一个能够独立演进或独立失败的边界，它就不再只是一个结构体，而是需要稳定语义、边界检查、兼容策略和恢复规则的数据契约。
+
+第~\ref{chap:system-engineering-method}~章给出了接口契约的系统工程要求，本章进一步讨论二进制布局、消息封装、schema 演进、幂等、背压和验证方法。目标不是为所有场景选择同一种序列化格式，而是使发送方、接收方和未来版本对同一组字节具有可验证的一致解释。
+
+\section{先识别边界类型}
+
+不同边界需要不同稳定性保证：
+
+\begin{description}
+  \item[源代码 API] 同一工具链内的函数、类型和调用约定，可由编译器检查大部分类型关系；
+  \item[二进制 ABI] 独立编译模块之间的寄存器、栈、符号、对象布局和生命周期约定；
+  \item[MMIO/寄存器接口] 处理器与设备之间具有副作用、访问宽度和顺序要求的硬件契约；
+  \item[共享内存 ABI] 两个执行域共同解释的布局、所有权、原子顺序、cache 和复位契约；
+  \item[消息协议] socket、RPMsg、UART、CAN、USB 或网络上传输的有边界消息；
+  \item[持久数据格式] 配置、数据库、校准、日志和升级元数据在重启与版本变化后仍需解释；
+  \item[外部服务 API] 跨设备或云端接口，还需要认证、限流、重放与长期兼容策略。
+\end{description}
+
+稳定性范围必须写清楚。例如“内部接口”若跨越独立升级的 Linux 服务和 MCU 固件，实际上已经是产品 ABI；“仅保存到本地”的文件若会被售后工具读取，也已经是外部格式。
+
+\section{先定义语义，再定义编码}
+
+编码只回答如何表示，语义还必须回答：
+
+\begin{itemize}
+  \item 数值的单位、量程、分辨率、饱和和舍入规则；
+  \item 缺失、未知、无效、未校准和数值零是否为不同状态；
+  \item 枚举遇到未知值时保留、忽略还是拒绝；
+  \item 时间戳属于哪个时钟域，是否允许回退，误差上限是多少；
+  \item 标识符在重启、恢复出厂和设备替换后是否仍然唯一；
+  \item 列表是否有序，重复元素是否合法，空列表与字段缺失是否等价；
+  \item 字符串采用何种编码，限制按字节还是字符，是否要求 Unicode 规范化；
+  \item 浮点 NaN、无穷、负零以及定点溢出的处理方式。
+\end{itemize}
+
+字段名包含单位能够减少误用，例如 \texttt{timeout\_ms} 优于 \texttt{timeout}，但名称不能替代 schema 中的范围和换算规则。控制量还应说明坐标系、方向、参考点和正负号约定。
+
+\section{消息封装与长度检查}
+
+字节流协议必须恢复消息边界。常见方法包括固定长度、长度前缀、分隔符转义和 TLV。无论选择哪种方法，都要限制最大帧、嵌套深度和累计缓冲，防止损坏输入导致无限等待或无界分配。
+
+一个可演进的二进制帧通常包含：
+
+\begin{table}[htbp]
+  \centering
+  \caption{二进制消息头的典型字段}
+  \begin{tabular}{p{28mm}p{100mm}}
+    \hline
+    字段 & 语义 \\
+    \hline
+    magic & 快速识别格式，不替代完整性或认证 \\
+    version & 定义头部或消息 schema 的解释规则 \\
+    header length & 允许未来追加头字段并跳过未知扩展 \\
+    total length & 覆盖头与载荷，必须有协议级上限 \\
+    message type & 稳定数值 ID，不能依赖源代码枚举布局 \\
+    flags & 仅分配已定义位，保留位发送为零并按规范接收 \\
+    request ID & 关联应答、取消、重试和诊断事件 \\
+    integrity & CRC、MAC 或签名，保护目标和密钥语义各不相同 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+解析顺序应先做便宜且不分配内存的检查，再访问可变长度载荷：
+
+\begin{lstlisting}[language=C,caption={有界消息头解析骨架}]
+enum {
+    FRAME_MAGIC      = 0x454B5032u,
+    FRAME_HEADER_MIN = 24,
+    FRAME_SIZE_MAX   = 4096,
+    FRAME_VERSION    = 2,
+};
+
+int parse_frame_header(const uint8_t *buf, size_t available,
+                       struct frame_header *out)
+{
+    if (buf == NULL || out == NULL || available < FRAME_HEADER_MIN)
+        return FRAME_TRUNCATED;
+
+    uint32_t magic      = get_be32(buf + 0);
+    uint16_t version    = get_be16(buf + 4);
+    uint16_t header_len = get_be16(buf + 6);
+    uint32_t total_len  = get_be32(buf + 8);
+
+    if (magic != FRAME_MAGIC)
+        return FRAME_BAD_MAGIC;
+    if (version != FRAME_VERSION)
+        return FRAME_UNSUPPORTED_VERSION;
+    if (header_len < FRAME_HEADER_MIN || header_len > total_len)
+        return FRAME_BAD_LENGTH;
+    if (total_len > FRAME_SIZE_MAX || total_len > available)
+        return FRAME_BAD_LENGTH;
+
+    return decode_checked_fields(buf, header_len, total_len, out);
+}
+\end{lstlisting}
+
+检查表达式要避免整数回绕。验证 \texttt{offset + length <= total} 时，更稳健的写法通常是先证明 \texttt{offset <= total}，再检查 \texttt{length <= total - offset}。解析器不得在验证长度前按输入值分配内存、递归或解压。
+
+\section{字节序、对齐与数值表示}
+
+协议必须选择固定字节序，并使用逐字段读写函数。即使双方当前都运行小端处理器，也不能把主机字节序作为长期协议。位序、CRC 输入顺序和多字节寄存器的锁存顺序同样需要定义。
+
+固定宽度整数只解决宽度问题，不能自动解决：
+
+\begin{itemize}
+  \item 编译器插入的 padding 和结构体尾部对齐；
+  \item C 枚举、\texttt{bool}、\texttt{long} 和指针的实现差异；
+  \item 位域的分配顺序与跨存储单元布局；
+  \item 浮点格式、NaN payload 和异常模式；
+  \item 未初始化 padding 泄漏内存内容；
+  \item 非对齐访问在某些处理器上的异常或性能代价。
+\end{itemize}
+
+因此不应使用 \texttt{send(fd, \&obj, sizeof(obj), ...)} 定义协议。\texttt{packed} 只能改变某个工具链的布局，不能建立跨语言、跨编译器和跨版本语义，还可能产生非对齐访问。
+
+共享内存也不能例外。除了显式 offset 和大小，还要定义创建方、所有权状态机、原子宽度、memory order、cache maintenance、generation 和一方复位后的重新同步方法，参见第~\ref{chap:heterogeneous-multicore}~章。
+
+\section{编码格式选择}
+
+格式选择取决于资源、演进速度、生态和可审计性：
+
+\begin{table}[htbp]
+  \centering
+  \caption{常见数据编码的取舍}
+  \begin{tabular}{p{27mm}p{48mm}p{58mm}}
+    \hline
+    类型 & 适合场景 & 主要约束 \\
+    \hline
+    固定布局 & 高频、固定版本、极小 MCU & 演进困难，必须手工管理 offset 与兼容窗口 \\
+    TLV & 外设控制、固件协议、可跳过扩展 & tag 注册、重复字段和顺序语义必须明确 \\
+    Protocol Buffers & 多语言服务、字段级演进 & 不应复用字段号或改变既有字段语义\cite{protobuf-encoding,protobuf-best-practices} \\
+    CBOR & 受限设备、结构化二进制数据 & 需要限制深度和大小，签名场景需确定性编码\cite{rfc8949} \\
+    JSON & 人工诊断、低频管理接口 & 体积与解析成本较高，数字精度和重复 key 需约束 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+文本格式并不自动更安全，二进制格式也不自动更高效。真正的成本来自解析实现、内存分配、复制次数、schema 复杂度和错误路径。资源受限系统可以为控制面使用可演进格式，为固定速率数据面使用经过版本化的紧凑布局。
+
+\section{版本与兼容性}
+
+兼容性至少分为两个方向：新接收方能否读取旧发送方，旧接收方能否处理新发送方。滚动升级还要求新旧组件在一段时间内同时运行。
+
+较安全的演进规则包括：
+
+\begin{itemize}
+  \item 新增可选字段，并为缺失字段定义稳定默认语义；
+  \item 永久保留已删除字段的编号，禁止把旧编号赋予新语义；
+  \item 未知字段按格式规则跳过或保留，未知枚举进入明确的 unknown 路径；
+  \item 扩大量程前确认旧接收方不会截断、溢出或错误饱和；
+  \item 单位、坐标系和权限等语义变化使用新字段或新消息类型；
+  \item 能力协商使用独立 capability，不根据版本号猜测所有功能；
+  \item 规定最小支持版本、弃用时间、升级顺序和失败回退方式。
+\end{itemize}
+
+“版本号相同”不能证明双方能力相同，构建选项、硬件 SKU 和许可证也会改变可用功能。握手应返回实际能力集合与限制，例如最大帧、并发请求数、算法 ID 和时间戳精度。
+
+\section{错误模型与部分成功}
+
+错误应分层：传输层表示断线和超时，协议层表示帧损坏或版本不支持，业务层表示状态冲突、资源不足或权限拒绝。把所有失败映射成一个 \texttt{-1} 会迫使调用方解析日志文本或盲目重试。
+
+稳定错误响应至少包含：
+
+\begin{itemize}
+  \item 机器可判断的错误域与数值码；
+  \item 是否允许重试以及建议的最小等待；
+  \item 关联 request ID 和发生阶段；
+  \item 可选的人类诊断文本，但调用方不能依赖其措辞；
+  \item 批量操作中每一项的状态和整体提交语义。
+\end{itemize}
+
+部分成功必须显式建模。例如写入四个通道时，要说明失败是否回滚全部通道、保留已成功通道，还是返回待恢复事务。接收方崩溃后，调用方还必须能够查询最终状态。
+
+\section{超时、重试与幂等}
+
+超时表示调用方不再等待，不代表对端没有执行。请求可能在响应返回前完成，也可能仍在排队。因此重试策略必须与操作幂等性共同设计。
+
+常用方法包括：
+
+\begin{itemize}
+  \item 为每个逻辑操作分配稳定 idempotency key 或 transaction ID；
+  \item 接收方在有界窗口内保存请求结果，重复请求返回同一结果；
+  \item 使用期望 generation 或 compare-and-swap 防止覆盖新状态；
+  \item 把“设置目标值”优先于“增加一次”，使重复更易处理；
+  \item 对不可重复的物理动作提供 prepare/commit、查询和人工恢复路径；
+  \item 重试采用上限、退避和 jitter，避免故障时同步放大流量。
+\end{itemize}
+
+跨两个独立持久化系统的 exactly-once 通常需要共享事务或可补偿工作流，不能只靠 TCP 和 request ID 宣称实现。工程文档应准确说明 at-most-once、at-least-once 或可检测重复的实际保证。
+
+\section{顺序、时间与生命周期}
+
+消息到达顺序不一定等于事件发生顺序。多队列、多核、网络重连和重试都可能重排。需要顺序时，应定义 sequence、generation 或因果版本，并说明回绕、丢失和重启后的初值。
+
+超时应基于单调时钟；跨设备事件使用全局时间时还要携带时钟域、同步状态和不确定度。接收方不能把缺少同步质量的 RTC 时间直接用于安全判断。
+
+接口生命周期至少覆盖：
+
+\begin{itemize}
+  \item 尚未初始化、正常、降级、升级中和正在关闭；
+  \item 对端重启、设备热拔插、网络重连和系统 suspend/resume；
+  \item 请求取消与完成同时发生；
+  \item 生产模式、维修模式和恢复模式的能力差异；
+  \item schema 升级后旧数据、旧日志和旧诊断工具的处理。
+\end{itemize}
+
+\section{流量控制与背压}
+
+有界系统必须定义过载行为。仅设置超时而没有限制队列，通常会先耗尽内存，再产生大批过期响应。
+
+可选策略包括 credit/window、固定并发数、有界队列、令牌桶、采样和按优先级丢弃。策略应匹配数据语义：控制命令通常不能静默丢弃；周期遥测可以保留最新值并覆盖旧值；审计事件需要预留独立容量。
+
+背压必须能够跨层传播。如果应用停止消费，而驱动和 DMA 仍持续填充 buffer，用户空间的队列上限并没有真正限制系统资源。应同时记录生产率、消费率、队列 high-water mark、丢弃原因和最老数据 age。
+
+\section{完整性、认证与解析安全}
+
+CRC 用于检测随机传输错误，不证明消息来自可信发送方。对抗篡改需要 MAC、AEAD 或数字签名，并定义 key ID、nonce、重放窗口、覆盖字节和密钥轮换。安全协议设计应与第~\ref{chap:security-lifecycle}~章的身份和更新策略一致。
+
+所有解析器都应假定输入可能恶意：
+
+\begin{itemize}
+  \item 在分配、复制、递归和解压前验证长度与累计预算；
+  \item 限制容器元素数、嵌套深度、字符串长度和压缩展开比；
+  \item 拒绝重复且语义冲突的字段，明确重复 key 的处理；
+  \item 签名前使用规范规定的 canonical/deterministic 编码；
+  \item 错误日志不得回显密钥、完整 token 或未经清理的大块输入；
+  \item 对解析器执行 fuzzing、sanitizer、交叉实现和语料回归。
+\end{itemize}
+
+\section{持久格式与配置迁移}
+
+持久数据应包含 magic、格式版本、generation、长度和校验，并采用第~\ref{chap:storage-reliability}~章所述的原子提交方法。应用升级不应原地逐字段修改唯一副本，而应读取旧版本、生成完整候选、验证、提交新 generation，失败时保留旧数据。
+
+迁移设计需要回答：
+
+\begin{itemize}
+  \item 支持从哪些历史版本直接升级；
+  \item 中间任一步失败或掉电后从哪里继续；
+  \item 新版本写入的数据能否被旧软件读取；
+  \item 功能回滚时配置与数据库如何处理；
+  \item 未知字段是否保留，默认值由哪一版本决定；
+  \item 校准、身份和安全计数器是否禁止普通降级覆盖。
+\end{itemize}
+
+配置 schema 与运行中协议可以共享字段定义，但其生命周期不同。网络消息通常短暂存在，持久配置可能跨越多年和多个已停产版本，兼容承诺应分别制定。
+
+\section{Schema 治理与生成代码}
+
+schema、寄存器描述和错误码注册表应成为版本控制中的单一事实源。生成代码必须可复现，并在产物中记录生成器版本。手工修改生成文件会破坏下一次生成，应通过扩展点或 wrapper 添加平台逻辑。
+
+CI 至少执行：
+
+\begin{enumerate}
+  \item schema 语法、字段号唯一性和保留范围检查；
+  \item 与已发布基线的 breaking-change 检查；
+  \item 多语言编码/解码 golden vector；
+  \item 新发送方到旧接收方、旧发送方到新接收方的兼容测试；
+  \item 截断、超长、未知字段、重复字段和损坏校验测试；
+  \item fuzz corpus 和现场故障样本回归；
+  \item 文档、代码和 capability 清单的一致性检查。
+\end{enumerate}
+
+golden vector 应保存输入语义、规范字节串和预期错误，而不只保存某个实现序列化后的文件。否则两个实现可能共同复制同一个生成器缺陷。
+
+\section{接口验收清单}
+
+\begin{itemize}
+  \item 是否识别 API、ABI、共享内存、消息和持久格式的不同稳定性边界？
+  \item 每个字段是否定义单位、范围、缺失值、时间域和未知值行为？
+  \item 帧长度、offset、嵌套、分配和解压是否具有硬上限？
+  \item 是否禁止直接传输编译器结构体、指针、位域和未初始化 padding？
+  \item 新旧发送方、接收方和配置数据是否具有明确兼容矩阵？
+  \item 错误、超时、重复、部分成功、取消和对端重启是否可恢复？
+  \item 队列、并发、流量控制和丢弃策略是否有界且可观测？
+  \item CRC、认证、重放保护和 canonical encoding 是否用于正确目的？
+  \item schema 变更是否由 CI、golden vector、fuzzing 和跨版本测试约束？
+\end{itemize}

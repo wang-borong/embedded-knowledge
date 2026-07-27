@@ -1,89 +1,357 @@
 \chapter{嵌入式网络与时间同步}
 \label{chap:embedded-network-time}
 
-嵌入式网络不仅负责传输数据，还承担设备发现、控制闭环、日志、升级和时间同步。系统设计需要把 PHY、电气接口、MAC/DMA、内核网络栈、传输协议和应用语义作为一条链分析。
+嵌入式网络不仅负责传输数据，还承担设备发现、控制闭环、日志、升级和时间同步。系统设计需要把 PHY、电气接口、MAC/DMA、内核网络栈、交换网络、传输协议和应用语义作为一条链分析。
+
+“能够 ping 通”只能证明某个时刻存在基本连通性。可交付系统还必须回答：链路抖动或切换时业务是否恢复，突发流量是否挤压控制报文，时间参考丢失后时间戳还能可信多久，以及交换机、网卡和应用看到的时间是否属于同一时钟域。
+
+\section{先定义业务流与故障模型}
+
+网络需求应按业务流而不是按接口总带宽描述。不同流量具有不同的时延、丢失和恢复语义：
+
+\begin{table}[htbp]
+  \centering
+  \caption{嵌入式网络常见流量类别}
+  \small
+  \begin{tabular}{p{25mm}p{50mm}p{55mm}}
+    \hline
+    类别 & 典型要求 & 主要风险 \\
+    \hline
+    周期控制 & 有界时延、低抖动、陈旧数据可丢弃 & 排队、优先级反转、时钟失同步 \\
+    事件与告警 & 高可靠、可追溯、允许有限重试 & 重复、乱序、离线积压 \\
+    批量数据 & 高吞吐、可暂停、完整性校验 & 挤占控制流、内存和存储耗尽 \\
+    管理与诊断 & 认证、审计、可降级 & 权限扩大、诊断流量反噬业务 \\
+    时间同步 & 低路径变化、硬件时间戳、参考可追踪 & 非对称时延、错误主时钟、holdover 漂移 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+端到端延迟可以分解为发送排队、序列化、传播、交换、接收处理和应用调度：
+\begin{equation}
+  L_{\mathrm{e2e}} =
+  L_{\mathrm{txq}} + L_{\mathrm{serial}} + L_{\mathrm{path}} +
+  L_{\mathrm{switch}} + L_{\mathrm{rx}} + L_{\mathrm{app}}
+\end{equation}
+
+其中一个 $B$ 字节帧在速率 $R$ 上的序列化时间近似为
+\begin{equation}
+  L_{\mathrm{serial}} = \frac{8B}{R}
+\end{equation}
+但实际线上还包含前导码、帧间隙、链路层头尾和可能的重传。带宽预算应同时考虑最坏突发、协议开销、广播组播、故障恢复流量和未来版本裕量。
+
+故障模型至少包括 link flap、交换机或网关重启、地址变化、路径 MTU 变化、单向丢包、延迟非对称、重复与乱序、队列饱和、时间参考切换和设备 suspend/resume。每类故障都要定义检测时间、降级行为、恢复时间和积压处理。
 
 \section{Ethernet 硬件路径}
 
-以太网链路通常由 MAC、DMA descriptor、MII/RMII/RGMII/SGMII 接口、PHY、变压器和连接器组成。Device Tree 需要准确描述 PHY 地址、接口模式、时钟延迟、复位、电源和中断。
+\subsection{MAC、PHY 与板级接口}
 
-RGMII 在 1~Gb/s 下要求时钟与数据具有规定偏移。延迟可能由 MAC、PHY 或 PCB 走线提供，只能选择一个明确实现位置；同时在 PHY 和 MAC 启用内部 delay 会造成重复补偿。
+以太网链路通常由 MAC、DMA descriptor、MII/RMII/RGMII/SGMII 接口、PHY、变压器和连接器组成。Device Tree 需要准确描述 PHY 地址、接口模式、时钟延迟、复位、电源、中断和 LED 策略。
+
+RGMII 在 1~Gb/s 下要求时钟与数据具有规定偏移。延迟可能由 MAC、PHY 或 PCB 走线提供，只能选择一个明确实现位置；同时在 PHY 和 MAC 启用内部 delay 会造成重复补偿。时序结论必须匹配实际 PHY strap、驱动配置和板级走线。
+
+MDIO 可读写 PHY 状态，但“寄存器可读”不等于模拟链路合格。磁性器件中心抽头、电源噪声、参考时钟、阻抗、共模终端和 ESD 器件都会影响眼图、丢包和温度边界。量产测试需要区分 MAC 数字回环、PHY 内部回环、外部线缆回环和真实对端测试的覆盖范围。
+
+\subsection{协商、链路状态与恢复}
 
 PHY 驱动应尽量使用 phylink/phylib 管理自动协商、链路状态和接口模式。固定链路也应通过标准 fixed-link 描述，而不是在驱动中硬编码速率与双工。
 
-\section{DMA、NAPI 与队列}
+自动协商完成后仍要校验实际 speed、duplex、pause 和 EEE 能力。两端双工或流控不一致会表现为负载相关丢包，而不是简单的 link down。Energy Efficient Ethernet 的 Low Power Idle 可以降低空闲功耗，也会增加退出延迟和新的互操作变量；是否启用应以目标交换机和实时预算测试为依据。
 
-MAC 驱动使用 RX/TX descriptor ring 在设备和内核之间传递 packet buffer。RX 中断通常只调度 NAPI，poll 函数在预算内批量收包并重新补充 descriptor，从而避免高包率下的中断风暴。
+链路恢复状态机应处理 PHY 复位、模块热插拔、对端重启和连续抖动。carrier 恢复后，地址、路由、邻居表、传输连接和应用会话可能仍需重新建立，不能把一次 \texttt{netif\_carrier\_on()} 当成业务恢复完成。
 
-多队列 NIC 可以把不同流分散到 CPU，但 RSS、IRQ affinity、RPS/XPS 和应用线程亲和性必须协调。实时流量若在多个 CPU 和缓存域间反复迁移，会增加长尾延迟。
+\section{DMA、NAPI 与多队列数据路径}
 
-队列大小并非越大越好。大 ring 能吸收突发，却会增加 bufferbloat 和故障恢复时间。应同时测量吞吐、丢包、排队延迟和内存占用。
+\subsection{Descriptor 所有权与缓存}
+
+MAC 驱动使用 RX/TX descriptor ring 在设备和内核之间传递 packet buffer。每个 descriptor 都需要明确 CPU 与设备所有权、完成标志、长度和错误状态。驱动必须使用 DMA API 和规定的内存屏障，不能假定 CPU 写入 descriptor 后设备立即以同一顺序可见。
+
+RX 缓冲补充失败时，应统计 ring starvation 并采用有界恢复策略。TX 完成路径要回收 skb 和 DMA mapping；长时间不回收会造成队列停止和内存耗尽。设备复位时还要区分已提交、可能已发送和确定未发送的包，避免静默重复。
+
+\subsection{NAPI、offload 与批处理}
+
+RX 中断通常只调度 NAPI，poll 函数在预算内批量收包并重新补充 descriptor，从而避免高包率下的中断风暴。预算耗尽、softirq 长时间运行或应用消费不足都可能扩大尾延迟。
+
+checksum offload、TSO/GSO 和 GRO 可以降低每字节 CPU 成本，但也会改变分段、批处理和时间戳观察点。低时延流不能机械地关闭所有 offload，也不能只凭吞吐测试保留全部 offload；应比较 CPU、包率、P99/P99.9 延迟和时间戳准确性。
+
+大 ring 和大 socket buffer 能吸收突发，却会增加 bufferbloat 和故障恢复时间。队列上限应与业务截止期共同设计，并观察 qdisc backlog、Byte Queue Limits、驱动 ring、socket buffer 和应用队列，而不是只看其中一层。
+
+\subsection{多队列与 CPU 亲和性}
+
+多队列 NIC 可以使用 RSS 把不同流分散到 CPU，RPS/XPS 则在软件层控制接收和发送 CPU。IRQ affinity、NAPI、应用线程、NUMA 节点和共享缓存域必须协调；数据若在多个 CPU 间反复迁移，会增加 cache miss 和长尾。
+
+实时流量通常需要稳定映射到指定硬件队列和 CPU，但仍要为控制面、错误恢复和普通流量保留执行资源。把所有 IRQ 和业务线程集中到同一“实时核”可能造成自我干扰。
 
 \section{Linux 网络配置边界}
 
-驱动提供链路和数据面，IP 地址、路由、VLAN、bridge、防火墙和服务监听属于用户空间策略。BSP 不应用驱动私有参数替代标准 netlink 配置。
+驱动提供链路和数据面，IP 地址、路由、VLAN、bridge、防火墙和服务监听属于用户空间策略。BSP 不应用驱动私有参数替代标准 netlink 配置，产品也不应让多个网络管理组件同时竞争同一接口。
 
-设备若同时具有管理网、业务网和工厂网，应划分接口、路由表和访问控制。发现协议不能默认等价于管理授权；广播或组播发现只返回最小信息，敏感操作仍需认证通道。
+\subsection{地址建立不是业务在线}
 
-\section{TCP、UDP 与应用语义}
+IPv4 DHCP、IPv6 SLAAC/DHCPv6、Router Advertisement 和 Duplicate Address Detection 都可能异步完成。接口同时存在 link-local、临时地址和多个全局地址时，应用必须明确绑定策略和源地址选择。
 
-TCP 提供有序字节流，不保留应用消息边界；应用必须实现长度或分隔协议，并限制最大帧。TCP 写成功不代表对端业务已经处理，关键操作仍需应用层事务 ID 和确认。
+业务在线状态至少要区分：
 
-UDP 适合低延迟、允许丢失或自行恢复的消息，但要处理乱序、重复、分片和路径 MTU。控制协议应避免依赖 IP 分片，并对每个报文设置版本、长度、序号、时间戳和完整性校验。
+\begin{enumerate}
+  \item 物理 carrier 已建立；
+  \item 地址和必要路由可用；
+  \item DNS 或服务发现可用；
+  \item 对端传输连接与安全握手完成；
+  \item 应用鉴权、能力协商和状态同步完成。
+\end{enumerate}
+
+地址续租、IPv6 前缀变化、默认路由切换和网络 namespace 重建都可能让旧 socket 失效。应用应通过连接状态机恢复，而不是缓存启动时解析得到的地址直到重启。
+
+\subsection{网络分区与管理边界}
+
+设备若同时具有管理网、业务网和工厂网，应划分接口、VLAN、路由表和访问控制。发现协议不能默认等价于管理授权；广播或组播发现只返回最小信息，敏感操作仍需认证通道。
+
+mDNS/DNS-SD 等本地发现机制依赖组播可达性，在企业 WLAN、VLAN、无线节能和路由边界上可能被过滤。产品应提供明确的静态配置、单播 DNS 或受控目录服务回退路径。
+
+网络切换时必须决定旧连接是立即终止还是允许排空。若同一设备身份从两个接口同时上线，服务端还要定义会话竞争、命令路由和重复上报语义。
+
+\section{TCP、UDP 与应用恢复}
+
+\subsection{TCP 连接不是业务事务}
+
+TCP 提供可靠、有序的字节流，但不保留应用消息边界\cite{rfc9293}。应用必须实现 framing、最大帧和解析上限。一次 \texttt{write()} 成功通常只表示数据进入本地协议栈，不能证明对端进程已经处理。
+
+半开连接可能在很长时间内不产生错误。TCP keepalive 可发现部分失效路径，但默认周期通常不适合业务恢复目标；应用心跳还应携带会话或状态信息。两者都要限制频率，避免设备群在网络恢复时同步重连。
+
+重连后必须重新建立应用会话，并判断上一个请求是未执行、已执行但响应丢失，还是仍在处理。幂等键、事务状态和背压规则应遵循\mbox{第~\ref{chap:interface-protocol-data-contracts}~章}，不能依赖 TCP 序号实现业务 exactly-once。
+
+接收方不消费时，TCP flow control 最终会阻塞发送方，但这不保证应用内存有界。每层仍需限制在途请求和队列。发送超时、连接超时和业务截止期是不同计时器，取消等待也不代表对端取消执行。
+
+\subsection{UDP、MTU 与组播}
+
+UDP 保留数据报边界，但应用必须自行处理丢失、重复、乱序、拥塞和恢复\cite{rfc8085}。每个报文应具有版本、长度、序号和完整性；需要重试的操作还要有幂等键和过期时间。
+
+IP 分片会放大单个分片丢失的影响，并给中间设备和重组缓冲带来压力。协议应选择保守载荷或实现路径 MTU 发现，并限制对端可触发的重组资源。隧道、VLAN 和 VPN 会进一步降低可用 MTU。
+
+组播适合发现和一对多状态分发，但接收端处理能力、交换机 snooping、无线转发速率和风暴控制都会影响结果。关键控制命令不应只依赖无确认组播；必要时使用序号、冗余发送和单播确认。
 
 \section{CAN FD 与诊断网络}
 
-CAN 仲裁保证高优先级 ID 更早发送，但持续高优先级流量会使低优先级报文饥饿。总线负载分析应包含最坏帧长度、stuff bit、发送周期、错误重发和网关流量。
+CAN 仲裁保证数值更小的高优先级 ID 更早发送，但持续高优先级流量会使低优先级报文饥饿。总线负载分析应包含最坏帧长度、stuff bit、发送周期、错误重发、时钟容差和网关流量。
 
-Linux SocketCAN 把 CAN 设备表示为网络接口，应用可以复用 socket、过滤和时间戳机制。CAN FD 提高数据段速率和载荷，但所有节点、收发器和终端必须兼容相应位时序。
+CAN FD 提高数据阶段速率和载荷，但仲裁阶段、数据阶段和收发器能力需要匹配。所有节点必须兼容选定的 nominal/data bit timing，边界节点或旧分析仪也可能限制部署。
 
-UDS、DoIP、CANopen 和工业协议具有不同状态机和安全假设。诊断刷写、会话切换和执行器测试必须经过授权，不能因为位于“内部 CAN”就默认可信。
+错误计数、error passive 和 bus-off 是需要产品策略的状态。自动恢复时间应与安全要求一致；若物理短路持续存在，无限恢复会产生噪声和 CPU 负载。恢复后还要处理已过期控制帧和应用状态重新同步。
+
+Linux SocketCAN 把 CAN 设备表示为网络接口，应用可以复用 socket、过滤和时间戳机制。UDS、DoIP、CANopen 和工业协议具有不同状态机和安全假设。诊断刷写、会话切换和执行器测试必须经过授权，不能因为位于“内部 CAN”就默认可信。
+
+网关需要明确 ID 映射、速率整形、诊断会话、时间戳转换和故障隔离。一个慢速 CAN 段不应通过无界队列拖垮高速 Ethernet 侧。
 
 \section{工业以太网与 TSN}
 
-工业网络常要求确定延迟、时间同步和冗余。TSN 是一组 IEEE~802.1 机制，包括时间感知整形、流量分类、帧抢占和集中配置。启用某个 qdisc 并不等于形成确定性系统，还需要交换机、终端时钟、队列和流量工程一致支持。
+工业网络常要求确定延迟、时间同步和冗余。TSN 是一组 IEEE~802.1 机制，而不是单一协议：
 
-EtherCAT 等协议把帧处理和从站时序压缩到专用数据路径，适合严格周期控制。选择工业协议应依据周期、拓扑、生态、认证和诊断要求，而不是只比较理论带宽。
+\begin{description}
+  \item[时间同步] IEEE~802.1AS 提供面向时间敏感网络的 gPTP 同步\cite{ieee8021as-2020}；
+  \item[时间感知整形] IEEE~802.1Qbv 按全局时间打开和关闭队列 gate；
+  \item[信用整形] IEEE~802.1Qav 为流量类别提供带宽和延迟约束；
+  \item[帧抢占] IEEE~802.1Qbu/802.3br 减少低优先级长帧造成的阻塞；
+  \item[入口监管] IEEE~802.1Qci 对不符合合同的流进行过滤和限速；
+  \item[帧复制与消除] IEEE~802.1CB 通过多路径冗余降低单点故障影响。
+\end{description}
 
-\section{Linux 时间体系}
+启用一个 qdisc 并不等于形成确定性系统。终端、交换机、时钟、队列、gate control list、最大帧、guard band 和流量准入必须一致配置。计划外大帧或错误时钟可能破坏整个调度窗口。
 
-Linux 区分 clocksource、clockevent、单调时钟和实时时钟。\texttt{CLOCK\_MONOTONIC} 适合超时与持续时间；\texttt{CLOCK\_REALTIME} 可能被校时，不应用于内部超时；\texttt{CLOCK\_TAI} 适合需要避免闰秒跳变的时间戳系统。
+时间同步失效时，Qbv gate 仍可能按错误相位运行。系统应规定允许的最大 offset、不确定度和 holdover 时间，超过门槛后切换到保守调度或安全状态。
 
-硬件时间戳应尽可能靠近 MAC/PHY 收发边界。软件在 socket 层记录的时间包含 IRQ、NAPI 和调度延迟，不能代表线上真实时刻。
+EtherCAT 等协议把帧处理和从站时序压缩到专用数据路径，适合严格周期控制。选择工业协议应依据周期、拓扑、生态、认证、冗余和诊断要求，而不是只比较理论带宽。
 
-\section{NTP、PTP 与 PPS}
+\section{Linux 时钟体系}
 
-NTP 适合通用网络时间同步；PTP/IEEE~1588 通过硬件时间戳和路径延迟测量实现更高精度；GNSS PPS 可以提供稳定秒边沿，但日期时间和 PPS 需要正确关联。
+\subsection{clocksource、clockevent 与 RTC}
 
-PTP 系统通常包含 PHC、\texttt{ptp4l} 和 \texttt{phc2sys}。前者同步网卡硬件时钟，后者协调 PHC 与系统时钟。Boundary Clock 和 Transparent Clock 用于降低多跳交换网络的误差。
+clocksource 提供连续计数，内核据此计算时间；clockevent 负责在未来时刻触发定时事件；RTC 用于跨断电保存粗略日历时间。三者用途不同，某个 RTC 可读不代表运行时单调时钟质量合格\cite{linux-timekeeping}。
 
-时间同步的质量至少用 offset、frequency drift、path delay 和 holdover 表示。只显示“已同步”状态无法判断是否满足业务精度。
+clocksource 可能来自架构 timer、SoC counter、HPET 或其他硬件。其频率稳定性、跨 CPU 一致性和 suspend 行为影响所有软件时间。内核切换 clocksource 或检测 unstable clocksource 时应形成可观测事件。
 
-\section{跨设备时间戳协议}
+\begin{table}[htbp]
+  \centering
+  \caption{Linux 常用时钟的工程语义}
+  \small
+  \begin{tabular}{p{32mm}p{38mm}p{58mm}}
+    \hline
+    时钟 & 主要特性 & 适合用途 \\
+    \hline
+    \texttt{CLOCK\_REALTIME} & 日历时间，可 step 或校时 & 文件时间、对外事件时间戳 \\
+    \texttt{CLOCK\_MONOTONIC} & 单调，受频率校正，不含 suspend & 超时、持续时间、调度 \\
+    \texttt{CLOCK\_BOOTTIME} & 单调并包含 suspend 时间 & 跨休眠租约和保活 \\
+    \texttt{CLOCK\_MONOTONIC\_RAW} & 未经 NTP 频率校正 & 观测本地振荡器与短期测量 \\
+    \texttt{CLOCK\_TAI} & 连续原子时标，依赖正确 TAI offset & PTP 和避免 UTC 闰秒跳变的时间线 \\
+    \hline
+  \end{tabular}
+\end{table}
 
-采样数据应携带采样发生时的硬件时间戳，而不是发送时间。协议还应标识时间域、时钟质量和同步状态：
+\subsection{step、slew 与闰秒}
 
-\begin{lstlisting}[language=C,caption={带时间域信息的采样头}]
+校时可以直接 step 时钟，也可以通过频率微调逐渐 slew。大幅 step 会让 \texttt{CLOCK\_REALTIME} 前跳或后退，影响日志排序、证书和绝对定时器；slew 保持连续，但需要时间消除 offset。
+
+内部超时应使用单调时钟。若业务必须在绝对 UTC 时刻动作，应规定校时期间、闰秒和时间不可信时的行为。\texttt{CLOCK\_TAI} 只有在系统正确维护 UTC-TAI 偏移时才有正确语义，不是无需配置的“更准时钟”。
+
+首次启动、RTC 电池丢失或快照恢复后，日历时间可能明显错误。时间建立前应限制证书、更新和历史命令等依赖绝对时间的操作；相关启动信任边界见\mbox{第~\ref{chap:wireless-iot}~章}。
+
+\section{硬件时间戳与 PHC}
+
+硬件时间戳应尽可能靠近 MAC 或 PHY 收发边界。软件在 socket、NAPI 或应用层记录的时间包含排队、IRQ、softirq 和调度延迟，不能代表帧在线上的真实时刻。
+
+Linux 的 \texttt{SO\_TIMESTAMPING} API 可请求软件或硬件 RX/TX 时间戳，硬件过滤和具体时间戳点由驱动与 \texttt{SIOCSHWTSTAMP} 配置\cite{linux-timestamping}。TX 时间戳通常异步返回，应用必须用报文标识匹配，不能假定 \texttt{sendmsg()} 同步给出结果。
+
+支持 PTP 的网卡通常通过 \texttt{/dev/ptpN} 暴露 PHC。系统必须记录每个接口到 PHC 的映射；热插拔、驱动加载顺序和多端口设备可能改变编号，不能只把 \texttt{/dev/ptp0} 写死在产品配置中。
+
+MAC 时间戳与 PHY 时间戳的参考平面不同，交换机 correction、PHY 延迟、线缆和 PCB 延迟也可能进入误差预算。规范必须说明 timestamp point，而不能只写“使用硬件时间戳”。
+
+PHC 与系统时钟属于不同域。跨时钟读取应尽量使用内核支持的 cross timestamp 或多次夹逼测量，并报告测量不确定度。简单顺序读取两个时钟会把调度延迟误认为 offset。
+
+\section{NTP 与 Network Time Security}
+
+NTP 使用四个时间戳估计客户端相对服务端的 offset 和往返 delay\cite{rfc5905}。若 $t_1$ 为客户端发送、$t_2$ 为服务端接收、$t_3$ 为服务端发送、$t_4$ 为客户端接收，则常见估计为：
+\begin{align}
+  \theta &= \frac{(t_2-t_1)+(t_3-t_4)}{2} \\
+  \delta &= (t_4-t_1)-(t_3-t_2)
+\end{align}
+
+该估计隐含正反路径近似对称。路由变化、排队、蜂窝链路或卫星上下行非对称会形成无法仅靠多次采样消除的偏差。stratum 表示到参考时钟的层级，不直接代表准确度。
+
+时间守护进程应筛选多个源、拒绝明显 falseticker、限制 step 条件并记录当前 offset、frequency、root dispersion 和 source change。设备群不能全部只依赖一个普通域名和一个未监控服务器。
+
+NTS 为 NTP 建立加密认证和防重放保护\cite{rfc8915}。它能降低伪造时间源风险，但不能消除路径非对称、服务器配置错误和本地振荡器漂移。首次可信时间与证书有效期之间仍需要受限 bootstrap 或持久可信时间下界。
+
+\section{PTP、gPTP 与 LinuxPTP}
+
+PTP 通过硬件时间戳和链路延迟测量实现高精度同步\cite{ieee1588-2019}。系统可能包含 Grandmaster、Ordinary Clock、Boundary Clock 和 Transparent Clock：
+
+\begin{description}
+  \item[Grandmaster] 当前域的主时间来源；
+  \item[Ordinary Clock] 只有一个 PTP port 的普通端点；
+  \item[Boundary Clock] 在每个端口终止并重新生成 PTP，会运行本地时钟 servo；
+  \item[Transparent Clock] 转发 PTP 报文并累加其 residence time。
+\end{description}
+
+Best Master Clock Algorithm 根据 priority、clockClass、accuracy、variance 和 identity 选择主时钟。业务不能只看“端口为 SLAVE”就认为来源可信；还要验证 Grandmaster identity、profile、domain、UTC offset 和允许的时钟质量。
+
+End-to-End delay 使用 Delay\_Req/Delay\_Resp 估计端到端主从路径，Peer-to-Peer delay 测量相邻链路。one-step 时钟在 Sync 报文中直接修正发送时间，two-step 时钟随后发送 Follow\_Up。交换机和端点必须按选定 profile 一致配置。
+
+LinuxPTP 常用组件包括 \texttt{ptp4l}、\texttt{phc2sys}、\texttt{ts2phc} 和 \texttt{pmc}\cite{linuxptp-doc}。典型路径是先用 \texttt{ptp4l} 同步 PHC，再由 \texttt{phc2sys} 同步系统时钟；若同时让两个独立 daemon 驱动同一时钟，servo 会互相争夺。
+
+PTP 时间尺度通常基于连续 TAI，UTC offset 和闰秒状态通过时间属性传递。应用若直接把 PHC 纳秒值解释为 Unix UTC 时间，可能产生固定秒偏差。时间尺度和 epoch 必须进入数据契约。
+
+PTP domain 只分离协议实例，不是安全边界。未授权 Grandmaster、错误 Announce 或 delay 攻击都可能操纵时间。管理网络应实施端口控制、来源白名单、拓扑约束和异常 offset/GM change 告警。
+
+\section{PPS、GNSS 与 holdover}
+
+GNSS PPS 提供稳定秒边沿，但 PPS 本身不携带日期和秒编号。系统必须把 PPS 与 NMEA、串口或其他 time-of-day 数据正确关联，并处理串口延迟、闰秒状态和消息丢失。
+
+PPS 应由硬件 capture 到稳定计数器或 PHC。若由普通 GPIO 中断在用户空间记录，其抖动可能主要来自软件路径。天线、馈线和隔离器的固定延迟也需要进入高精度校准。
+
+GNSS 可能被遮挡、干扰或欺骗。设备应监控卫星数量、时间质量、位置跳变、PPS 丢失和与本地振荡器的残差，不应让单个异常样本立即 step 全系统时间。
+
+参考丢失后，系统进入 holdover，使用最近估计的频率和温度模型维持时间。若本地振荡器的分数频率误差上界为 $\lvert\epsilon_f\rvert$，仅该项引起的不确定度至少随时间近似增长为：
+\begin{equation}
+  U(t) \ge U_0 + \lvert\epsilon_f\rvert t
+\end{equation}
+
+实际还要加入温漂、老化、测量噪声和上次校准误差。系统应公布 holdover age 与当前 uncertainty，并在超过业务门槛时降级，而不是继续保持“已同步”状态。
+
+\section{跨设备时间戳契约}
+
+采样数据应携带采样发生时的时间戳，而不是入队、发送或云端接收时间。协议还应标识时钟域、同步代次和不确定度：
+
+\begin{lstlisting}[language=C,caption={带时钟质量信息的采样头}]
 struct timed_sample_header {
     uint16_t version;
     uint16_t clock_domain;
+    uint32_t sync_generation;
     uint32_t sequence;
+    uint32_t flags;
     uint64_t timestamp_ns;
     int32_t  estimated_offset_ns;
     uint32_t uncertainty_ns;
 };
 \end{lstlisting}
 
-同步丢失时，系统应继续提供带不确定度的本地单调时间，或明确拒绝需要全局时间的操作，不能悄悄把无效 RTC 当作可信时间。
+\texttt{sync\_generation} 应在主时钟切换、时钟 step、时间尺度变化或同步状态重新建立时递增。接收方不能只按 timestamp 排序跨 generation 数据，因为旧时钟映射可能已经失效。
 
-\section{网络与时间验证}
+时间契约至少说明：
 
 \begin{itemize}
-  \item 不同速率、双工、线缆和交换机下是否稳定协商？
-  \item 满负载、短包和双向流量下的丢包、吞吐与长尾延迟是多少？
-  \item link flap、DHCP 变化、路由切换和对端重启能否恢复？
-  \item TCP 重连、半开连接和应用重复事务是否处理正确？
-  \item CAN 总线在最坏错误重发和高优先级占用下是否满足截止期？
-  \item PTP offset、漂移和 holdover 是否在目标拓扑与温度下测量？
-  \item 所有业务时间戳是否声明时钟域、精度和失同步行为？
+  \item epoch 和 time scale 是 UTC、TAI、GPS 还是设备启动时刻；
+  \item 时间戳来自传感器、MAC、PHC、内核还是应用；
+  \item offset 与 uncertainty 相对哪个参考域；
+  \item 计数器宽度、回绕、符号和纳秒字段是否允许溢出；
+  \item 同步丢失、step 和 holdover 时哪些 flags 改变；
+  \item 接收方如何把多个域映射到共同时间线。
+\end{itemize}
+
+同步丢失时，系统可以继续提供带不确定度的本地单调时间、暂缓跨设备融合，或明确拒绝需要全局时间的操作，不能悄悄把无效 RTC 当作可信时间。字段演进和兼容规则应遵循\mbox{第~\ref{chap:interface-protocol-data-contracts}~章}。
+
+\section{网络与时间可观测性}
+
+链路诊断至少记录 speed、duplex、pause、EEE、link flap、PHY 错误和 MAC 统计。数据路径还要观察：
+
+\begin{itemize}
+  \item RX/TX 包、字节、drop、error 和 descriptor starvation；
+  \item IRQ/NAPI 预算耗尽、softirq CPU 和各级队列 high-water mark；
+  \item TCP retransmit、连接建立/恢复时间和应用在途请求；
+  \item UDP sequence gap、duplicate、reorder 和 MTU 错误；
+  \item CAN error counter、bus-off、恢复次数和最坏总线负载。
+\end{itemize}
+
+时间同步指标至少包括 source/Grandmaster identity、clockClass、offset、frequency adjustment、path delay、uncertainty、holdover age、step 次数和最近一次有效样本时间。只显示绿色“已同步”无法支持验收和故障分析。
+
+高频包日志会改变调度和网络负载。抓包、硬件 trace 和详细 PTP 日志应按触发条件限时启用，诊断包需要同时保存拓扑、交换机配置、daemon 配置和固件版本，参见\mbox{第~\ref{chap:observability-fleet}~章}。
+
+\begin{lstlisting}[language=bash,caption={网络与 PTP 的常用观测入口}]
+ethtool eth0
+ethtool -S eth0
+tc -s qdisc show dev eth0
+ip -s link show dev eth0
+phc_ctl /dev/ptp0 get
+pmc -u -b 0 'GET TIME_STATUS_NP'
+\end{lstlisting}
+
+\section{故障注入与验收}
+
+网络与时间测试应在目标拓扑、发布配置和最坏合法负载下进行。单台设备直连开发机的结果不能代表多跳交换、VLAN、无线桥接或冗余网络。
+
+\begin{table}[htbp]
+  \centering
+  \caption{网络与时间同步验证矩阵}
+  \small
+  \begin{tabular}{p{26mm}p{50mm}p{54mm}}
+    \hline
+    维度 & 代表故障或边界 & 主要观测量 \\
+    \hline
+    物理链路 & 线缆边界、温度、协商变化、link flap & 恢复时间、误包、speed/duplex \\
+    数据平面 & 短包洪泛、双向满载、大包与突发 & drop、队列、P99/P99.9 延迟 \\
+    地址与路径 & DHCP/RA 变化、路由切换、MTU 降低 & 会话恢复、重复、不可达时间 \\
+    时间网络 & 非对称延迟、Sync 丢包、GM/BC 切换 & offset、uncertainty、重锁定时间 \\
+    参考丢失 & NTP/GNSS/PTP 中断、RTC 回拨 & holdover 漂移、降级门槛 \\
+    电源与热 & suspend/resume、DVFS、高低温 & PHC 连续性、频漂、时间 step \\
+    安全边界 & 非授权 GM、伪造发现、诊断访问 & 拒绝、告警、审计和恢复 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+可以使用可编程交换机、网络 namespace、\texttt{tc netem}、可控时钟源和电源控制器注入丢包、延迟、乱序、带宽限制、链路切换和参考丢失。时间非对称测试需要分别控制两个方向，普通往返延迟注入无法覆盖单向偏差。
+
+验收门应给出数字，例如规定拓扑和流量下的最大排队延迟、恢复 P95/P99、零丢失控制队列深度、PTP steady-state offset、GM 切换后的重锁定时间，以及不同温度下的 holdover uncertainty。所有指标还要声明样本周期、测试时长和置信要求。
+
+\section{网络与时间验证清单}
+
+\begin{itemize}
+  \item 每类流量是否具有带宽、突发、优先级、时延和过载策略？
+  \item RGMII delay、PHY strap、时钟和板级路径是否与驱动配置一致？
+  \item descriptor、NAPI、qdisc、socket 和应用队列是否都有容量边界？
+  \item 地址变化、路由切换、半开连接和应用事务恢复是否端到端验证？
+  \item UDP 与组播协议是否限制 MTU、重组、重复和接收端资源？
+  \item CAN bus-off、网关背压和诊断授权是否有确定策略？
+  \item TSN schedule 是否同时约束时钟、队列、最大帧和准入流量？
+  \item 所有时间戳是否声明 clock domain、epoch、timestamp point 和 uncertainty？
+  \item NTP/NTS、PTP 和 GNSS 的来源切换与错误参考是否能够检测？
+  \item PHC、系统时钟和应用时间线是否只有一个明确的 servo 链路？
+  \item holdover 是否按温度与持续时间测量，并在超限后进入规定降级状态？
+  \item 验收是否覆盖最坏并发负载、单向非对称、链路故障和 GM 切换？
 \end{itemize}

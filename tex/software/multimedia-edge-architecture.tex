@@ -1,11 +1,13 @@
 \chapter{多媒体系统、端侧 AI 与新型计算架构}
 \label{chap:multimedia-edge-architecture}
 
-摄像头、显示、音频和端侧 AI 会同时占用传感器接口、DMA、内存带宽、硬件编解码器、GPU/NPU 与用户空间框架。系统能否稳定运行，取决于数据格式、缓冲区所有权、时间戳和资源预算是否贯穿整条管线。
+摄像头、显示、音频、编解码器和端侧 AI 会同时占用传感器接口、DMA、IOMMU、内存带宽、GPU/NPU 与用户空间框架。单个模块能够输出图像或完成推理，不表示整条产品管线具有正确格式、受控所有权、确定时延和可恢复故障路径。
 
-\section{多媒体数据管线}
+多媒体系统的核心是跨层契约：一帧数据采用什么格式和颜色语义，缓冲区当前由谁读写，哪个 fence 表示硬件真正完成，时间戳属于哪个时钟域，队列满时丢弃什么，以及硬件复位后如何结束所有在途事务。本章从 Linux media、DRM/KMS、ALSA、DMA-BUF 和端侧 AI 出发，讨论可跨 SoC 复用的工程方法。
 
-典型视觉链路为：传感器、MIPI CSI-2 接收器、ISP、内存、编解码器或 NPU、合成器和显示控制器。每个模块都可能改变格式、分辨率、stride、颜色空间和时间戳。
+\section{端到端需求与管线契约}
+
+典型视觉链路为：传感器、MIPI CSI-2 接收器、ISP、共享缓冲池、编解码器或 NPU、合成器和显示控制器。每一级都可能改变格式、尺寸、stride、颜色空间、时间戳和所有权。
 
 \begin{center}
 \begin{tikzpicture}[node distance=5mm]
@@ -23,33 +25,99 @@
 \end{tikzpicture}
 \end{center}
 
-设计首先要确定管线的端到端目标：吞吐量、首帧时间、玻璃到玻璃延迟、允许丢帧率、画质、功耗和内存上限。只验证单个模块帧率，不能证明整条管线满足需求。
+项目首先要规定测量边界，而不是只写“支持 30 FPS”。摄像头预览可以从曝光开始、曝光结束或 ISP 完成起算；AI 时延可以终止于 NPU 完成、后处理结束或业务动作生效。边界不同，数字不能直接比较。
 
-\section{Linux media、V4L2 与 DRM}
+\begin{table}[H]
+  \centering
+  \caption{多媒体端到端需求的最小契约}
+  \begin{tabular}{p{29mm}p{39mm}p{43mm}p{26mm}}
+    \hline
+    目标 & 起止边界 & 必须声明的条件 & 典型证据 \\
+    \hline
+    吞吐 & 有效输入帧到有效输出帧 & 分辨率、格式、并发功能和持续时间 & 帧计数与丢弃原因 \\
+    预览时延 & 曝光事件到目标像素扫描 & 显示模式、队列深度和同步策略 & 光电或高速相机波形 \\
+    AI 时延 & 图像生成到业务结果可用 & 模型、预后处理和调度负载 & 分阶段 trace \\
+    音画同步 & 音频呈现与对应视频呈现 & 主时钟、漂移和校正策略 & 时间戳与外部采集 \\
+    资源上限 & 稳态和故障恢复全过程 & 温度、电压、并发流和产品变型 & DDR、内存和热记录 \\
+    \hline
+  \end{tabular}
+\end{table}
 
-V4L2 为视频采集、输出、编解码和内存到内存设备提供 ABI；Media Controller 描述传感器、CSI、ISP 和视频节点之间的拓扑；DRM/KMS 管理显示 plane、CRTC、connector 和原子提交\cite{linux-media-api,linux-drm-api}。
+接口契约应把 fourcc、modifier、平面布局、颜色语义、时间域、缓冲所有权、错误和版本写成机器可检查字段。schema 演进与跨进程 ABI 方法见 \mbox{第~\ref{chap:interface-protocol-data-contracts}~章}，容量和分位数门槛见 \mbox{第~\ref{chap:performance-capacity-engineering}~章}。
 
-复杂摄像头驱动通常由 sensor sub-device、bridge/receiver、ISP sub-device 和 video node 组成。格式协商必须沿 media graph 逐 pad 传播，不能只设置最终 \texttt{/dev/videoN} 节点。
+\section{Media Controller、V4L2 与采集拓扑}
 
-显示路径应使用 atomic modeset 同时提交 framebuffer、plane 位置和同步 fence，避免中间状态撕裂。UI、视频和摄像头预览的合成策略应考虑 plane 数量、缩放能力、格式支持和带宽。
+Linux Media Controller 用 entity、pad 和 link 描述 sensor、CSI receiver、ISP、scaler 与 video node 的连接关系；V4L2 sub-device API 配置各级 pad format、crop、compose、routing 和 controls，video node 则负责缓冲队列与数据传输\cite{linux-media-api}。
 
-\section{格式、stride 与颜色空间}
+应用不能假定 \texttt{/dev/video0} 永远对应同一路摄像头。启动时应按 driver、entity function、bus 信息和 pad topology 解析目标管线，并记录实际 link。硬件变型、内核升级或 probe 顺序变化都可能改变节点编号。
 
-NV12、YUYV、RGB 和压缩 Bayer 等格式具有不同平面布局与带宽。任何接口都应明确：fourcc、有效宽高、每平面 stride、offset、大小、颜色空间、量化范围和 chroma sampling。
+格式配置通常从传感器向下游传播，并在每一级读取回实际结果。驱动可能根据硬件对齐、binning、scaling 或共享资源约束调整请求值；只检查最后一个 video node 会遗漏中间 pad 的隐式转换。
 
-以 NV12 为例，图像大小不能简单假设为 $width\times height\times1.5$；硬件通常要求每行和每平面按特定粒度对齐。下游必须使用实际 \texttt{bytesperline} 和 \texttt{sizeimage}，否则会出现错行、越界或颜色异常。
+V4L2 缓冲 I/O 常见模式包括 MMAP、USERPTR 和 DMABUF。MMAP 缓冲可通过 \texttt{VIDIOC\_EXPBUF} 导出，DMABUF 模式则导入其他分配器创建的 fd。无论模式如何，应用都要遵循 request/create buffers、queue、stream on、dequeue、stream off 和释放的状态顺序。
 
-BT.601、BT.709 与 BT.2020，以及 limited/full range 的错误组合会产生明显偏色。颜色元数据必须随缓冲区管线传播。
+每帧至少保留 buffer index、sequence、timestamp、field、bytes used、错误标志和关联 controls。时间戳来源及是否为单调时间必须读取驱动标志并实测，不能仅凭字段名推断。
 
-\section{零拷贝与 DMA-BUF}
+Request API 允许把一帧使用的 controls、输出 bitstream 和目标 capture buffer 绑定为一个请求，适合 stateless codec 和逐帧 ISP 控制。请求失败或取消时，所有关联对象都必须进入可回收的确定状态，避免一个残留请求占住整个队列。
 
-多媒体系统应尽量通过 DMA-BUF 在驱动间共享缓冲区，避免 CPU 复制整帧。零拷贝不代表零成本：仍有 IOMMU 映射、cache 同步、fence 等待和格式转换。
+\section{DRM/KMS、显示合成与原子提交}
 
-缓冲区状态可以抽象为：空闲、采集中、可消费、处理中、待显示和回收。每一时刻只能有一个写入者；多个读取者必须等写 fence 完成。释放文件描述符不一定意味着硬件已停止访问，生命周期需要引用计数和同步 fence 共同保证。
+DRM/KMS 使用 framebuffer、plane、CRTC、encoder 和 connector 描述扫描输出。plane 能否直接显示一个 DMA-BUF，取决于像素格式、modifier、stride、缩放、旋转、颜色属性和目标 CRTC，而不只是 fourcc 相同\cite{linux-drm-api}。
 
-\begin{lstlisting}[language=C,caption={多媒体缓冲区描述的必要字段}]
-struct video_buffer_desc {
+atomic modeset 应先用 TEST\_ONLY 验证完整状态，再提交 plane、framebuffer、源和目标矩形、颜色属性以及同步对象。若只逐个修改属性，中间状态可能产生黑屏、撕裂或短暂使用旧 framebuffer。
+
+显示提交成功不表示旧缓冲可以立即复用。应用应等待 page-flip event 或 out-fence，确认显示控制器不再扫描旧 framebuffer。输入 acquire fence 和输出 release fence 的方向必须在接口中固定，命名含糊会造成提前复用或循环等待。
+
+显示器热插拔、模式切换和休眠恢复会改变 connector、mode、刷新率及 plane 可用性。恢复路径要重新枚举资源并重建 framebuffer，不能继续使用失效 object ID。
+
+扫描输出本身也贡献时延。即使 atomic commit 在垂直消隐前完成，目标像素仍可能在下一刷新周期的后半部分才显示；玻璃到玻璃测量需要包含 panel scanout 和面板内部处理。
+
+\section{格式、平面、stride、modifier 与颜色语义}
+
+一个可移植图像契约至少包含：
+
+\begin{itemize}
+  \item fourcc、有效宽高、coded width/height 和 crop rectangle；
+  \item plane count、每平面 stride、offset、size 和对齐要求；
+  \item modifier，以及 linear、tiled 或压缩布局的生产者和消费者能力；
+  \item colorspace、YCbCr encoding、quantization range 和 transfer function；
+  \item Bayer pattern、位深、打包方式、镜像和旋转等传感器语义。
+\end{itemize}
+
+NV12 的有效样本量常近似为 $W\times H\times1.5$，但实际分配量必须使用驱动返回的 \texttt{bytesperline}、\texttt{sizeimage}、plane offset 和硬件对齐。把理论帧大小当成映射长度，会导致错行、越界或下一平面被覆盖。
+
+modifier 不是可忽略的性能提示。相同 fourcc 的 linear、块状压缩或厂商 tiled buffer 具有不同地址解释；消费者不支持 modifier 时必须经过明确转换，不能把未知布局当作 linear。
+
+BT.601、BT.709 与 BT.2020，以及 limited/full range 的错误组合会产生偏色、黑位抬升或高光裁切。颜色元数据需要沿采集、转换、编码和显示全程传播，转换模块还要声明是否已经应用矩阵和 transfer function。
+
+\begin{table}[H]
+  \centering
+  \caption{常见图像契约错误及外部表现}
+  \begin{tabular}{p{31mm}p{39mm}p{41mm}p{27mm}}
+    \hline
+    契约错误 & 典型表现 & 定位证据 & 修正边界 \\
+    \hline
+    stride 被当作有效宽度 & 斜行、撕裂或越界 & 平面地址与每行差值 & 使用驱动返回的行跨度 \\
+    modifier 丢失 & 花屏或导入失败 & 共享缓冲与显示属性记录 & 显式协商或转换 \\
+    颜色范围错误 & 灰黑、泛白或饱和度异常 & 标准色卡与元数据 trace & 统一颜色矩阵和量化范围 \\
+    crop 未传播 & 检测框或叠加错位 & 各级裁剪与合成矩形 & 保存完整坐标变换 \\
+    Bayer 语义错误 & 颜色交换或细节异常 & 原始图样与传感器模式 & 绑定模式和校准 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+\section{DMA-BUF、IOMMU、cache 与 fence 生命周期}
+
+DMA-BUF fd 表示可跨驱动和进程共享的内存对象，不表示调用者自动取得写所有权，也不保证所有设备具有相同地址或 cache 一致性。每个设备仍需 attach、map 到自己的 DMA domain，并遵守 exporter 定义的访问和同步规则\cite{linux-dma-buf}。
+
+缓冲生命周期可以抽象为 allocation、queued-to-producer、producer-active、ready、consumer-active、retired 和 reusable。任何时刻只能存在受控写入者；多个读取者需要等待生产 fence，并在最后一个读取完成后才允许生产者覆盖。
+
+\noindent\begin{minipage}{\textwidth}
+\begin{lstlisting}[language=C,caption={跨组件媒体缓冲区契约的逻辑字段}]
+struct media_buffer_contract {
+    uint64_t buffer_id;
+    uint32_t generation;
     uint32_t fourcc;
+    uint64_t modifier;
     uint32_t width;
     uint32_t height;
     uint32_t plane_count;
@@ -59,82 +127,177 @@ struct video_buffer_desc {
     int      dma_buf_fd[4];
     int      acquire_fence_fd;
     uint64_t timestamp_ns;
+    uint32_t clock_domain;
+    uint32_t colorimetry;
 };
 \end{lstlisting}
+\end{minipage}
 
-\section{带宽与缓冲预算}
+显式同步把 acquire/release fence 作为接口字段传递，容易审计每个阶段的等待关系；隐式同步则依赖 DMA-BUF reservation object 中的 fence。混用两种模型时必须规定桥接责任，否则可能遗漏等待或对同一 fence 重复阻塞。
 
-未压缩视频的最低数据率近似为：
+CPU 访问非一致性 DMA 缓冲时，需要使用平台规定的 begin/end CPU access 或 DMA 同步 API。仅执行普通内存屏障不能替代 cache clean/invalidate；把物理连续也误当成 cache coherent 同样危险。
+
+IOMMU 提供地址转换和部分隔离，但映射生命周期仍要覆盖设备异步完成。关闭设备、进程退出或加速器复位时，应先停止新提交、完成或取消在途任务，再解除映射和释放 fd。
+
+\section{带宽、内存与排队预算}
+
+未压缩单流的最低数据率近似为：
+
 \begin{equation}
-  B = W \times H \times F \times bpp
+  B_{stream}=W\times H\times F\times bpp
 \end{equation}
 
-实际 DDR 流量还包括读写回程、对齐、ISP 中间结果、显示刷新、NPU 输入和缓存未命中，通常远高于单次帧大小乘帧率。应使用 SoC 性能计数器或内存控制器监控验证峰值，而不是只依据理论带宽。
+实际 DDR 流量是各阶段读写量之和：
 
-缓冲数量在吞吐、延迟和抖动吸收之间取舍。更多缓冲可以降低生产者阻塞，却会增加排队延迟。低延迟管线应限制 queue depth，并在过载时选择明确的丢帧位置。
+\begin{equation}
+  B_{DDR}=\sum_i W_i H_i F_i bpp_i R_i + B_{model}+B_{display}
+\end{equation}
 
-\section{音频系统}
+其中 $R_i$ 表示该阶段的读写和放大系数。ISP 中间结果、格式转换、NPU tensor、显示刷新、cache miss、压缩元数据和对齐都会增加流量。数据手册峰值带宽不能作为可用预算，应在最坏并发、温度和频率策略下测量持续值。
 
-ALSA SoC 把 CPU DAI、codec、platform DMA 和 machine driver 组合为声卡。音频系统需要明确采样率、位宽、通道数、时钟主从关系和时钟误差。XRUN 通常来自调度延迟、DMA period 不合理、时钟漂移或管线阻塞。
+缓冲内存预算应包含所有 pool、编解码参考帧、NPU scratch、模型常驻区和故障恢复期间的双份资源：
 
-音视频同步应基于共同时间域和时间戳，不应通过不断调整固定延时维持。长期运行时需要处理音频与视频时钟微小漂移，可通过重采样、丢/重复视频帧或主时钟策略校正。
+\begin{equation}
+  M_{total}=\sum_i N_i S_i+M_{codec}+M_{tensor}+M_{model}+M_{recovery}
+\end{equation}
 
-\section{用户空间管线}
+增加 buffer 数可以吸收抖动并减少生产者阻塞，但排队会增加陈旧度。帧周期为 $T_f$ 时，额外排队 $N$ 帧可引入近似 $N T_f$ 的等待。低延迟系统应限制 queue depth，并为每个饱和点规定 drop-oldest、drop-newest、降低采集率或向上游背压。
 
-GStreamer 等框架适合构建采集、转换、编码、推流和显示管线\cite{gstreamer-doc}。元素协商成功不代表硬件零拷贝成立；必须检查实际 caps、内存类型、插件选择和性能 trace，防止隐式 software conversion 或 memcpy。
+资源预算和回归门的系统方法见 \mbox{第~\ref{chap:performance-capacity-engineering}~章}。媒体场景还要单独记录帧率、分辨率、格式、显示模式、模型组合和热稳态，因为平均 CPU 利用率无法解释 DDR 或固定功能单元饱和。
 
-生产管线应处理 EOS、动态分辨率、源断开、网络抖动、编码器重置和状态迁移超时。错误恢复尽量局部重建分支，只有共享硬件状态无法恢复时才重启整个媒体服务。
+\section{时延分解、时间戳与跨设备同步}
 
-\section{实践管线一：V4L2 到 DRM 显示}
+玻璃到玻璃时延可分解为：
 
-低延迟预览的目标是让摄像头产生的 DMA-BUF 直接提交到 DRM plane。初始化顺序为：枚举 media graph、设置 sensor/ISP pad format、在 video node 请求 DMABUF/EXPORT buffer、选择 DRM plane 格式与 modifier、建立 atomic commit。
+\begin{equation}
+  T_{g2g}=T_{exposure}+T_{readout}+T_{ISP}+T_{queue}
+  +T_{compose}+T_{vblank}+T_{scanout}+T_{panel}
+\end{equation}
 
-每帧的所有权流转为：
+AI 结果时延还要加入预处理、加速器排队、推理、后处理和业务分发。每个分项必须说明时间戳是在开始、完成还是中断到达时采集，以及时钟是否会被校时。
+
+同一 SoC 内宜使用单调时间关联 V4L2、DRM、音频和 NPU trace。多摄像头、外部麦克风或跨设备融合则需要硬件触发、共享时钟或 PTP，并保存时钟 offset 和不确定度。时间同步方法见 \mbox{第~\ref{chap:embedded-network-time}~章}。
+
+sequence 连续不表示时间连续，时间戳连续也不表示没有重复帧。记录应同时包含 source sequence、buffer generation、capture timestamp、处理阶段时间和 drop reason。
+
+高频 trace 不宜格式化输出每个像素或 tensor。可为每帧保存固定长度 token，在关键边界写入时间戳和状态，异常时冻结环形缓冲区。这样既能重建因果链，也能限制观测开销。
+
+\section{编解码器、参考帧与动态重配置}
+
+V4L2 memory-to-memory codec 通常具有 OUTPUT 和 CAPTURE 两个队列。stateful decoder 由设备解析码流并管理更多状态；stateless decoder 则要求用户空间按帧提供 slice、reference picture 和其他 controls。两者的队列语义、错误恢复和驱动能力不能混用\cite{linux-media-api}。
+
+压缩码流时间语义需要区分解码顺序与呈现顺序。存在 B 帧时，DTS、PTS 和 capture dequeue 顺序可能不同；把输入序号直接当成显示序号会造成音画不同步或帧关联错误。
+
+解码器还要管理 decoded picture buffer、参考帧寿命、crop、颜色信息和 interlace。source change event 表示分辨率或格式变化时，应用应停止相关 capture 流、读取新格式、重建下游 pool 和 framebuffer，再恢复提交。继续使用旧尺寸缓冲可能导致越界。
+
+flush、drain、EOS、seek 和错误恢复必须分别定义。收到 EOS 后等待所有重排帧输出不同于立即 stream off；损坏码流、缺失参考帧和硬件超时也应有明确的丢帧、重新同步到关键帧或重置策略。
+
+编码器验收不能只检查“产生了文件”。应固定 profile/level、GOP、IDR 周期、rate control、目标码率、VBV、slice、低延迟模式和颜色元数据，并测量码率分布、关键帧恢复、质量指标及长时间时戳连续性。
+
+\section{音频、时钟与音画同步}
+
+ALSA SoC 把 CPU DAI、codec、platform DMA 和 machine driver 组合为声卡，实际链路还包含 MCLK、BCLK、LRCLK、时钟主从和 routing\cite{linux-asoc}。采样率、位宽和通道数协商成功，不表示物理时钟误差和模拟路径已经验证。
+
+PCM buffer 由多个 period 组成。period 太小会增加中断和调度压力，太大则增加时延；buffer 太浅容易 XRUN，太深会掩盖阻塞并使互动音频迟钝。理论缓冲时延近似为：
+
+\begin{equation}
+  T_{audio}=\frac{N_{buffer}}{F_s}
+\end{equation}
+
+还需加入 codec、混音、重采样、调度和硬件 FIFO。验收应通过 loopback 或外部仪器测量，而不是只读取 ALSA 参数。
+
+音画同步需要选择主时钟。音频通常要求连续输出，视频更适合丢帧或重复帧，因此常以音频时钟为主并对视频调度；其他产品也可能使用外部 PTP 或显示时钟。长期漂移应通过有界重采样或帧调度校正，不能周期性突跳时间戳。
+
+XRUN 后的恢复要区分一次调度抖动、设备断开和时钟配置错误。重新 prepare/start 之前应清理旧时间映射，并向上层报告不连续区间，避免把恢复后的音频错误地关联到旧视频帧。
+
+\section{用户空间管线、协商与背压}
+
+GStreamer 等框架适合构建采集、转换、编解码、推流和显示管线\cite{gstreamer-doc}。caps 描述媒体语义，caps feature 和 allocation query 还决定内存类型、allocator、buffer pool 与 metadata。元素连接成功不表示实际使用 DMA-BUF 或硬件路径。
+
+生产系统应在启动后保存最终协商结果：插件 factory、format、modifier、颜色属性、memory feature、pool 数量和延迟。通过 DMA-BUF inode、fence、perf、CPU 使用率和 DDR 计数，可以识别隐式 software conversion 或 memcpy。
+
+queue 元素需要明确容量和泄漏策略。实时预览通常丢弃旧帧以维持新鲜度，录像通常要求上游背压或触发质量降级。没有边界的队列会把短时抖动转化为持续增长的延迟。
+
+状态迁移、EOS、flush、动态分辨率、源断开和硬件重置都是正常生命周期的一部分。错误恢复宜先停止受影响分支、等待或取消在途 buffer、重建局部资源，再决定是否重启整个服务。
+
+框架 bus 消息、驱动事件和业务状态应映射为稳定错误分类。仅记录一条“pipeline error”会丢失是协商失败、设备消失、fence 超时还是数据损坏。
+
+\section{实践管线一：V4L2 到 DRM 低延迟预览}
+
+低延迟预览的目标是让摄像头产生的 DMA-BUF 直接提交到 DRM plane。初始化顺序为：
+
 \begin{enumerate}
-  \item 空闲 buffer 排入 V4L2 capture queue；
-  \item ISP 完成后 dequeue，得到 sequence 与采集时间戳；
-  \item 等待 capture fence，必要时执行受控格式转换；
-  \item 通过 DRM atomic commit 提交 framebuffer；
-  \item 等 page-flip/out-fence 完成后把旧 buffer 重新排回 capture queue。
+  \item 枚举 media graph，启用目标 links 并配置 sensor/ISP pad；
+  \item 在 video node 设置格式，分配或导入满足 modifier 的 buffer；
+  \item 枚举 DRM plane 的 format、modifier、缩放和颜色能力；
+  \item 创建 framebuffer，并用 TEST\_ONLY 验证 atomic state；
+  \item 建立 capture fence、display fence 和 buffer 回收状态机。
 \end{enumerate}
 
-不能在提交新帧后立即复用旧 framebuffer，因为显示控制器可能仍在扫描。fence 或 page-flip event 是缓冲区回收的实际边界。
+每帧的所有权流转为：
 
-\begin{lstlisting}[language=C,caption={预览管线的主循环（伪代码）}]
+\begin{enumerate}
+  \item 空闲 buffer 排入 V4L2 capture queue；
+  \item ISP 完成后 dequeue，取得 sequence、timestamp 和错误标志；
+  \item 等待 acquire fence，必要时执行受控格式或颜色转换；
+  \item 通过 DRM atomic commit 提交 framebuffer；
+  \item 等 page-flip/out-fence 完成后，把旧 buffer 重新排回 capture queue。
+\end{enumerate}
+
+\noindent\begin{minipage}{\textwidth}
+\begin{lstlisting}[language=C,caption={预览管线的有界主循环（伪代码）}]
 for (;;) {
-    struct frame f = v4l2_dequeue_capture();
-    wait_fence(f.capture_fence);
-    drm_atomic_present(f.framebuffer, f.timestamp_ns,
-                       &f.display_fence);
-    struct frame old = displayed_queue_pop_completed();
-    v4l2_queue_capture(old.buffer_index);
-    displayed_queue_push(f);
+    struct frame current = v4l2_dequeue_capture();
+    if (current.error) {
+        record_drop(current.sequence, DROP_CAPTURE_ERROR);
+        v4l2_queue_capture(current.buffer_index);
+        continue;
+    }
+    wait_fence(current.acquire_fence);
+
+    struct present_ticket ticket =
+        drm_atomic_present(current.framebuffer,
+                           current.timestamp_ns);
+
+    struct frame retired = wait_retired_frame(ticket);
+    v4l2_queue_capture(retired.buffer_index);
 }
 \end{lstlisting}
+\end{minipage}
 
-验收应检查实际 negotiated fourcc、stride、modifier、颜色范围、旋转/缩放能力和 buffer 数量。若插件或驱动偷偷插入 CPU copy，应通过 DMA-BUF inode、perf 和内存带宽计数确认。
+测试应分别覆盖 direct scanout 和必须转换的回退路径。验收至少检查 negotiated format、modifier、stride、颜色、buffer 数、首帧时间、P99 时延、丢帧原因和一万次启停后的 fd/DMA-BUF 泄漏。
 
-\section{端侧 AI 管线}
+\section{端侧 AI 的输入输出与模型契约}
 
-端侧 AI 的部署契约包括输入颜色空间、resize/crop、归一化、量化参数、tensor layout、输出语义和后处理。训练框架、CPU 参考实现与 NPU runtime 必须使用完全相同的预处理和解码规则。
+端侧 AI 部署契约不能只记录模型文件名。输入至少包括 dtype、layout、shape、颜色空间、crop/resize、letterbox、归一化、量化 scale/zero point 和对齐；输出至少包括 tensor 名称、shape、量化、坐标系、类别 schema、阈值、NMS 和无结果语义。ONNX IR 是常见的可移植图表示之一，但产品仍需独立保存运行时和业务契约\cite{onnx-ir}。
 
-摄像头帧进入 NPU 前经常发生 NV12 到 RGB、缩放和 letterbox。若这些步骤由 ISP、RGA/GPU 或 NPU 前处理单元完成，应验证取整、插值、padding 和颜色矩阵与训练一致。
+\begin{table}[H]
+  \centering
+  \caption{端侧模型 manifest 的关键字段}
+  \begin{tabular}{p{30mm}p{46mm}p{38mm}p{23mm}}
+    \hline
+    类别 & 字段 & 常见不兼容 & 验证方法 \\
+    \hline
+    输入 & 颜色、layout、shape、量化与 padding & 颜色通道、张量布局或取整差异 & gold tensor 对比 \\
+    输出 & tensor 语义、坐标、类别和阈值 & head 顺序或 label 漂移 & 参考解码差分 \\
+    运行时 & backend、算子、内存和并发限制 & 转换器或固件版本变化 & 目标运行时测试 \\
+    硬件 & SoC、NPU revision、频率和内存要求 & 同名芯片变型能力不同 & 能力探测与准入 \\
+    来源 & 训练、转换工具、摘要和签名 & 文件可追踪但语义未知 & manifest 与产物绑定 \\
+    \hline
+  \end{tabular}
+\end{table}
 
-端侧系统不仅测模型推理时间，还要测：
-\begin{itemize}
-  \item 从曝光完成到业务结果可用的端到端延迟；
-  \item 预处理、推理、后处理和跨核传输的分项时间；
-  \item DDR 带宽、峰值内存、热降频和持续帧率；
-  \item 量化模型与参考模型的数值及任务指标差异；
-  \item 阈值、跟踪、丢帧和业务状态机的系统级质量。
-\end{itemize}
+预处理常由 ISP、GPU、RGA 或 NPU 内部单元执行。必须用固定 gold image 对 CPU 参考实现和硬件实现逐元素比较 resize、插值、颜色矩阵、letterbox、padding 和量化结果；只比较最终检测框会掩盖相互抵消的错误。
 
-模型 manifest 应记录输入输出 ABI、量化、类别语义、转换工具、目标 runtime 和兼容硬件。模型更新若改变 tensor ABI，必须与应用或解码器原子升级。
+后处理也属于部署 ABI。坐标是否归一化、边界是闭区间还是半开区间、角度单位、关键点可见度、NMS 类别策略和 top-k 都要版本化。模型更新改变 tensor ABI 时，应与解码器和业务规则原子升级。
+
+质量验收既要比较 framework、portable runtime 和 NPU artifact 的数值，也要比较最终任务指标和困难切片。模型评估不能被少量演示图或单次推理时间替代。
 
 \section{实践管线二：摄像头到 NPU}
 
-Camera-to-NPU 管线需要把采集、预处理、推理、后处理和显示分成受控阶段。推荐使用有界 buffer pool 和 frame token，而不是每帧动态分配对象。
+Camera-to-NPU 管线应把采集、预处理、推理、后处理和发布分成有界阶段。推荐使用固定 buffer pool 和 frame token，而不是每帧动态分配对象。
 
+\noindent\begin{minipage}{\textwidth}
 \begin{lstlisting}[language=C++,caption={端侧视觉管线的有界调度（伪代码）}]
 capture.on_frame([](FrameToken frame) {
     if (!preprocess_queue.try_push(std::move(frame)))
@@ -142,49 +305,155 @@ capture.on_frame([](FrameToken frame) {
 });
 
 preprocess_worker.run([](FrameToken frame) {
-    TensorToken input = accelerator_preprocess(frame, model.input_spec());
-    inference_queue.push({std::move(frame), std::move(input)});
+    TensorToken input =
+        accelerator_preprocess(frame, model.input_spec());
+    if (!inference_queue.try_push(
+            {std::move(frame), std::move(input)}))
+        metrics.drop(DropReason::InferenceBackpressure);
 });
 
 inference_worker.run([](InferenceJob job) {
     OutputTensor out = npu.run(job.input, model);
     Result result = reference_decoder.decode(out);
-    publish_result(job.frame.timestamp(), result);
+    publish_result(job.frame.identity(), result);
 });
 \end{lstlisting}
+\end{minipage}
 
-队列满时应按业务选择丢弃最旧帧、最新帧或降低采集率。实时视频分析通常优先处理最新帧，避免模型在积压数据上持续工作；证据采集系统则可能要求不丢帧并触发上游背压。
+frame token 应携带 source ID、sequence、capture timestamp、buffer generation、crop/rotation、calibration version 和 model generation。业务结果必须回指原始 token，不能只带一个“当前检测结果”。
 
-预处理验收使用固定 gold image，同时运行 CPU 参考实现和硬件实现，对 resize、letterbox、颜色变换与量化后的 tensor 逐元素比较。推理验收除了数值误差，还要比较最终检测、分类或关键点指标。
+队列满时应按场景选择丢弃最旧帧、最新帧或降低采集率。实时控制通常优先最新帧；证据录像可能要求不丢帧并暂停非关键推理；多目标跟踪还要通知 tracker 哪些 sequence 被跳过。
 
-端到端 trace 应为每帧记录曝光、ISP 完成、预处理开始/结束、NPU 提交/完成、后处理和显示时间。只有这样才能区分模型慢、DDR 拥塞、队列积压和显示同步导致的延迟。
+端到端 trace 为每帧记录曝光或采集、ISP 完成、预处理、NPU 排队/完成、后处理和业务发布。恢复测试覆盖摄像头断流、NPU 超时、模型加载失败、buffer 泄漏、动态分辨率和加速器复位。复位后所有在途 job 必须以明确错误完成。
 
-恢复测试应覆盖摄像头断流、NPU 超时、模型加载失败、buffer 泄漏、动态分辨率变化和热降频。局部加速器复位后，所有在途 token 必须以明确错误完成，不能悬挂等待者。
+\section{多模型并发、加速器调度与资源隔离}
 
-\section{RISC-V 扩展主题}
+NPU、GPU 或 DSP 常由检测、分类、语音和图像增强多个模型共享。标称 TOPS 不能说明并发能力；模型切换可能重新加载权重、占用片上 SRAM、刷新 cache 或串行化 command queue。
 
-RISC-V 的价值不仅是开放指令集，还在于模块化扩展和可定制实现。工程评估应区分 ISA 规范、特权架构、SBI、平台规范和具体微架构，不能把“支持 RISC-V”视为完整兼容声明。
+调度前应为每类 job 定义周期、截止期、最坏执行时间、输入大小、优先级和可丢弃性。若加速器不支持真正抢占，长模型会阻塞短时关键任务，需要通过模型分区、独立实例、批大小限制或准入控制解决。
 
-重点扩展包括向量、位操作、压缩指令、原子操作、虚拟化、内存一致性和可信执行相关能力。软件发布必须记录实际 ISA 字符串、ABI 和最低 CPU 要求；启用某个编译选项前，应确认 Bootloader、内核、动态加载器、库和虚拟化环境均能正确保存与管理扩展状态。
-
-对端侧 AI，RISC-V Vector 可加速通用预处理和算子，但性能取决于 VLEN、内存系统、编译器和库实现。专用 NPU 仍可能承担主要推理，RISC-V 核负责调度与后处理。
-
-\section{Armv9 与系统架构演进}
-
-Armv9-A 延续 AArch64 软件生态，并引入可伸缩向量、矩阵计算和机密计算等方向。SVE/SVE2 的向量长度不可由软件假定，算法应使用向量长度无关编程模型；SME 面向矩阵密集计算，但上下文状态和调度成本需要操作系统支持\cite{armv9-guide}。
-
-Realm Management Extension 将受保护执行域扩展到传统 Normal World 与 Secure World 之外。使用机密计算时，仍需定义设备 DMA、共享内存、证明、调试和更新边界；硬件隔离不能自动保证上层协议与模型资产安全。
-
-Armv9、RISC-V 和专用加速器的选择应基于软件生态、长期供货、功耗、实时性、虚拟化、安全认证和工具链成熟度。技术书籍应分别讲清架构能力与具体芯片实现，避免以单一跑分概括平台价值。
-
-\section{系统验证清单}
+多模型资源合同至少包括：
 
 \begin{itemize}
-  \item 每个媒体接口是否明确格式、stride、颜色空间、时间戳和所有权？
-  \item DMA-BUF、IOMMU、cache 和 fence 生命周期是否覆盖异常退出？
-  \item 带宽和热稳定性是否在摄像、显示、编码和 AI 同时运行时验证？
-  \item 音视频同步是否使用共同时间域并覆盖长期漂移？
-  \item AI 预处理、量化和解码是否与参考实现逐项对齐？
-  \item ISA 扩展、ABI、内核保存状态和运行时库是否形成一致部署契约？
-  \item 新架构安全能力是否落实到 DMA、调试、更新和证明的系统边界？
+  \item 常驻和峰值模型内存、tensor pool、scratch 与 DMA 映射数；
+  \item command queue 深度、并发 context、优先级和超时语义；
+  \item DDR、互连、CPU 后处理和热预算；
+  \item 一个 job 失败、取消或超时对其他 context 的影响；
+  \item 模型加载、卸载、更新和加速器复位的原子边界。
+\end{itemize}
+
+平均推理时间较低也可能因排队产生高 P99。应在真实模型组合、摄像头帧率和热稳态下测量每个队列的等待与执行分布，并验证低优先级任务不会耗尽关键任务所需的 buffer。
+
+\section{坐标变换、跟踪与结果新鲜度}
+
+检测框和关键点通常经历 sensor crop、ISP scale、rotation、letterbox、模型坐标、显示 scale 和 UI crop。每一步都要保存可逆或可审查的变换；只用最终宽高做比例换算会在非等比缩放、旋转和 padding 下产生系统偏差。
+
+结果消息应包含 source ID、frame sequence、capture timestamp、模型和 calibration generation、坐标空间及有效期。消费者收到结果时，应判断对应视频帧是否仍在显示、控制窗口是否已过期，以及设备是否已切换模式。
+
+跟踪器必须知道输入帧是否丢失、重复或乱序。把上一帧状态无条件传播到一个时间跨度很大的新帧，会导致速度估计和关联门限失真。算法接口应显式传入 $\Delta t$ 和 discontinuity。
+
+多摄像头融合还需要曝光时刻、同步误差和外参版本。同步误差可能转化为空间误差，因此验收应同时报告时间不确定度与场景速度，而不是只比较静态标定图。
+
+\section{功耗、热稳态与 QoS}
+
+摄像头、ISP、DDR、显示、编解码和 NPU 往往由不同 clock/power domain 管理。runtime PM 或 DVFS 可以降低能耗，但唤醒和频率转换会改变首帧、队列和超时。低功耗状态与退出延迟方法见 \mbox{第~\ref{chap:low-power-system}~章}。
+
+驱动和用户空间可能通过 devfreq、interconnect bandwidth vote、CPU affinity 或 latency QoS 请求资源。请求值应来自实测预算，并在流停止后释放；永久锁定最高频率会掩盖容量问题并破坏产品功耗。
+
+性能验证必须达到热稳态。短跑 benchmark 常利用冷机、高频 boost 和空闲 DDR，不能代表持续录像加推理。记录应包含芯片温度、各 domain 频率、降频原因、风扇或散热配置和环境温度。
+
+除 FPS 和延迟外，可报告能量/帧、能量/有效推理结果和待机到首帧能量。降低帧率、分辨率、模型频率或显示刷新率时，应同时检查业务质量和恢复时间。
+
+\section{安全、隐私与受保护媒体}
+
+相机、麦克风和模型输出可能包含敏感信息。访问控制应覆盖设备节点、共享 fd、诊断导出、远程抓图和调试模式；进程能够打开摄像头不表示它可以把原始帧发送到任意目的地。
+
+压缩码流、图像 metadata 和模型文件都可能来自不可信输入。解析器和 codec 服务应有长度、尺寸、引用帧数、内存和执行时间上限，并尽量运行在受限进程。损坏 bitstream 不应触发无界分配或永久占住硬件队列。
+
+DMA-BUF 跨越进程和设备时要控制 fd 传递、IOMMU domain 和调试接口。受保护视频或模型资产可能需要 secure heap、受保护显示路径或 TEE，但这些机制的可见性和限制必须与普通管线分开验证。可信执行边界见 \mbox{第~\ref{chap:trusted-execution-identity}~章}。
+
+崩溃转储和现场诊断默认不应包含完整音视频、tensor 或人脸特征。保留策略、脱敏、授权和删除应进入信息安全生命周期，参见 \mbox{第~\ref{chap:security-lifecycle}~章}。
+
+模型签名能够证明来源和完整性，不能证明输入输出语义与应用兼容。加载前仍要检查 manifest、硬件适用性、资源上限和防回滚策略。
+
+\section{RISC-V 扩展与端侧计算}
+
+RISC-V 的工程评估应区分 unprivileged ISA、privileged architecture、SBI、平台规范、ABI 和具体微架构，不能把“支持 RISC-V”视为完整兼容声明\cite{riscvspec,riscvpri}。
+
+向量扩展采用向量长度无关模型。软件不能假定固定 VLEN，而应根据运行时 \texttt{vl} 处理尾部；编译器支持某个 \texttt{-march} 也不表示部署 CPU、内核上下文切换和用户空间库都支持对应版本。
+
+位操作、压缩、原子、向量和虚拟化等扩展具有独立版本。发布 manifest 应记录实际 ISA string、ABI、最低 CPU、内核能力和运行时探测结果。通用镜像可以使用函数多版本或 IFUNC 类机制选择优化路径，并保留基础实现。
+
+端侧 AI 中，RISC-V Vector 适合颜色转换、resize、量化和部分算子，但性能取决于 VLEN、load/store、cache、DDR、编译器和库。专用 NPU 仍可能承担主推理，RISC-V 核负责调度、后处理和安全监控。
+
+基准测试应报告数据布局、线程数、向量长度、频率、内存位置和热状态。只比较单个算子峰值，无法说明 Camera-to-NPU 系统的持续吞吐和端到端时延。
+
+\section{Armv9、SVE/SME 与机密计算边界}
+
+Armv9-A 延续 AArch64 软件生态，并发展 SVE2、SME 和 Realm Management Extension 等能力\cite{armv9-guide}。架构特性是否存在，应通过 ID register、内核 HWCAP 和运行时库探测，不能仅由产品名称推断。
+
+SVE/SVE2 的向量长度由实现决定，算法应采用 vector-length-agnostic 循环。保存更大的向量状态会增加上下文切换成本，实时媒体线程需要结合内核策略和实际抢占负载测量尾延迟。
+
+SME 面向矩阵密集计算并引入 streaming mode 和额外状态。编译器能够生成 SME 指令不等于操作系统、调试器、性能工具和第三方库已经完整支持；软件应提供能力门槛和回退路径。
+
+RME 为 Realm 提供新的隔离域，但摄像头 DMA、共享缓冲、显示输出、证明和调试仍需要系统协议。机密计算不能自动保护进入普通设备域的明文帧，也不能替代模型接口和媒体 parser 的正确性。
+
+Armv9、RISC-V 和专用加速器的选择应基于软件生态、长期供货、功耗、实时性、虚拟化、安全认证和工具链成熟度，而不是单一跑分或架构名称。
+
+\section{生产校准、硬件变型与模型更新}
+
+摄像头产品的画质依赖 sensor mode、镜头、对焦、lens shading、坏点、白平衡和颜色矩阵；麦克风与扬声器也有增益、频响和通道映射差异。校准数据必须绑定模组序列、硬件变型、schema 和适用温度范围。
+
+同一软件可能运行在不同 sensor、panel、codec 或 NPU revision 上。设备树、固件、插件、模型、颜色配置和校准的组合需要形成兼容矩阵，启动时应拒绝不受支持的组合，而不是静默选择近似默认值。
+
+量产测试至少确认：
+
+\begin{itemize}
+  \item 摄像头枚举、目标 mode、帧率、曝光、坏点和标准色卡结果；
+  \item 显示 mode、颜色、亮度、旋转和 direct scanout 路径；
+  \item 音频通道、增益、时钟、loopback 和噪声门槛；
+  \item NPU revision、模型摘要、gold input 和最终解码结果；
+  \item 设备序列、模组、校准、软件与测试记录的追溯关系。
+\end{itemize}
+
+模型和媒体组件更新应包含兼容性检查、资源预检、候选加载、健康确认和回滚。回滚模型时还要处理 label schema、tracker 状态、阈值和云端规则，不能只替换一个二进制文件。
+
+\section{数字化验收矩阵与评审清单}
+
+项目应实例化目标帧率 $F_{target}$、最大玻璃到玻璃时延 $L_{g2g}$、AI 结果时延 $L_{ai}$、最大音画偏差 $A_{max}$、DDR 上限 $B_{max}$、温度上限 $\Theta_{max}$、恢复时间 $T_{recover}$ 和计划循环数 $N_{cycle}$。发布门中不能保留未赋值符号。
+
+\begin{table}[H]
+  \centering
+  \caption{多媒体与端侧 AI 发布验收矩阵}
+  \begin{tabular}{p{28mm}p{41mm}p{41mm}p{27mm}}
+    \hline
+    验收项 & 量化门槛 & 条件与故障场景 & 留存证据 \\
+    \hline
+    格式契约 & format、modifier、颜色和坐标不一致为零 & 全部 sensor、panel 和硬件变型 & 协商 manifest \\
+    持续吞吐 & 有效帧率 $\geq F_{target}$，丢帧均有原因 & 编解码、显示和多模型并发 & 帧 trace 与计数 \\
+    端到端时延 & P99 $L_{g2g}$、$L_{ai}$ 均不超门槛 & 冷热机、最坏队列和 DDR 负载 & 外部波形与分解 \\
+    音画同步 & 最大偏差 $\leq A_{max}$ 且长期无漂移累积 & 启停、XRUN、切流和长稳 & 音视频时间线 \\
+    资源与热 & DDR $\leq B_{max}$，温度 $\leq\Theta_{max}$ & 环境高温和持续运行 & 计数器与频率 \\
+    生命周期 & $N_{cycle}$ 次启停/切流后泄漏为零 & 热插拔、source change 和复位 & fd、buffer 与内存 \\
+    故障恢复 & 在 $T_{recover}$ 内恢复或明确降级 & 摄像头、codec、NPU 和显示故障 & 状态轨迹与错误码 \\
+    AI 一致性 & gold tensor 和任务指标满足批准容差 & 参考实现、通用运行时与 NPU & 差分与数据集报告 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+发布评审还应确认：
+
+\begin{itemize}
+  \item 每个接口是否同时声明格式、modifier、颜色、时间域、所有权和错误？
+  \item Media Controller topology 与 V4L2 实际返回值是否写入运行 manifest？
+  \item DMA-BUF、IOMMU、cache 和 fence 生命周期是否覆盖取消、复位与进程退出？
+  \item codec 的 PTS/DTS、参考帧、source change、drain 和 EOS 是否经过验证？
+  \item 音频 buffer、XRUN、主时钟和长期漂移校正是否具有外部测量证据？
+  \item 队列饱和时是否有明确的丢帧、背压和结果新鲜度策略？
+  \item AI 预处理、量化、解码、坐标和 label schema 是否与模型 manifest 一致？
+  \item 多模型调度是否控制内存、排队、截止期、热和故障传播？
+  \item 受保护媒体、敏感诊断和不可信码流是否进入安全与隐私分析？
+  \item RISC-V/Armv9 能力是否由运行时探测，并具有兼容回退路径？
+  \item 校准、硬件变型、模型与软件版本是否能够追溯到量产和现场证据？
+  \item 所有发布门槛是否填入具体数值，并关联原始波形、trace 和质量报告？
 \end{itemize}

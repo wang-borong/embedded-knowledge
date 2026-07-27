@@ -15,19 +15,21 @@
 | 实时分析与语言 | 响应时间分析、EDF、WCET、C/C++ 内存模型、Rust unsafe、原子、MMIO 与 DMA |
 | 系统软件 | Boot ROM 至 PID 1 启动链、Linux 内核与用户空间、BSP、标准子系统驱动、编译链接与程序装载 |
 | 用户空间服务 | 进程边界、Unix Socket、D-Bus、事件循环、服务管理、权限、容器与健康管理 |
-| 实时与异构 | FreeRTOS、PREEMPT_RT、CPU/IRQ 隔离、remoteproc、RPMsg、共享内存与跨核 ABI |
+| 接口与数据契约 | API/ABI、消息封装、字节序、schema 演进、幂等、背压、持久格式与兼容测试 |
+| 实时与异构 | FreeRTOS、PREEMPT_RT、实时调度与准入、IRQ/softirq、CPU/housekeeping 隔离、延迟追踪、remoteproc、RPMsg 与跨核 ABI |
 | 采样与控制 | ADC 误差、抗混叠、数字滤波、定点运算、PID、状态估计与控制安全 |
-| 系统交付 | Buildroot/Yocto、存储可靠性、掉电一致性、可复现构建、A/B OTA 与回滚 |
-| 网络与时间 | Ethernet、NAPI、CAN FD、工业网络、NTP、PTP、硬件时间戳与跨设备同步 |
-| 无线与 IoT | Wi-Fi、BLE、Thread、Matter、低功耗连接、配网、设备身份与无线量产测试 |
-| 质量与安全 | 分层调试、硬件在环、故障注入、看门狗、可靠性、可信启动、密钥与安全更新 |
+| 系统交付 | Buildroot/Yocto、只读根文件系统、MTD/UBI/UBIFS、eMMC/RPMB、fsync/flush、掉电一致性、可复现构建与 A/B OTA |
+| 网络与时间 | Ethernet 数据路径、TCP/UDP、CAN FD、TSN、Linux 时钟域、NTP/NTS、PTP/PHC、硬件时间戳与同步验收 |
+| 无线与 IoT | 链路预算与共存、Wi-Fi/BLE/Thread/Matter、MQTT/CoAP/LwM2M、设备影子、弱网恢复、安全通道与无线量产测试 |
+| 质量与安全 | 威胁建模、安全需求、可信启动、默认安全、SBOM 与供应链、PSIRT 与漏洞响应、密钥轮换、安全更新和退役处置 |
 | 现场运维 | 结构化日志、指标、分布式追踪、崩溃证据、诊断包、设备管理与分批发布 |
-| 可信计算 | TrustZone、OP-TEE、PMP、TPM、安全元件、设备身份、Measured Boot 与远程证明 |
-| 功能安全 | 危害分析、安全目标、FTTI、诊断覆盖、故障注入与安全生命周期 |
-| 多媒体与 AI | V4L2、DRM/KMS、ALSA、DMA-BUF、音视频同步、端侧 AI、Armv9 与 RISC-V 扩展 |
-| 虚拟化与隔离 | Arm EL2、RISC-V H 扩展、KVM/Xen、virtio、IOMMU、直通与混合关键性 |
-| 低功耗系统 | MCU 深睡、Linux runtime PM、suspend、CPUIdle、DVFS、异构唤醒与能量测量 |
-| 测试工程 | KUnit、kselftest、LTP、QEMU、HIL、电源循环、故障注入、长稳与工装校准 |
+| 可信计算 | TrustZone、OP-TEE、PMP、TPM、安全元件、DICE、可信存储、Measured Boot、证明证据、背书、Reference Value、隐私与验收 |
+| 功能安全 | Item/HARA、安全目标与 FTTI、FMEDA 与共因失效、免受干扰、黑通道、SEooC、Safety Case、Proof Test 和量化验收 |
+| 多媒体与 AI | Media Controller、V4L2、DRM/KMS、DMA-BUF/fence、编解码、ALSA 与音画同步、端侧 AI 契约、多模型调度、热稳态和量化验收 |
+| 虚拟化与隔离 | Arm EL2/RISC-V H、二阶段页表、vCPU 调度、虚拟时间、KVM/Xen、virtio、VFIO/IOMMU、设备直通、混合关键性与量化验收 |
+| 性能与容量 | SLO、分位数、排队、CPU/PMU、内存与 DDR、I/O、热稳态、容量预算与回归门 |
+| 低功耗系统 | 功耗与能量预算、状态收支、MCU 深睡与 Tickless、Linux runtime PM/suspend、CPUIdle/DVFS、异构唤醒、板级漏电与波形验收 |
+| 测试工程 | KUnit、kselftest、LTP、软件在环、QEMU、FVP、HIL、电源循环、故障注入、长稳与工装校准 |
 | 二进制工程 | 目标 ABI、链接脚本、启动代码、LTO、ELF/DWARF、二进制分析与可复现构建 |
 | 电路与器件 | 电路基础、半导体器件、运算放大器、集成电路、FPGA、常见外设协议 |
 | 硬件工程 | 电源树与时序、时钟复位、DDR、接口保护、模拟信号链、PCB、EMC 与制造输出 |

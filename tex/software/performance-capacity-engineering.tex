@@ -1,0 +1,314 @@
+\chapter{性能与资源容量工程}
+\label{chap:performance-capacity-engineering}
+
+性能工程不是在开发末期运行一次 benchmark，而是把响应延迟、吞吐、CPU、内存、带宽、功耗和热约束转换成可分配预算，再用可复现负载持续验证。平均速度足够快的系统仍可能因长尾、突发排队、内存压力或热降频在现场失效。
+
+实时分析关心截止期和可证明上界，参见第~\ref{chap:realtime-language-memory-model}~章；性能与容量工程更广泛地研究工作负载、资源需求、排队和服务质量。两者必须共享测量条件：不能用平均吞吐证明硬实时，也不能只看单任务 WCET 而忽略系统容量。
+
+\section{建立指标词汇}
+
+常用性能量必须严格区分：
+
+\begin{description}
+  \item[延迟 latency] 单个事务从定义的起点到终点经历的时间；
+  \item[响应时间] 通常包含排队和服务时间，起点必须说明是请求产生、进入进程还是到达设备；
+  \item[吞吐 throughput] 单位时间成功完成的工作量，不应把失败请求计为有效吞吐；
+  \item[并发 concurrency] 同时在系统内等待或执行的工作数量；
+  \item[利用率 utilization] 资源忙碌时间占观察窗口的比例；
+  \item[饱和 saturation] 资源无法立即服务而形成的队列、节流或等待；
+  \item[抖动 jitter] 延迟或周期相对期望值的变化；
+  \item[容量 capacity] 在满足质量门槛时可承载的最大规定负载；
+  \item[裕量 headroom] 目标上限与最坏已验证使用量之间的余量。
+\end{description}
+
+“CPU 只用了 50\%”不能单独证明有 50\% 裕量：可能有一个核已饱和、内存带宽已满、IRQ 被固定到同一 CPU，或任务在等待设备。资源利用率必须与排队和业务结果一起解释。
+
+\section{工作负载模型}
+
+性能结论只对所测工作负载有效。测试计划应定义：
+
+\begin{itemize}
+  \item 请求到达率、突发长度、并发连接和优先级；
+  \item payload 大小、压缩率、媒体分辨率、采样率和模型输入；
+  \item 读写比例、命中率、设备状态和数据分布；
+  \item 前台业务与日志、OTA、诊断、扫描等后台任务的组合；
+  \item 冷启动、热缓存、稳态、恢复和低功耗唤醒阶段；
+  \item 硬件 SKU、核数、频率、内存、存储和环境温度；
+  \item 网络 RTT、丢包、对端限速和时钟同步条件。
+\end{itemize}
+
+只使用均匀随机输入会遗漏真实业务中的热点、相关性和突发。现场 trace 可以提取代表性分布，但必须脱敏，并保留合成边界场景来覆盖尚未出现的最大合法输入。
+
+\section{从产品目标到性能 SLO}
+
+“界面流畅”或“处理及时”应转换成带条件的服务级目标（Service Level Objective, SLO），例如：在规定温度、业务组合和网络条件下，触控到首帧变化的 P99 小于 100\,ms，且 10 分钟窗口内丢帧率低于 0.1\%。
+
+一个完整 SLO 应包含：
+
+\begin{itemize}
+  \item 事务起点、终点和使用的时钟；
+  \item 目标分位数或截止期、统计窗口和最小样本量；
+  \item 成功、失败、取消和超时的计数规则；
+  \item 适用负载、硬件、温度、功耗模式和软件配置；
+  \item 预热、缓存、重试与异常值的处理方法；
+  \item 超过门槛时的降级、限流或拒绝策略。
+\end{itemize}
+
+容量不是让系统运行到崩溃时的最大数字，而是在这些 SLO 仍成立时的最大负载。
+
+\section{端到端预算分解}
+
+一个事务的墙上时间可以按路径近似分解为：
+
+\begin{equation}
+  T_{e2e}=T_{queue}+T_{cpu}+T_{memory}+T_{io}+T_{device}+T_{network}
+\end{equation}
+
+若阶段并行或重叠，这个式子只是归因框架，不能机械相加。预算表应记录每段目标、当前 P50/P99/最大值、负载条件和责任模块，并保留尚未解释的 gap。
+
+端到端 trace 应使用 transaction ID 关联应用、内核、远端核和设备事件。只在函数入口与出口打点，可能看不到调度等待、IRQ 延迟、DMA 完成和设备内部时间。
+
+优化局部阶段前应确认它确实影响端到端目标。若某阶段占比为 $p$，加速倍数为 $s$，理想总加速受 Amdahl 定律限制：
+
+\begin{equation}
+  S=\frac{1}{(1-p)+p/s}
+\end{equation}
+
+忽略排队、同步和资源竞争时，该式仍然偏乐观。
+
+\section{分位数与长尾}
+
+均值会掩盖少量严重卡顿。嵌入式交互、控制和网络服务通常至少报告 P50、P90、P99、P99.9 与最大值，并保存 histogram。大规模系统的用户体验往往由最慢组件和最慢请求决定\cite{dean-barroso-tail-2013}。
+
+使用分位数时要注意：
+
+\begin{itemize}
+  \item 各阶段 P99 之和不等于端到端 P99，阶段可能相关或并行；
+  \item 最大值随测试时长和样本数增加，比较时必须固定观察条件；
+  \item P99.9 需要足够样本，少量请求无法稳定估计稀有尾部；
+  \item 丢弃超时请求会人为改善延迟分布，必须同时报告失败率；
+  \item histogram bucket 太粗会隐藏门槛附近变化，应保存原始或高动态范围数据；
+  \item 时钟回退、跨设备未同步和低分辨率时间戳会破坏结果。
+\end{itemize}
+
+报告“最大延迟 20\,ms”还应链接触发该样本的 trace、输入、CPU、温度和队列状态，否则最大值无法用于定位。
+
+\section{避免 coordinated omission}
+
+闭环压测器常在收到响应后才发送下一请求。当系统暂停 1 秒时，压测器也停止产生本应到达的请求，于是只记录一个慢请求，遗漏暂停期间的排队，这称为 coordinated omission。
+
+若真实业务按外部时钟产生事件，负载发生器也应按独立计划发送或至少记录每个请求原定发出时间。系统过载时，未发送、被拒绝、排队和超时的请求都属于结果。
+
+闭环模型仍适合“用户完成一次操作后才开始下一次”的场景。关键不是固定使用开环或闭环，而是使负载模型与真实到达过程一致，并明确客户端自身是否成为瓶颈。
+
+\section{排队、背压与 Little 定律}
+
+在稳定系统中，Little 定律给出平均在途工作量 $L$、平均到达率 $\lambda$ 和平均停留时间 $W$ 的关系\cite{little-1961}：
+
+\begin{equation}
+  L=\lambda W
+\end{equation}
+
+例如系统稳定处理 200 个事务每秒，平均响应时间为 50\,ms，则平均约有 10 个事务位于系统中。该关系适合交叉检查测量，但不能给出尾延迟，也要求观察窗口内系统近似稳定且边界一致。
+
+资源利用率接近饱和时，轻微抖动就可能造成队列快速增长。工程策略包括：
+
+\begin{itemize}
+  \item 为队列、连接、worker 和 DMA buffer 设置硬上限；
+  \item 在入口尽早拒绝超过容量且已经过期的工作；
+  \item 对控制、交互、批处理和遥测使用不同优先级与配额；
+  \item 传播 backpressure，而不是在下游继续堆积；
+  \item 同时监控 queue depth、oldest age、drop 和 service time；
+  \item 验证过载解除后能否在规定时间内恢复，而非长期处理陈旧积压。
+\end{itemize}
+
+加大队列只能吸收有限突发，不能提高稳态服务率。过大的网络、媒体或存储队列还会形成 bufferbloat，牺牲交互延迟换取表面上的低丢包。
+
+\section{CPU 与调度分析}
+
+CPU 时间应区分用户态、内核态、IRQ、softirq、steal/虚拟化和 idle。总体利用率不足以定位问题，还要观察每核负载、运行队列、迁移、优先级反转和频率。
+
+硬件 PMU 可以测量 cycle、instruction、cache miss、branch miss 和架构专用事件。解释计数器时应注意：
+
+\begin{itemize}
+  \item CPI/IPC 取决于微架构和工作负载，不能跨处理器直接比较；
+  \item PMU 事件可能 multiplex，工具输出是缩放估计；
+  \item speculative event 不一定等于最终提交操作；
+  \item 动态频率使 cycle 与墙上时间关系变化；
+  \item 采样调用栈需要匹配符号、unwind 信息和镜像；
+  \item profile 构建、插桩和采样频率会改变性能。
+\end{itemize}
+
+热点函数不一定是根因。线程若大部分时间等待锁或 I/O，CPU profile 可能只显示少量唤醒代码；应结合 off-CPU、调度和锁 trace。
+
+\section{Cache、内存与互连带宽}
+
+内存性能由工作集、访问局部性、cache/TLB、预取、NUMA/cluster 拓扑和共享互连共同决定。降低指令数却增加随机内存访问，可能使整体更慢。
+
+应测量：
+
+\begin{itemize}
+  \item 各级 cache/TLB miss 和工作集越界点；
+  \item DDR 读写带宽、效率和不同 master 的占用；
+  \item CPU、GPU、NPU、显示、摄像头与 DMA 的并发争用；
+  \item buffer stride、对齐、格式转换和复制次数；
+  \item 共享 cache line 的伪共享和跨 cluster 迁移；
+  \item cache maintenance 与 IOMMU 映射的固定和按帧成本。
+\end{itemize}
+
+理论 DDR 带宽不能作为可用业务预算。刷新、bank 冲突、读写切换、协议开销和仲裁都会降低效率。容量测试必须包含最坏合法并发数据流，并在芯片支持时使用内存控制器或互连 PMU 归因。
+
+\section{内存容量与碎片}
+
+内存容量分析不仅是 RSS。Linux 系统还包括 page cache、slab、页表、共享库、tmpfs、匿名页、压缩内存、CMA/DMA buffer 和设备私有内存。PSS 有助于分摊共享映射，cgroup 可观察服务组，但仍需结合子系统统计。
+
+重点指标包括：
+
+\begin{itemize}
+  \item 启动峰值、稳态、功能峰值和故障恢复峰值；
+  \item 分配失败、reclaim、major fault、swap/zram 和 OOM；
+  \item 长稳后的不可回收增长、cache 上限和碎片；
+  \item CMA 最大连续块、DMA heap 与图形/媒体 buffer 生命周期；
+  \item 线程栈数量、最大深度和 guard page；
+  \item 内存压力下的业务延迟与降级，而不只检查是否存活。
+\end{itemize}
+
+MCU 应为每个任务和 ISR 嵌套建立栈预算，使用 high-water mark 只能证明已执行路径。堆测试要覆盖分配顺序和长期碎片；硬实时路径更适合静态池、对象 slab 或初始化后禁止动态分配。
+
+Linux Pressure Stall Information（PSI）报告 CPU、内存和 I/O 压力造成的等待比例，能够比单纯利用率更早显示资源竞争\cite{linux-psi}。
+
+\section{存储、网络与设备 I/O}
+
+I/O 性能应同时记录吞吐、单次延迟、queue depth、请求大小和 durability 语义。把 buffered write 与完成 \texttt{fsync()} 的事务混为一谈，会严重低估持久化延迟。
+
+存储测试要覆盖：
+
+\begin{itemize}
+  \item 顺序/随机、读/写、同步/异步和不同 block 大小；
+  \item 文件系统接近满载、GC、磨损均衡和后台 flush；
+  \item 日志、数据库、OTA 与业务并发；
+  \item 掉电恢复后数据不变量，而非只比较 MB/s；
+  \item 设备老化、温度和 SLC cache 耗尽后的稳态。
+\end{itemize}
+
+网络测试要区分应用有效载荷、协议吞吐和链路速率，并观察 RTT、重传、丢包、socket buffer、qdisc 与 NIC ring。批处理和大 buffer 能提高吞吐，但可能增加小控制包的等待。
+
+设备 I/O 还应测量命令提交到硬件生效的端到端延迟。驱动函数快速返回只表示请求已入队，不代表马达、显示、存储或传感器已经完成动作。
+
+\section{启动与首个可用结果}
+
+启动性能应按用户可见目标定义，例如上电到安全输出、首个传感器样本、网络可管理或首帧显示。进程创建、socket 监听和核心功能 ready 是不同里程碑。
+
+启动 trace 可分解为：
+
+\begin{itemize}
+  \item Boot ROM、DRAM、平台固件和 Bootloader；
+  \item 内核解压、驱动 probe、rootfs 和 init；
+  \item 服务依赖、设备校准、网络和应用初始化；
+  \item 首次 shader/model/cache 构建和数据迁移；
+  \item 故障后的 fsck、回滚和恢复路径。
+\end{itemize}
+
+并行启动只有在资源和依赖允许时才有收益。多个服务同时读取慢存储或争用 CPU，可能降低单项时间却恶化总完成时间和峰值功耗。优化后还要验证日志、诊断和失败顺序没有丢失。
+
+\section{功耗、温度与持续性能}
+
+短时 benchmark 可能运行在最高频率和低温状态，无法代表密闭外壳中的持续性能。测试应运行到温度和频率达到稳态，并记录 DVFS、thermal throttling、风扇或散热策略。
+
+性能/能量常用单位包括每事务能量、每帧能量和完成固定工作所需总能量。降频会降低瞬时功率，却可能延长工作时间；race-to-idle 是否更省电取决于漏电、外围器件和睡眠进入成本。
+
+电池设备还要考虑内阻、低电量电压跌落和无线发射峰值。容量门槛应同时满足响应、热和电源约束，不能以超过产品功耗模式的方式获得性能通过。
+
+\section{工具与证据组合}
+
+工具选择应从问题出发\cite{systems-performance-2e}：
+
+\begin{table}[H]
+  \centering
+  \caption{性能问题与常用证据}
+  \begin{tabular}{p{34mm}p{96mm}}
+    \hline
+    问题 & 证据与工具 \\
+    \hline
+    MCU 周期与中断 & DWT cycle counter、ITM/ETM、GPIO 脉冲、逻辑分析仪 \\
+    Linux CPU 热点 & perf stat/record、PMU、符号化调用栈 \\
+    调度与 IRQ 长尾 & ftrace、trace-cmd、rtla、sched/irq tracepoint \\
+    锁与 off-CPU & lock trace、BPF、调度等待和阻塞调用栈 \\
+    内存压力 & smaps/PSS、cgroup、PSI、vmstat、slab 与 DMA heap 统计 \\
+    存储与网络 & blktrace/iostat、socket/qdisc/NIC 统计、抓包和硬件时间戳 \\
+    DDR/互连争用 & 内存控制器、互连、GPU/NPU/媒体 PMU 与供应商 trace \\
+    功耗与热 & 电源分析仪、电流采样、片上温度、频率和 throttling 事件 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+任何单一工具都有盲区。采样 profile 适合找高 CPU 占比，trace 适合还原因果与长尾，硬件仪器用于校验真实外部时间和功耗。关键结论应至少由业务时间戳和一种更底层证据互相印证。
+
+\section{可复现 benchmark}
+
+一次可比较测试至少固定：源码与镜像摘要、编译选项、硬件版本、内核、Device Tree、频率策略、环境温度、负载数据、持续时间、预热和随机种子。
+
+推荐流程为：
+
+\begin{enumerate}
+  \item 在测试前检查设备空闲状态、温度、存储剩余和后台服务；
+  \item 先执行 smoke run，确认指标与 trace 完整；
+  \item 分别运行冷态、预热后和热稳态场景；
+  \item 重复多轮并随机化候选/基线顺序，降低时间漂移影响；
+  \item 保存每轮原始样本、失败、系统指标和环境信息；
+  \item 报告分布、效应大小和置信区间，而不只给平均提升百分比；
+  \item 在发布配置和真实目标板复验诊断构建中发现的改进。
+\end{enumerate}
+
+benchmark 工具自身也要校准。负载发生器 CPU、日志输出、网络接口和时钟可能先达到上限；测试开始前应证明测量端具有足够裕量。
+
+\section{优化顺序与正确性护栏}
+
+推荐优化顺序是：
+
+\begin{enumerate}
+  \item 删除不必要工作、轮询、复制和格式转换；
+  \item 改进算法复杂度与数据结构；
+  \item 减少跨进程、跨核和设备往返；
+  \item 调整批处理、缓存、布局和 I/O 大小；
+  \item 在有界条件下增加并行和异步流水；
+  \item 使用 SIMD、GPU、DSP、NPU 或专用硬件；
+  \item 最后再做难维护的低级微优化。
+\end{enumerate}
+
+每次优化都要保持功能、数值误差、实时、安全、功耗和恢复不变量。缓存可能返回过期数据，批处理会增加首项等待，并行会改变顺序，零拷贝会延长 buffer 所有权，关闭检查可能扩大安全风险。
+
+\section{容量预算与回归门}
+
+容量表应同时管理 CPU、RAM、Flash、DDR、网络、存储 IOPS/寿命、功耗和热。每个资源记录目标上限、正常峰值、故障峰值、裕量、测量方法和所有者。
+
+Linux cgroup v2 可用于实施部分 CPU、内存和 I/O 资源策略，但限制机制不是容量设计的替代品\cite{linux-cgroup-v2}。服务被节流或 OOM kill 后的业务行为仍需定义。
+
+性能回归门应：
+
+\begin{itemize}
+  \item 使用固定基线硬件与可追溯镜像；
+  \item 区分统计噪声与具有产品意义的退化；
+  \item 同时检查延迟、吞吐、错误率、资源和功耗；
+  \item 对易波动指标使用多轮与趋势，而不是单次硬阈值；
+  \item 超限时自动保存 profile/trace 和最慢样本上下文；
+  \item 在共享实验室中把基础设施失败与产品失败分开；
+  \item 对硬件、模型、编译器或内核升级重新建立基线。
+\end{itemize}
+
+优化后的平均值改善不能抵消 P99、内存峰值或功耗越界。发布决策应以预先定义的多维预算为准。
+
+\section{性能验收清单}
+
+\begin{itemize}
+  \item 每个指标是否定义起点、终点、时钟、负载和成功语义？
+  \item 容量是否定义为满足 SLO 的最大负载，而不是崩溃边界？
+  \item 是否同时保存分位数、最大值、错误率和最慢样本 trace？
+  \item 压测器是否避免 coordinated omission，并证明自身不是瓶颈？
+  \item 队列、并发、worker 和 buffer 是否有界并具有背压？
+  \item CPU、cache、DDR、DMA、存储、网络和设备时间是否能分层归因？
+  \item 内存统计是否覆盖 page cache、slab、CMA/DMA、栈和碎片？
+  \item 性能是否在冷态、热稳态、低电量和后台并发下验证？
+  \item benchmark 是否冻结镜像、配置、环境、数据和原始证据？
+  \item 回归门是否同时保护延迟、吞吐、资源、功耗和正确性？
+\end{itemize}

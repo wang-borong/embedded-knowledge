@@ -1,100 +1,375 @@
 \chapter{嵌入式虚拟化与系统隔离}
 \label{chap:virtualization-isolation}
 
-虚拟化使多个操作系统共享处理器，同时隔离 CPU、内存、中断和设备。嵌入式系统采用虚拟化通常是为了安全域分离、旧软件复用、混合关键性或故障 containment，而不是提高单一应用性能。
+虚拟化使多个操作系统共享处理器，同时隔离 CPU、内存、中断和设备。嵌入式系统采用虚拟化通常是为了安全域分离、旧软件复用、混合关键性、故障 containment 或产品线整合，而不是提高单一应用性能。
 
-\section{虚拟化与 AMP 的区别}
+工程上的核心不是“能够启动几个 guest”，而是建立可验证的资源契约：每个执行域拥有哪些 CPU、内存、设备和时间预算，哪些资源允许共享，故障和更新如何收敛，以及管理域失效时关键功能能否保持安全状态。
 
-AMP 把物理核和设备静态分配给不同固件，各执行域通常知道平台的物理布局；虚拟化由 hypervisor 为 guest 提供虚拟 CPU、内存和设备，并截获特权操作。二者可以组合：Linux guest 使用虚拟设备，同时独立实时核运行 FreeRTOS。
+\section{系统目标、边界与证据}
 
-若系统只需要一个 Linux 和一个固定实时核，remoteproc/OpenAMP 往往比引入完整 hypervisor 更简单。需要运行多个通用 OS、强隔离或旧 guest 时，虚拟化价值更明显。
+引入 hypervisor 会增加启动链、调度层次、地址转换、虚拟设备和更新组合。项目应先说明它关闭了什么系统风险，再选择实现。若目标只是隔离两个普通应用，Linux process、namespace、cgroup 和 LSM 往往更简单；若目标是复用独立 OS、强制硬件分区或运行混合关键性软件，虚拟化才可能值得。
 
-\section{处理器虚拟化支持}
+\begin{table}[H]
+  \centering
+  \caption{嵌入式虚拟化需求的最小契约}
+  \begin{tabular}{p{26mm}p{38mm}p{39mm}p{33mm}}
+    \hline
+    目标 & 必须声明的边界 & 主要失效场景 & 典型证据 \\
+    \hline
+    空间隔离 & CPU、内存、MMIO、DMA 和调试权限 & 越权映射、恶意 DMA、残留共享页 & 页表/IOMMU 清单 \\
+    时间隔离 & vCPU、IRQ、设备和共享资源预算 & 宿主抢占、中断风暴、DDR 干扰 & 外部波形和 trace \\
+    故障收敛 & guest、管理域和设备的复位边界 & guest 崩溃、设备挂死、hypervisor 异常 & 注入恢复轨迹 \\
+    兼容升级 & 虚拟平台、ABI、配置和镜像组合 & 独立升级后无法启动或错误回滚 & 兼容矩阵 \\
+    安全运维 & 管理接口、日志、转储和调试授权 & 越权控制、跨域泄漏、证据丢失 & 审计记录 \\
+    \hline
+  \end{tabular}
+\end{table}
 
-Arm 使用 EL2 提供 stage-2 地址转换、中断虚拟化和 trap 控制；RISC-V H 扩展提供 HS/VS 模式和二阶段地址转换。具体实现还取决于 GIC/IMSIC、SMMU/IOMMU 和定时器虚拟化。
+威胁模型至少覆盖恶意或损坏 guest、管理域被攻陷、设备固件异常、DMA 越权、共享资源耗尽和物理调试接口。故障模型还要覆盖时钟、电源、热降频、设备复位和升级中断；安全攻击与随机故障可能经过同一共享资源传播，但检测与处置策略并不相同。
 
-guest 的虚拟地址先经 stage-1 转换为 guest physical address，再由 stage-2 转换为 host physical address。TLB、页表和 VMID 管理错误会造成跨域访问或严重性能问题。
+\section{虚拟化、AMP、容器与可信执行的选择}
 
-\section{Hypervisor 架构}
+AMP 把物理核、内存和设备静态分配给不同固件，各执行域通常知道平台的物理布局；虚拟化由 hypervisor 为 guest 提供虚拟 CPU、地址空间和设备，并截获特权操作。二者可以组合：Linux guest 使用虚拟设备，独立实时核通过 remoteproc/OpenAMP 管理，hypervisor 只隔离通用 OS 域。
 
-常见模型包括：
-\begin{description}
-  \item[Type-1] hypervisor 直接运行在硬件上，guest 位于其上；
-  \item[Type-2] VMM 作为宿主操作系统进程运行；
-  \item[静态分区] 启动时固定分配 CPU、内存和设备，运行时调度较少；
-  \item[动态虚拟化] 支持 vCPU 调度、内存 overcommit 和丰富虚拟设备。
-\end{description}
+\begin{table}[H]
+  \centering
+  \caption{常见隔离机制的工程取舍}
+  \begin{tabular}{p{27mm}p{35mm}p{36mm}p{38mm}}
+    \hline
+    机制 & 主要优势 & 主要边界 & 适用场景 \\
+    \hline
+    进程或容器 & 工具成熟、共享内核开销低 & 内核属于共同 TCB & 同一 Linux 内的服务隔离 \\
+    AMP & 物理资源清楚、实时路径短 & 平台耦合和跨核协议较多 & 固定 Linux 加实时核 \\
+    虚拟化 & 可运行独立 OS 并强制二级映射 & hypervisor 和设备模型复杂 & 多 OS、旧系统和强分区 \\
+    TEE & 适合保护密钥和小型可信服务 & 不适合承载完整高吞吐系统 & 高价值操作与可信身份 \\
+    \hline
+  \end{tabular}
+\end{table}
 
-KVM 适合利用 Linux 作为资源管理宿主；Xen 提供独立 hypervisor 和 domain 模型；Jailhouse 等静态分区方案强调已启动系统的资源隔离。选择应基于安全模型、实时性、设备支持和维护生态。
+如果系统只需要一个 Linux 和一个固定实时核，remoteproc/OpenAMP 往往比完整 hypervisor 更简单，参见 \mbox{第~\ref{chap:heterogeneous-multicore}~章}。TEE、PMP 和安全元件解决的是另一组可信边界，参见 \mbox{第~\ref{chap:trusted-execution-identity}~章}。架构评审应允许组合这些机制，但每一层都必须有独立且不重复计算的安全目标。
 
-\section{CPU 与调度隔离}
+\section{处理器虚拟化能力与平台清单}
 
-vCPU 可以独占物理 CPU，也可以由 hypervisor 调度。共享 CPU 会引入调度延迟和缓存干扰；独占 CPU 仍会受到共享 LLC、内存控制器、中断和电源管理影响。
+Arm A-profile 使用 EL2 提供 trap 控制、stage-2 地址转换、虚拟定时器和中断虚拟化；RISC-V H 扩展使用 HS/VS 模式、\texttt{hgatp} 和二阶段地址转换支持 guest。具体能力仍取决于处理器版本、GIC 或 AIA/IMSIC、SMMU/IOMMU、计时器、调试和固件实现\cite{armrefman,riscvpri}。
 
-实时 guest 需要固定 vCPU、物理 IRQ、内存和设备，并限制宿主在同一 CPU 上执行 housekeeping 工作。实时性必须测量从物理中断到 guest handler 和最终输出的完整路径。
+“CPU 支持虚拟化”不是完整平台声明。产品能力清单至少记录：
 
-\section{内存与 DMA 隔离}
-
-stage-2 页表限制 CPU 访问，IOMMU/SMMU 限制设备 DMA。设备直通时，hypervisor 必须把设备 stream ID 绑定到对应 guest 地址空间，并处理 reset、错误中断和移除。
-
-共享内存应作为显式授权区域映射到双方，具有固定协议和所有权。不能因为两个 guest 都能访问某段内存，就假定它具备同步与安全语义。
-
-\section{中断虚拟化}
-
-物理中断可以由 hypervisor 捕获后注入虚拟中断，也可以通过硬件辅助直接投递 guest。直接注入降低延迟，但增加资源配置和恢复复杂度。
-
-一个直通设备的全部中断、DMA、MMIO、时钟和复位通常应归同一 guest。只直通 MMIO 而由宿主持有 reset 或电源管理，会形成跨域隐式依赖。
-
-\section{设备模型}
-
-设备可以采用 emulation、paravirtualization 或 passthrough：
 \begin{itemize}
-  \item 模拟设备兼容性好，但 trap 和仿真开销大；
-  \item virtio 等半虚拟设备提供标准高效接口；
-  \item 直通设备性能与确定性较好，但迁移和共享困难；
-  \item mediator 在多个 guest 之间受控复用真实设备，复杂度最高。
+  \item 支持的地址位宽、stage-2 页粒度、VMID 数量和大页能力；
+  \item 虚拟中断控制器版本、直接注入能力、MSI 路径和优先级位数；
+  \item 虚拟 counter/timer、频率、跨核同步和 suspend 行为；
+  \item SMMU/IOMMU stream ID、上下文数、页粒度、fault reporting 和中断重映射；
+  \item cache、内存控制器、带宽 QoS、RAS、调试认证和复位域；
+  \item 启动固件是否把 EL2/HS 所需资源保留给 hypervisor，并阻止 guest 重配置。
 \end{itemize}
 
-virtio queue 仍依赖共享内存、descriptor、通知和内存顺序。恶意 guest 提供的 descriptor 地址和长度必须由 VMM 完整验证。
+同名 SoC 的不同 revision 可能改变 IOMMU、GIC、核数或 errata。能力应由固件描述和运行时探测共同确认，并写入启动 manifest；不能只用市场型号推断可用虚拟化特性。
 
-\section{启动与设备树}
+\section{二阶段地址转换、TLB 与 VMID 生命周期}
 
-Hypervisor 应为每个 guest 构造只包含其可见 CPU、内存、IRQ 和设备的 Device Tree 或 ACPI 表。guest 不应看到无权访问的保留内存和控制寄存器。
+guest 虚拟地址先经 guest stage-1 页表转换为 intermediate physical address 或 guest physical address，再由 hypervisor stage-2 页表转换为 host physical address。
 
-启动镜像需要绑定 hypervisor、guest、虚拟硬件配置和资源分区。单独升级 guest 内核时，必须保持 virtio ABI、Device Tree 和安全策略兼容。
+\begin{center}
+\begin{tikzpicture}[node distance=5mm]
+  \tikzset{addr/.style={draw=bookline,fill=bookpaper,rounded corners=1mm,
+    minimum width=23mm,minimum height=9mm,align=center,font=\small}}
+  \node[addr] (gva) {Guest VA};
+  \node[addr,right=of gva] (s1) {Guest\\stage-1};
+  \node[addr,right=of s1] (gpa) {IPA/GPA};
+  \node[addr,right=of gpa] (s2) {Hypervisor\\stage-2};
+  \node[addr,right=of s2] (hpa) {Host PA};
+  \draw[->,bookteal] (gva)--(s1);
+  \draw[->,bookteal] (s1)--(gpa);
+  \draw[->,bookteal] (gpa)--(s2);
+  \draw[->,bookteal] (s2)--(hpa);
+\end{tikzpicture}
+\end{center}
 
-\section{混合关键性与故障隔离}
+stage-2 决定 guest 能否访问一段 RAM 或 MMIO，但不会自动限制设备 DMA。页表更新还必须与 TLB、页表 walker、其他物理 CPU 和设备侧 IOTLB 协调。撤销映射时，应先停止新访问，等待在途访问结束，更新页表并执行规定失效操作，确认目标 CPU/设备完成后再复用物理页。
+
+VMID 允许 TLB 同时缓存多个 guest 的转换。VMID 复用前必须完成架构要求的失效与同步，否则新 guest 可能命中旧转换。大页可以降低 TLB 压力，但要求对齐、增加内部碎片，并扩大错误映射的影响范围；选择应由内存布局和工作集实测决定。
+
+脏页、访问位和缺页处理常用于迁移、按需分配或内存统计。固定功能嵌入式设备通常不需要复杂 overcommit，静态预留更容易证明容量和故障边界。若启用 balloon、swap 或动态回收，应把回收延迟和宿主内存压力纳入 guest 的最坏时延。
+
+\section{Hypervisor 架构与实现选择}
+
+常见模型包括直接运行在硬件上的 Type-1 hypervisor、利用 Linux 作为宿主资源管理器的 KVM、具有独立 hypervisor 和管理 domain 的 Xen，以及启动后建立静态 cell 的分区方案。KVM 用户空间接口由 Linux KVM API 规定，Xen 则维护独立的 domain、event channel 和 grant 等机制\cite{linux-kvm-api,xen-doc}。
+
+\begin{table}[H]
+  \centering
+  \caption{虚拟化实现模型的选择依据}
+  \begin{tabular}{p{27mm}p{35mm}p{37mm}p{37mm}}
+    \hline
+    模型 & 优势 & 主要风险 & 更适合的产品 \\
+    \hline
+    KVM 与 Linux 宿主 & 驱动和工具生态完整 & 宿主内核和用户空间较大 & 通用 Linux 平台与丰富设备 \\
+    Xen & hypervisor 与管理域分离 & domain 配置和驱动域复杂 & 多 guest 与明确控制域 \\
+    静态分区 & 资源固定、运行路径较小 & 动态复用和设备支持有限 & 固定混合关键性配置 \\
+    自研小型 VMM & 可裁剪到特定硬件 & 长期安全维护成本高 & 极窄平台且有持续维护能力 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+选择不应只比较启动时间或空载 benchmark，还要比较设备直通、错误恢复、调试、量产工具、漏洞响应、长期内核支持和目标认证。自研 VMM 即使代码量较小，也必须承担架构 errata、虚拟设备输入验证、页表一致性和安全更新责任。
+
+\section{vCPU 调度、预算与优先级传播}
+
+guest 内部调度器运行在线程之上，hypervisor 或宿主又调度 vCPU，形成层次化调度。guest 认为最高优先级线程已经就绪，不表示承载它的 vCPU 正在物理 CPU 上运行。一个端到端截止期可以概括为：
+
+\begin{equation}
+  C_{guest} + I_{hyp} + S_{host} + B_{shared} \leq D
+\end{equation}
+
+其中 $C_{guest}$ 是 guest 内执行时间，$I_{hyp}$ 是退出、注入和虚拟设备开销，$S_{host}$ 是宿主或 hypervisor 调度延迟，$B_{shared}$ 是锁、cache、DDR 和设备造成的阻塞，$D$ 是业务截止期。只测 guest 内线程唤醒延迟会漏掉其余项。
+
+实时 guest 通常需要固定 vCPU、物理 CPU、IRQ、内存和设备，并限制宿主在相同 CPU 上运行 housekeeping 工作。若多个 vCPU 共享物理 CPU，应明确时间片、优先级、预算补充和超限策略；若 guest 内锁持有者所在 vCPU 未被调度，另一个 vCPU 上的高优先级线程可能形成跨层优先级反转。
+
+独占 CPU 也不是完全隔离。SMT sibling、共享 LLC、互连、DDR、SMMU、热限制和 DVFS 仍可造成干扰。实时准入和测量方法见 \mbox{第~\ref{chap:realtime-linux}~章}，容量与分位数方法见 \mbox{第~\ref{chap:performance-capacity-engineering}~章}。
+
+\section{虚拟时间、定时器与跨域时间线}
+
+guest 通常可读取虚拟 counter，并通过虚拟 timer 接收中断。hypervisor 需要定义 guest counter 与物理 counter 的 offset、暂停语义和恢复语义。guest 被暂停十秒后，其单调时间是继续前进、冻结还是在恢复时跳变，会直接影响超时、租约和控制算法。
+
+实时时间不应由每个 guest 独立猜测。产品应指定可信日历时间来源、NTP/PTP 客户端归属、guest 校时权限和时钟失步降级。需要跨 guest 比较事件时，应记录共同物理 counter 或保存可审查的时钟映射，并报告映射不确定度，参见 \mbox{第~\ref{chap:embedded-network-time}~章}。
+
+定时器直通或硬件辅助可降低退出次数，但必须保留取消、迁移和 vCPU 停止时的确定语义。guest 重启后，旧虚拟 timer、event channel 或中断注入不能泄漏到新 generation。
+
+\section{内存分区、共享 cache 与容量控制}
+
+静态分区应从启动时就保留 guest RAM、hypervisor 内存、共享内存和设备固件区域。固件、hypervisor、Device Tree 和宿主页分配器必须对这些边界达成一致；任何一层把保留区当成普通内存都会破坏隔离。
+
+内存容量不仅包括 guest 可见 RAM，还包括 stage-2 页表、IOMMU 页表、virtio ring、设备 bounce buffer、宿主 page cache、crash dump 和更新暂存区。峰值预算要覆盖 guest 同时启动、设备 reset、日志突发和候选镜像验证。
+
+共享 LLC 和 DDR 不受普通页表隔离。若平台支持 cache way、内存带宽或互连 QoS 分区，可把它们作为补充控制；若不支持，应通过最坏合法并发负载测量干扰并保留裕量。软件颜色分配或 CPU affinity 只能减少部分冲突，不能替代硬件证据。
+
+\section{DMA、IOMMU 与中断重映射}
+
+stage-2 页表只限制 CPU 发起的访问。直通设备、PCIe endpoint、GPU、NPU、DMA engine 和某些远端核可以绕过 CPU 页表，因此必须由 SMMU/IOMMU 或 SoC 总线防火墙限制。Linux 的 IOMMU 用户空间接口和 VFIO 都建立在设备 DMA 地址空间的显式管理之上\cite{linux-iommu-userspace,linux-vfio}。
+
+设备直通前至少确认：
+
+\begin{itemize}
+  \item 所有 DMA requester 和 stream ID 均进入目标 domain，不能存在未枚举旁路；
+  \item IOMMU group 中共享 reset、桥或隔离粒度的设备不能被分到互不信任的 domain；
+  \item MSI/MSI-X 或平台中断经过正确重映射，guest 不能构造任意物理中断目标；
+  \item peer-to-peer DMA、ATS/PASID、设备内 cache 和固件辅助访问具有明确策略；
+  \item IOMMU fault 能关联到 guest、设备、IOVA、权限和 generation，并触发有界恢复；
+  \item 关闭 guest 时先停止 DMA、屏蔽中断和复位设备，再解除映射并回收内存。
+\end{itemize}
+
+IOMMU 不是“打开即安全”的开关。identity mapping、宽松默认 domain、保留窗口和固件旁路都可能扩大访问面。启动和恢复路径应采用默认拒绝，再逐项建立最小映射。
+
+\section{中断虚拟化与最坏路径}
+
+物理中断可以由 hypervisor 捕获后注入虚拟中断，也可以借助 GIC、IMSIC 或其他硬件直接投递 guest。直接注入降低平均延迟，却增加资源配置、优先级映射、vCPU 状态和复位恢复的复杂度。
+
+中断延迟必须从设备物理事件测到 guest handler 或最终输出，分解为设备产生、物理路由、hypervisor 处理、vCPU 唤醒、guest 屏蔽和驱动处理。平均值不能说明中断风暴、宿主临界区或共享 IRQ 下的尾延迟。
+
+虚拟优先级与物理优先级应形成显式映射。若低优先级宿主工作持有 guest 中断所需锁，或高频 guest 可持续占用物理 IRQ 处理预算，都会破坏其他 domain 的时间隔离。应为每个中断源规定速率上限、屏蔽、超时和降级策略。
+
+设备或 guest 销毁时，要先禁止新物理事件，完成在途中断，撤销虚拟路由，再回收 event、doorbell 或虚拟 IRQ 编号。否则旧中断可能命中新 guest 或已释放对象。
+
+\section{设备模型、半虚拟化与直通选择}
+
+设备可以采用 trap-and-emulate、半虚拟化、passthrough 或 mediated sharing。选择粒度应按设备实例和业务路径决定，不必让整个系统使用同一种模型。
+
+\begin{table}[H]
+  \centering
+  \caption{虚拟设备模型的主要取舍}
+  \begin{tabular}{p{28mm}p{34mm}p{35mm}p{39mm}}
+    \hline
+    模型 & 性能与确定性 & 隔离与恢复 & 典型用途 \\
+    \hline
+    完整模拟 & trap 较多、性能较低 & 兼容旧 guest，解析面较大 & legacy UART、教学平台 \\
+    virtio & 共享 ring，效率较高 & backend 仍需验证不可信输入 & 网络、块、console 和共享服务 \\
+    设备直通 & 路径短、接近原生 & 依赖 IOMMU、reset 和独占资源 & 实时网卡、采集卡、加速器 \\
+    mediated device & 可复用硬件资源 & 调度、状态和故障传播最复杂 & 可分区 GPU/NPU \\
+    \hline
+  \end{tabular}
+\end{table}
+
+模拟设备的兼容性来自稳定寄存器模型，却会引入大量 MMIO trap。直通性能较好，但 guest 需要真实驱动，设备也必须具有可隔离的 DMA、IRQ、reset、clock 和错误状态。mediator 若不能证明一个 guest 的超时、固件崩溃和队列耗尽不会影响其他 guest，就不能被视为强隔离。
+
+\section{virtio ring、通知与不可信 descriptor}
+
+virtio 通过 feature negotiation、共享 descriptor ring 和通知机制建立 guest/frontend 与 backend 的协议。split ring 和 packed ring 具有不同布局与 wrap 语义，双方必须只启用共同支持的特性，并遵守规范规定的内存顺序\cite{virtio-spec}。
+
+backend 必须把 guest descriptor 当成不可信输入，检查：
+
+\begin{itemize}
+  \item index、链长度、间接表深度和循环引用；
+  \item GPA/IOVA 范围、读写方向、对齐和跨页长度；
+  \item 请求类型、状态转换、feature 依赖和设备容量；
+  \item 队列 reset、guest 重启和 backend 重连时的 generation；
+  \item 通知合并、event suppression 和队列饱和下的进展保证。
+\end{itemize}
+
+virtio queue 满时也需要背压契约。网络可丢包或限速，块设备必须返回明确错误或保持有界等待，console 日志不能无限占用共享内存。backend 退出时，应使所有在途 descriptor 以成功、失败或取消之一完成，不能让 guest 永久等待。
+
+\section{VFIO、设备直通与所有权迁移}
+
+VFIO 向用户空间 VMM 暴露受 IOMMU 保护的设备访问、DMA 映射和中断配置，并以 IOMMU group 表达平台隔离粒度\cite{linux-vfio}。能够绑定 VFIO 驱动不表示设备就适合直通；还要验证 reset 覆盖、错误恢复、电源管理、固件加载和同组设备关系。
+
+设备从宿主迁移到 guest 的推荐顺序是：停止宿主客户端，禁止新 I/O，完成或取消 DMA，屏蔽中断，执行设备 reset，建立目标 IOMMU domain 和 IRQ 路由，最后向 guest 暴露。回收时执行反序，并在解除映射前证明设备不再访问旧地址。
+
+某些设备只有 function-level reset，另一些 reset 会影响整个 PCIe bus、clock domain 或多个 accelerator context。若 reset 粒度大于隔离粒度，一个 guest 的恢复就可能中断其他 domain，必须在架构阶段暴露这一共因依赖。
+
+\section{跨 VM 通信与共享内存协议}
+
+跨 VM 通信可以使用 virtio、event channel、共享内存加 doorbell、虚拟网络或由管理域代理的服务。共享内存只是传输介质，不自动提供 framing、所有权、流量控制和认证。
+
+每条通道应定义双方身份、schema 版本、端序、最大消息、ring 深度、超时、重试、取消和重启 generation。生产者发布 descriptor 前必须完成 payload 写入和规定屏障；消费者确认后，生产者才能复用对应 buffer。非一致性平台还要执行 cache clean/invalidate。
+
+管理域代理文件、网络、密钥或设备服务时，guest 身份不能只由可伪造的消息字段给出，应由通道绑定。代理还应对每个 guest 设置请求速率、内存、并发和持久化配额，避免一个低信任 guest 耗尽全局服务。
+
+跨域 schema 与 ABI 演进方法见 \mbox{第~\ref{chap:interface-protocol-data-contracts}~章}。安全或实时信号不应依赖无界的通用 RPC；必要时使用固定大小消息、静态 buffer 和单向降级通道。
+
+\section{虚拟平台、Device Tree 与配置 manifest}
+
+hypervisor 应为每个 guest 构造只包含其可见 CPU、内存、IRQ 和设备的 Device Tree 或 ACPI 表。guest 不应看到无权访问的保留内存、时钟、reset、IOMMU 或系统控制寄存器。Device Tree 属于 guest 平台 ABI，其节点、compatible、reg、interrupt 和 reserved-memory 需要版本化\cite{devicetree-spec}。
+
+资源配置不应分散在多个脚本和 DTS 片段中。建议由单一机器可读 manifest 生成或校验：
+
+\begin{itemize}
+  \item guest UUID、镜像摘要、启动参数和虚拟平台版本；
+  \item vCPU 到物理 CPU 的映射、调度预算和优先级；
+  \item GPA/HPA 内存区域、权限、页粒度和共享 generation；
+  \item 设备、stream ID、IRQ、MMIO、clock、reset 和 IOMMU domain；
+  \item virtio feature、queue 数、backend 身份和资源上限；
+  \item watchdog、健康门槛、重启策略、更新组和回滚兼容范围。
+\end{itemize}
+
+hypervisor 应在启动前检查区域重叠、CPU 重复分配、IRQ 冲突、IOMMU 漏配和超出硬件能力。运行时实际资源也要导出并与 manifest 比较，防止固件或内核升级后静默改变分区。
+
+\section{启动链、管理域与健康控制}
+
+启动顺序应明确谁首先建立隔离。安全启动固件需要在运行不可信 guest 前配置 EL2/HS、内存防火墙、IOMMU 默认策略和调试权限；若先启动宽权限 Linux 再收紧边界，早期代码已经进入高信任路径。
+
+管理域负责创建 VM、加载镜像、配置设备和收集健康状态，但它不应自动拥有所有 guest 数据。控制平面权限可按创建、停止、调试、导出和更新拆分，并通过本地身份与审计约束。
+
+关键 guest 的安全状态不应依赖管理域文件系统或网络服务。管理域崩溃时，hypervisor 可以保持已运行 guest，独立 watchdog 继续监控关键输出；恢复管理域后，应重新发现实际 VM 和设备状态，而不是假定所有操作都从初始状态开始。
+
+guest reboot、poweroff、panic 和 watchdog reset 具有不同语义。产品状态机应规定是否保留设备、是否清零共享内存、谁增加 generation，以及连续重启达到门槛后进入何种降级模式。
+
+\section{电源管理、热限制与系统休眠}
+
+guest 可以看到虚拟 CPU idle、虚拟频率或虚拟电源状态，但实际 clock、regulator 和 power domain 常由宿主或固件统一管理。一个 guest 请求低功耗不表示共享 domain 可以关闭；另一个 guest、直通设备或调试通道可能仍持有资源。
+
+DVFS 与热降频会同时改变多个 guest 的执行能力。实时预算应在最低允许频率和热稳态下验证，普通 guest 的负载限制也要防止它把整个 SoC 推入持续降频。功耗和恢复边界见 \mbox{第~\ref{chap:low-power-system}~章}。
+
+系统 suspend 前需要冻结 VM 创建和设备迁移，协调 guest、backend、直通设备和 IOMMU，保存必要状态，再按依赖关闭资源。恢复后应重新验证硬件 capability、设备 generation 和中断路由；不能假定所有寄存器都保持。
+
+若关键 guest 必须在 Linux 休眠时继续运行，应把时钟、内存、IRQ、看门狗和通信路径设计为独立保持域，并验证 Linux resume 不会重置其资源。
+
+\section{混合关键性与免受干扰}
 
 安全关键 guest 与普通 Linux guest 共存时，需要证明空间、时间和通信隔离。Linux 崩溃不应关闭安全 guest 所需电源、时钟或看门狗；安全 guest 也不应依赖 Linux 文件系统才能进入安全状态。
 
-共享缓存、DDR、热限制和 PMIC 属于潜在共因资源。仅通过页表隔离不足以证明 freedom from interference。
+页表和 IOMMU 主要证明空间隔离。时间隔离还包括 vCPU 调度、物理 IRQ、共享锁、设备队列、cache、DDR、互连、热和电源。通信隔离则要证明消息身份、长度、速率、新鲜度和故障反应。功能安全中的 freedom from interference 与证据链见 \mbox{第~\ref{chap:functional-safety}~章}。
 
-\section{安全边界}
+共享 PMIC、clock controller、system reset、DDR controller 和安全监控器属于潜在共因资源。若普通 guest 可以触发全局 reset、修改共享时钟或耗尽 RAS 记录，逻辑 VM 边界并不成立。关键控制应由 hypervisor、可信固件或独立硬件仲裁，并保留故障注入证据。
 
-Hypervisor 是高权限组件，攻击面包括 hypercall、虚拟设备、共享内存和管理接口。应最小化设备模拟、限制管理域权限，并对 guest 输入执行与网络协议相同级别的边界检查。
+混合关键性不是把不同等级软件放进不同 VM 就结束。安全 case 必须追踪 hypervisor 配置、硬件假设、共享驱动、管理域、构建工具和现场更新如何保持分区属性。
 
-调试接口需要按域授权。能够读取 hypervisor 或其他 guest 内存的调试器会绕过所有软件隔离，因此量产生命周期必须治理 JTAG、crash dump 和管理 console。
+\section{安全边界、侧信道与管理接口}
 
-\section{性能与验证}
+hypervisor 是高权限 TCB，攻击面包括 hypercall、虚拟设备、共享内存、页表操作、设备直通和管理接口。应最小化设备模拟与 hypercall 数量，对 guest 地址、长度、索引、状态和资源消耗执行完整验证。
 
-验证不应只运行 CPU benchmark，还应测量：
+空间隔离不等于机密性。共享 cache、分支预测器、内存控制器、频率和执行时间可能形成侧信道；产品应根据攻击者能力选择 core 隔离、cache 分区、调度清洗、禁止 SMT 或降低敏感操作共置。不能用“运行在不同 VM”替代侧信道分析。
+
+调试器、crash dump 和管理 console 能绕过普通 guest 权限。量产生命周期必须治理 JTAG、EL2/HS 调试、内存转储、snapshot、guest console 和远程 VMM API。敏感 guest 的转储应默认禁用或加密，并记录授权和保留期限。
+
+hypervisor、固件和管理工具都要进入漏洞响应与 SBOM。虚拟化安全与可信启动、证明和设备身份的关系见 \mbox{第~\ref{chap:security-lifecycle}~章}及 \mbox{第~\ref{chap:trusted-execution-identity}~章}。
+
+\section{更新、兼容性与回滚组合}
+
+虚拟化产品的发布单元通常包括启动固件、hypervisor、宿主内核、管理工具、guest 镜像、Device Tree、资源 manifest、virtio backend 和设备固件。只更新其中一个组件可能改变 hypercall、虚拟平台、feature negotiation 或真实设备行为。
+
+兼容矩阵应说明：
+
 \begin{itemize}
-  \item 物理 IRQ 到 guest 的延迟与抖动；
-  \item virtio 网络、块设备和 console 吞吐；
-  \item stage-2 TLB miss 和内存带宽；
-  \item 多 guest 并发下的缓存和 DDR 干扰；
-  \item guest 重启、恶意 DMA、设备超时和 hypervisor 故障；
-  \item suspend/resume、热管理和 OTA 后的资源分区一致性。
+  \item hypervisor 与 CPU/GIC/IOMMU revision 的适用范围；
+  \item guest 内核支持的虚拟平台和 virtio feature；
+  \item backend 与前端驱动的版本及降级路径；
+  \item 直通设备固件、guest 驱动与 reset 语义；
+  \item 资源 manifest schema、默认值和未知字段处理；
+  \item 回滚 hypervisor 时，新 guest 数据与配置是否仍可解释。
 \end{itemize}
 
-\section{验收清单}
+更新流程应先验证签名、硬件适用性和资源容量，再写入候选集合；试启动阶段分别确认 hypervisor、管理域、关键 guest、设备和通信健康。失败时回滚整个兼容集合，而不是只替换一个 guest 镜像。A/B、健康确认和防回滚方法见 \mbox{第~\ref{chap:system-build-update}~章}。
+
+持续运行设备还要定义 guest 滚动重启和设备迁移是否被支持。若硬件不支持安全 reset 或状态迁移，应明确停机更新窗口，不能用未经验证的热更新承诺替代系统边界。
+
+\section{可观测性、调试与现场证据}
+
+宿主、hypervisor 和 guest 的日志必须能够关联同一事件。每条关键 trace 可记录 physical CPU、vCPU、VM ID、guest sequence、物理 counter、虚拟时间、IRQ、设备和 generation，并保存时钟映射。
+
+指标至少包括 vCPU runnable/steal 时间、VM exit 原因、虚拟 IRQ 注入延迟、stage-2 fault、IOMMU fault、virtio queue 深度、backend 等待、guest reset 和共享资源带宽。高平均吞吐不能掩盖单个关键 guest 的长时间未调度。
+
+现场诊断包应分别收集 hypervisor、管理域和允许导出的 guest 证据。跨域内存转储可能泄漏密钥、用户数据或安全算法状态，因此采集范围要由策略控制。可观测性和证据保全方法见 \mbox{第~\ref{chap:observability-fleet}~章}。
+
+QEMU 可以验证虚拟平台、启动流程、virtio 协议和大量故障路径，但不能证明真实 GIC、IOMMU、DMA、cache、热和电源隔离。最终结论必须来自目标硬件，模拟器使用边界见 \cite{qemu-system-doc}。
+
+\section{实践架构：实时控制域与 Linux 服务域}
+
+一种常见产品把关键控制 guest 与 Linux 服务 guest 静态分区。下表只是资源契约示例，实际项目必须替换为目标 SoC 和量化需求。
+
+\begin{table}[H]
+  \centering
+  \caption{双域静态分区的资源契约示例}
+  \begin{tabular}{p{21mm}p{26mm}p{29mm}p{28mm}p{32mm}}
+    \hline
+    资源 & 控制域 & Linux 域 & 共享方式 & 故障反应 \\
+    \hline
+    CPU & 独占固定核 & 其余应用核 & 共享 LLC/DDR & 限带宽并降级 \\
+    内存 & 静态连续区 & 独立 RAM 区 & 固定消息窗口 & 清零 generation \\
+    设备 & 控制器直通 & 网络与存储 & 虚拟诊断通道 & 分域 reset \\
+    中断 & 直接或专用注入 & 普通虚拟 IRQ & 单向 doorbell & 风暴屏蔽 \\
+    看门狗 & 独立安全看门狗 & 服务健康监控 & 只读状态摘要 & 分级重启 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+启动流程可以分为：可信固件建立默认拒绝边界；hypervisor 校验资源 manifest；先启动控制域并确认安全输出；再启动 Linux 域和共享 backend；最后开放远程管理。任何阶段失败都应保留控制域的安全能力，并阻止未验证服务访问共享设备。
+
+恢复测试至少覆盖 Linux panic、控制域 watchdog、共享 ring 损坏、IOMMU fault、直通设备超时、管理域重启、热降频和更新回滚。每次恢复都要检查旧 DMA、IRQ、shared page 和 token 不会跨 generation 泄漏。
+
+\section{数字化验收矩阵}
+
+项目应实例化最大虚拟中断时延 $L_{irq}$、关键任务截止期 $D_{crit}$、允许的共享资源干扰 $J_{shared}$、guest 恢复时间 $T_{recover}$、IOMMU fault 收敛时间 $T_{fault}$、连续重启上限 $N_{restart}$ 和长期运行周期 $T_{soak}$。发布门中不能保留未赋值符号。
+
+\begin{table}[H]
+  \centering
+  \caption{虚拟化与隔离发布验收矩阵}
+  \begin{tabular}{p{24mm}p{37mm}p{40mm}p{33mm}}
+    \hline
+    验收项 & 量化门槛 & 条件与故障场景 & 留存证据 \\
+    \hline
+    空间隔离 & 未授权访问为零 & 恶意页表、descriptor 和设备 DMA & fault/映射审计 \\
+    中断时延 & P99/P99.9 $\leq L_{irq}$ & 并发 guest、中断风暴和热稳态 & 外部波形和 trace \\
+    关键截止期 & 响应 $\leq D_{crit}$ & 最坏 vCPU、DDR 和设备负载 & 端到端测量 \\
+    干扰增量 & 尾延迟增量 $\leq J_{shared}$ & cache、带宽和后台更新压力 & 基线差分 \\
+    故障恢复 & $T_{recover}$ 内恢复或降级 & guest、backend、设备和管理域故障 & 状态轨迹和错误码 \\
+    DMA 收敛 & $T_{fault}$ 内停止违规设备 & 越界 IOVA 与设备异常 & IOMMU fault 记录 \\
+    生命周期 & $T_{soak}$ 后无泄漏 & $N_{restart}$ 次重启与休眠 & 页表、fd、内存计数 \\
+    更新兼容 & 支持组合全部通过 & 升级、断电、回滚与旧版组合 & manifest/测试报告 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+\section{评审清单}
 
 \begin{itemize}
-  \item 使用虚拟化的目标是否明确，是否存在更简单的 AMP 方案？
-  \item CPU、内存、IRQ、DMA、时钟和复位是否形成完整分区？
-  \item IOMMU 是否覆盖所有可发起 DMA 的直通设备？
-  \item 虚拟设备是否验证 guest 提供的地址、长度和状态？
-  \item 实时 guest 是否在最坏共享资源干扰下测量？
-  \item 普通 guest 崩溃或重启是否影响安全域？
-  \item hypervisor、guest 配置和资源清单是否作为原子发布集合管理？
+  \item 使用虚拟化的目标是否明确，是否存在更简单的进程、AMP 或 TEE 方案？
+  \item CPU、内存、IRQ、DMA、MMIO、时钟、复位和调试是否形成完整资源图？
+  \item stage-2、VMID、TLB 和 IOTLB 生命周期是否覆盖撤销映射与 guest 重启？
+  \item IOMMU 是否覆盖所有 DMA requester，group 和 reset 粒度是否匹配隔离边界？
+  \item 虚拟设备是否验证 guest 提供的地址、长度、索引、feature 和状态转换？
+  \item vCPU 调度、虚拟时间和中断路径是否按端到端截止期测量？
+  \item cache、DDR、热和电源等共享资源是否进入最坏干扰与共因分析？
+  \item guest、backend、设备和管理域故障是否具有有界、分级恢复策略？
+  \item 虚拟平台、hypercall、virtio、Device Tree 和 manifest 是否有版本兼容策略？
+  \item hypervisor、guest、设备固件和资源配置是否作为兼容发布集合管理？
+  \item 调试、snapshot、crash dump 和远程管理是否按域授权并记录审计？
+  \item 所有发布门槛是否填入具体数值，并关联目标硬件上的原始证据？
 \end{itemize}
