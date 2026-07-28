@@ -1,7 +1,25 @@
 \chapter{嵌入式 Linux 启动链工程}
 \label{chap:linux-boot-chain}
 
-嵌入式 Linux 的启动不是若干二进制文件依次运行，而是一系列逐级收紧的执行契约。每一级都必须明确输入镜像、执行地址、内存所有权、硬件状态、失败处理和传递给下一级的信息。
+嵌入式 Linux 的启动不是若干二进制文件依次运行，而是一系列逐级收紧的执行契约。每一级都必须明确输入镜像、执行地址、内存所有权、处理器状态、硬件状态、失败处理和传递给下一级的信息。启动链还同时承担安全验证、硬件识别、恢复选择、A/B 状态推进和现场诊断，任何隐式假设都可能在更换内存、升级内核或异常掉电后暴露。
+
+\section{启动场景与复位分类}
+
+启动需求首先要区分场景：
+
+\begin{description}
+  \item[冷启动] 主电源从无效到稳定，DRAM、外设和保持域均不能假定已有状态；
+  \item[热复位] CPU 或 SoC 被复位，但 PMIC、DRAM 或外设可能仍保持部分状态；
+  \item[watchdog 复位] 前一软件实例可能在任意临界区停止，需要保存原因并避免重复破坏；
+  \item[低功耗恢复] 某些内存和设备状态被保留，恢复入口与冷启动不同；
+  \item[候选试启动] 新槽位只获得有限尝试次数，成功条件由健康服务确认；
+  \item[恢复启动] 正式系统不可用时进入受限恢复环境；
+  \item[制造/维修启动] 由物理条件和授权策略开放烧录、校准或诊断能力。
+\end{description}
+
+“设备可以启动”必须转换为多个可观察目标，例如串口第一字节、内核入口、根文件系统挂载、核心服务 ready、首个有效采样和远程可管理。不同目标的安全与性能意义不同。
+
+复位原因寄存器往往是 read-to-clear 或在后续阶段被覆盖。最早可执行阶段应一次读取、规范化并传递，记录原始值、解析结果、启动计数和可信度。软件触发复位前也应写入独立原因，避免所有复位最终都显示为 generic watchdog。
 
 \section{启动阶段与责任边界}
 
@@ -23,19 +41,119 @@
 \end{tikzpicture}
 \end{center}
 
-Boot ROM 负责选择启动介质和验证最初级镜像；SPL 在片上 SRAM 中完成最小初始化和 DRAM bring-up；可信固件建立异常级、安全状态和电源管理接口；U-Boot 选择启动目标、加载镜像并构造内核入口条件；内核接管 MMU、中断、设备和用户空间。
+\begin{table}[H]
+  \centering
+  \caption{启动阶段的最小责任边界}
+  \begin{tabular}{p{25mm}p{52mm}p{62mm}}
+    \hline
+    阶段 & 主要责任 & 不应隐式依赖的状态 \\
+    \hline
+    Boot ROM & 启动源选择、最初镜像读取与芯片级信任根 & DRAM、复杂文件系统、可修改环境 \\
+    SPL/FSBL & 最小 pin/clock/PMIC、DRAM 初始化、加载后续固件 & 完整堆、全部外设、用户配置可信 \\
+    TF-A/OpenSBI & 特权级、安全世界、异常入口、PSCI/SBI 等固件服务 & OS 已建立页表或设备所有权 \\
+    U-Boot & 镜像/配置选择、验证、加载、恢复与内核入口构造 & 内核容忍未记录的处理器或 cache 状态 \\
+    Linux & 建立内存和设备模型、挂载 rootfs、启动 PID~1 & Bootloader 私有驱动状态仍然可复用 \\
+    PID~1/服务 & 挂载数据、启动依赖、健康确认和产品功能 & 进程启动等同于业务 ready \\
+    \hline
+  \end{tabular}
+\end{table}
 
-阶段越早，可使用的内存、日志和恢复能力越有限。因此早期代码应保持小而确定，不应在 DRAM 尚未验证前引入复杂解析器和动态分配。
+阶段越早，可使用的内存、日志和恢复能力越有限。因此早期代码应小而确定，不应在 DRAM 尚未验证前引入复杂解析器、网络栈或无界动态分配。
 
-\section{DRAM 初始化与内存交接}
+\section{阶段交接契约}
 
-DRAM 初始化依赖时钟、供电、拓扑、训练参数和温度条件。训练成功只说明控制器得到一组可用参数，还应通过地址线、数据线、不同 burst、边界和压力模式验证完整容量。
+每次控制权转移至少要冻结以下内容：
 
-各阶段必须共享一致的内存地图：固件保留区、可信内存、远端核固件、DMA pool、CMA、ramoops 和 framebuffer 都不应被普通页分配器覆盖。Device Tree 的 \texttt{reserved-memory}、固件内存描述和链接脚本应由同一设计表生成或交叉检查。
+\begin{itemize}
+  \item 下一阶段镜像的地址、大小、入口、摘要和版本；
+  \item 当前异常级/特权级、CPU 模式、字节序、MMU、cache 和预测器状态；
+  \item DTB、ACPI、initramfs、命令行和其他 boot parameter 的地址；
+  \item 可用、保留、可信、DMA、framebuffer 和远端核内存范围；
+  \item 已启用的时钟、电源、watchdog、中断控制器与串口状态；
+  \item 主 CPU 与次级 CPU 的状态和释放协议；
+  \item 复位原因、启动源、槽位、尝试计数和验证结果；
+  \item 失败时控制权属于谁，以及是否允许重试或回退。
+\end{itemize}
 
-\section{镜像封装与 FIT}
+Arm64 与 RISC-V Linux 都定义了架构相关入口要求，具体版本应以目标内核文档为准\cite{linux-arm64-booting,linux-riscv-booting}。不要依赖某个内核版本偶然清理了 Bootloader 留下的 TLB、未知中断或 DMA。
 
-FIT Image 可以把内核、DTB、initramfs、配置和签名组织为一个可描述的镜像集合。配置节点应绑定适用硬件、载荷摘要和签名，Bootloader 只选择经过验证的组合，而不是分别加载互不关联的文件。
+交接信息可以位于 Device Tree、标准寄存器、固件表或一段版本化 handoff manifest 中，但同一事实不应有互相独立的多个真源。若保留内存同时写在固件源代码、U-Boot 环境和 DTS，至少要在构建或启动时交叉校验。
+
+\section{启动源选择与最小恢复能力}
+
+Boot ROM 通常依据 strap、eFuse、OTP、GPIO 或介质探测顺序选择启动源。板级设计必须验证：
+
+\begin{itemize}
+  \item strap 在上电采样窗口内满足电平和建立保持时间；
+  \item 外部上拉/下拉不会被复用器件或测试点干扰；
+  \item 空白介质、损坏头部和读超时时会尝试何种后备路径；
+  \item 下载模式是否需要认证，量产后能否被未经授权者触发；
+  \item 恢复介质和正式介质的签名、版本与产品绑定策略。
+\end{itemize}
+
+最小恢复能力应尽可能少依赖正式系统损坏时可能同时失效的组件。例如 rootfs 损坏后的恢复不应先启动 rootfs 中的网络服务；主存储控制器固件损坏时，恢复路径最好保留独立只读介质、ROM 下载或受保护小分区。
+
+下载或维修协议是安全边界。即使只在工厂使用，也应限制可读写区域、镜像类型、授权有效期和失败速率，并记录设备身份与操作结果。
+
+\section{SPL、时钟、电源与 DRAM bring-up}
+
+SPL 通常运行在片上 SRAM，空间和栈都很有限。推荐初始化顺序为：
+
+\begin{enumerate}
+  \item 保存复位原因并建立最小栈和早期输出；
+  \item 配置启动所需的 pinmux、振荡器和安全时钟源；
+  \item 按 PMIC/SoC 约束建立电源轨和复位时序；
+  \item 以保守频率初始化 DRAM 控制器和 PHY；
+  \item 完成训练并执行最小但有区分力的内存测试；
+  \item 建立下一阶段加载、验证和错误回退能力。
+\end{enumerate}
+
+DRAM 初始化依赖器件拓扑、走线、供电、时钟、训练参数、电压和温度。训练成功只说明控制器得到一组候选参数，还应验证：
+
+\begin{itemize}
+  \item 完整容量与地址线，防止镜像/别名；
+  \item 不同数据模式、burst、bank、rank 和边界；
+  \item 目标频率与最低/最高工作温度；
+  \item 热复位和重复初始化是否安全；
+  \item 训练参数的来源、版本、校验和回退档位；
+  \item ECC 初始化、scrub 与首次可读时间。
+\end{itemize}
+
+高频训练失败时可以回退到经过批准的低频档，但必须记录原因并向系统暴露降级状态。静默降低频率可能使设备表面启动成功，却在媒体、AI 或实时负载下违反带宽预算。
+
+\section{平台固件、PSCI 与 SBI}
+
+Arm 平台常由 Trusted Firmware-A 建立 EL3、安全状态、异常入口和 PSCI 服务；RISC-V 平台可由 OpenSBI 向 supervisor 软件提供 SBI 服务\cite{trusted-firmware-a-doc,riscv-sbi}。平台固件并非“启动后就消失”，Linux 仍可能通过它执行 CPU on/off、系统复位、挂起、性能或厂商扩展操作。
+
+固件接口应版本化并进入兼容矩阵。升级内核而不升级平台固件时，要确认：
+
+\begin{itemize}
+  \item 所需 PSCI/SBI 扩展是否存在；
+  \item 调用约定、共享内存和 cache 维护是否一致；
+  \item CPU hotplug、system suspend 和 reset2 等路径是否验证；
+  \item 安全世界、中断控制器和非安全 DMA 的所有权；
+  \item 固件错误是否能返回给内核，而不是永久阻塞。
+\end{itemize}
+
+若平台固件驻留在受保护内存，应在 Device Tree 或固件表中保留，并验证 Linux 页面分配器、CMA、crash kernel 和远端核均不会覆盖。固件版本、构建摘要和运行能力应进入诊断包。
+
+\section{内存地图、装载与重叠检查}
+
+各阶段必须共享一致的内存地图：固件保留区、可信内存、远端核固件、DMA pool、CMA、ramoops、framebuffer、initramfs 和 crash kernel 都不应被普通页分配器或后续镜像覆盖。
+
+对每个区域 $i$ 记录基址 $B_i$、长度 $S_i$ 和末地址 $E_i=B_i+S_i$。任意两个同时有效区域 $i,j$ 应满足：
+
+\begin{equation}
+  E_i \le B_j \quad \text{or} \quad E_j \le B_i
+\end{equation}
+
+构建工具和 Bootloader 应在加载前使用溢出安全的整数运算检查该条件，并检查架构对齐、可寻址范围和镜像解压后的最大尺寸。不能只验证压缩文件大小。
+
+Device Tree 的 \texttt{reserved-memory}、固件内存描述、链接脚本和安全控制器配置应由同一设计表生成或交叉检查。启动日志应打印最终内存地图摘要，便于将现场故障与发布设计比较。
+
+\section{镜像封装、FIT 与配置绑定}
+
+FIT Image 可以把内核、DTB、initramfs、配置和签名组织为一个可描述的镜像集合，U-Boot 文档定义了相关镜像模型与验证机制\cite{uboot-doc}。
 
 \begin{lstlisting}[language=dts,caption={FIT 配置关系示意}]
 / {
@@ -57,49 +175,223 @@ FIT Image 可以把内核、DTB、initramfs、配置和签名组织为一个可�
 
 签名覆盖范围必须包括实际影响启动行为的配置节点。只验证内核数据而允许攻击者替换 DTB、命令行或 initramfs，仍可能改变内存权限、调试接口和根文件系统。
 
+配置选择应基于受信任、稳定且有边界的硬件身份，例如板级 EEPROM 中经过校验的 revision、OTP 产品 ID 或可验证 manifest。不要根据可由普通用户空间修改的文件决定加载哪个安全策略。
+
+镜像 manifest 至少包含产品/硬件范围、组件版本、摘要、加载约束、兼容关系、安全版本和构建来源。镜像文件名不应承担这些语义。
+
+\section{Device Tree 作为启动 ABI}
+
+Device Tree 描述固件传递给操作系统的硬件视图，其格式和属性受 Device Tree Specification 与各 binding 约束\cite{devicetree-spec}。量产系统应把 DTB 视为版本化启动 ABI，而不是可随意修改的配置文本。
+
+需要重点治理：
+
+\begin{itemize}
+  \item \texttt{compatible} 从具体到通用的匹配顺序；
+  \item address/size cells、\texttt{reg}、interrupt、clock、reset 和 power domain；
+  \item \texttt{chosen} 中 console、initrd 和启动参数；
+  \item \texttt{reserved-memory} 的 \texttt{no-map}、共享 DMA 和远端核用途；
+  \item MAC、序列号、校准等设备唯一数据的可信来源；
+  \item overlay 的适用硬件、冲突检测、签名与应用顺序。
+\end{itemize}
+
+Bootloader fixup 应只修改明确允许的字段，并在验证后记录最终 DTB 摘要。任意脚本动态增删安全关键节点会使启动验证与现场复现失去确定性。
+
 \section{内核入口契约}
 
-进入内核前，Bootloader 应满足目标架构的 boot protocol：CPU 模式、MMU/cache 状态、DTB 地址和对齐、保留寄存器、次级 CPU 状态以及镜像放置范围。不要依赖某个内核版本偶然容忍的状态。
+进入内核前，Bootloader 应满足目标架构 boot protocol：CPU 模式、MMU/cache 状态、DTB 地址和对齐、保留寄存器、次级 CPU 状态以及镜像放置范围。与其在代码中复制文档，不如让 CI 针对目标内核版本检查入口配置并保留启动 smoke test。
 
 内核命令行属于发布接口，应区分开发与量产配置。\texttt{earlycon}、initcall debug、忽略安全策略和任意 shell init 只能用于受控调试；量产系统应限制命令行覆盖来源并记录最终生效参数。
 
-\section{根文件系统与 PID 1}
+参数来源可能包括编译默认值、Bootloader 环境、FIT、Device Tree、bootconfig 和恢复逻辑。项目必须定义优先级，避免攻击者或旧环境变量通过同名参数覆盖已签名配置。Linux bootconfig 可用于承载结构化扩展参数，但仍需要与镜像验证边界一致\cite{linux-bootconfig}。
 
-内核通过 initramfs 或块设备获得初始根文件系统。initramfs 适合恢复、早期存储解锁和最小诊断；正式系统可以使用 SquashFS/EROFS、ext4 或 UBIFS。
+\section{安全启动、度量与防回滚}
 
-根文件系统挂载失败时，应从日志中区分：驱动未注册、分区未发现、文件系统未启用、root 参数错误、等待设备超时和 init 不存在。PID~1 启动后，再由服务管理器处理设备事件、挂载数据区和启动产品服务。
+安全启动要求每个可执行或能改变执行策略的组件在使用前被授权。信任链可能覆盖：
 
-\section{启动时间分析}
+\begin{itemize}
+  \item Boot ROM 到 SPL/FSBL；
+  \item 平台固件、安全世界和 U-Boot；
+  \item 内核、DTB、initramfs、命令行策略；
+  \item rootfs verity root、内核模块、设备固件和关键应用。
+\end{itemize}
+
+验证成功不等于版本可接受。防回滚策略应比较产品、硬件、组件和安全版本，并保证计数推进具有掉电一致性。普通功能回退与安全防回滚目标可能冲突：系统可以回到上一已知良好功能版本，但不能退回已被撤销的脆弱版本。
+
+Measured Boot 记录实际加载内容，供本地或远程证明使用；它不能替代执行前验证。度量事件日志必须与最终执行组件一致，并防止日志与 PCR/测量寄存器之间失配，详见第~\ref{chap:trusted-execution-identity}~章。
+
+平台恢复建议遵循“保护、检测、恢复”的弹性思路\cite{nist-platform-resiliency}：验证失败时保持可诊断性，选择受授权恢复镜像，恢复后再次验证，而不是提供永久关闭验证的后门。
+
+\section{根文件系统、initramfs 与 PID 1}
+
+内核可以通过 initramfs 或块设备获得初始根文件系统。initramfs 适合早期存储解锁、verity 建立、网络根、恢复和最小诊断；传统 initrd/initramfs 行为和切换方式应以目标内核文档为准\cite{linux-initrd}。
+
+早期用户空间应：
+
+\begin{enumerate}
+  \item 挂载必要的 \texttt{/proc}、\texttt{/sys} 和 \texttt{/dev}；
+  \item 等待并验证目标存储或网络资源；
+  \item 建立解密、完整性验证或 overlay；
+  \item 以明确错误码记录失败阶段；
+  \item 使用 \texttt{switch\_root} 或等价机制进入正式 rootfs；
+  \item 确保旧根文件系统资源不被意外长期引用。
+\end{enumerate}
+
+根文件系统挂载失败时，应从日志中区分：驱动未注册、分区未发现、文件系统未启用、UUID/label 错误、等待设备超时、验证失败和 init 不存在。紧急 shell 只能在受控维护条件下开放。
+
+PID~1 启动后，再由服务管理器处理设备事件、数据分区和产品服务。应区分：
+
+\begin{itemize}
+  \item 进程已创建；
+  \item IPC 已监听；
+  \item 硬件与数据迁移已完成；
+  \item 核心功能已经 ready；
+  \item 远程管理和非关键功能可用。
+\end{itemize}
+
+A/B 健康确认应绑定最后两项之一，而不是只检查 PID~1 存活。
+
+\section{启动时间与关键路径}
 
 启动优化应先分段测量：
+
 \begin{equation}
   T_{boot}=T_{ROM}+T_{SPL}+T_{firmware}+T_{U-Boot}+T_{kernel}+T_{userspace}
 \end{equation}
 
-Bootloader 使用时间戳或 bootstage，内核使用 initcall debug、ftrace 和 printk 时间，用户空间使用服务管理器的关键路径分析。优化重点通常是串行等待、设备超时、重复探测、固件加载、文件系统检查和服务依赖，而不是盲目提高 CPU 频率。
+这些阶段可能有异步重叠，公式主要用于责任分解。Bootloader 使用稳定时间源或 bootstage，内核使用 printk 时间、initcall trace 和 ftrace，用户空间使用服务管理器关键路径与业务埋点。
 
-并行启动必须保持依赖正确。延迟启动非关键服务可以改善“功能可用时间”，但不应通过隐藏失败日志或跳过必要自检制造更短数字。
-
-\section{恢复与 A/B 协同}
-
-启动链应把普通启动、候选试启动、回退和 recovery 作为统一状态机。Bootloader 只依据受保护的启动元数据选择槽位；内核命令行向用户空间传递当前槽；健康服务确认成功；恢复系统能够重写损坏槽而不依赖正式 rootfs。
-
-连续失败达到阈值后，应保留最近失败原因并进入恢复模式，避免无限重启。恢复镜像必须与正式系统一样验证签名，且不应暴露绕过安全启动的维修入口。
-
-\section{调试方法}
-
-无输出时按 Boot ROM 下载能力、调试口、早期 GPIO、片上 SRAM 日志、SPL 串口、U-Boot console、内核 earlycon 的顺序建立可观测性。每一级都应能证明“已经进入”和“向下一级传递了什么”。
-
-已知良好镜像应同时保存串口日志、镜像摘要、内存布局、DTB 和 Bootloader 环境。调试时一次只替换一个阶段，避免无法判断回归来源。
-
-\section{验收清单}
+启动报告至少区分：
 
 \begin{itemize}
-  \item 各阶段的输入、执行地址、内存所有权和失败路径是否明确？
-  \item DRAM 是否在不同温度、频率和完整容量下验证？
-  \item 内核、DTB、initramfs 和命令行是否处于一致的信任边界？
-  \item 保留内存是否在固件、Device Tree 和内核日志中一致？
-  \item rootfs 缺失、单槽损坏和启动元数据损坏时能否恢复？
-  \item 启动时间是否按阶段测量，并区分首次启动与稳定启动？
-  \item 量产配置是否关闭未经授权的调试和启动参数覆盖？
+  \item 冷启动、热启动、watchdog、恢复和候选槽；
+  \item 首次启动迁移与稳定启动；
+  \item P50、P90、P99/P99.9、最大值和失败率；
+  \item 低温、低电压、旧介质、网络不可达和并发 I/O；
+  \item “内核启动完成”与“核心功能可用”的差异。
+\end{itemize}
+
+优化重点通常是串行等待、设备超时、重复探测、固件加载、文件系统检查、数据迁移和服务依赖，而不是盲目提高 CPU 频率。并行启动必须保持依赖与资源正确；多个服务同时读取慢 Flash 可能使总时间更长。
+
+延迟启动非关键服务可以改善功能可用时间，但不应通过隐藏失败日志、跳过必要自检或过早确认 A/B 成功制造更短数字。
+
+\section{A/B 状态机与健康确认}
+
+启动链应把普通启动、候选试启动、成功确认、回退和 recovery 作为统一状态机。受保护元数据至少包含：
+
+\begin{itemize}
+  \item 每个槽的优先级、可启动标志、剩余尝试和已确认状态；
+  \item 当前候选、最后已知良好版本和安全版本；
+  \item 元数据 generation、校验、冗余副本和提交规则；
+  \item 最近失败阶段、复位原因和回退原因；
+  \item 写入方与每个字段的单一所有权。
+\end{itemize}
+
+\begin{table}[H]
+  \centering
+  \caption{候选槽位状态转换示例}
+  \begin{tabular}{p{29mm}p{43mm}p{67mm}}
+    \hline
+    当前状态 & 事件 & 原子动作与下一状态 \\
+    \hline
+    已知良好 A & 安装 B 完成 & 校验 B，设置有限尝试，进入候选 B \\
+    候选 B & Bootloader 选择启动 & 在启动前消耗一次尝试并记录 generation \\
+    候选 B & 核心功能验收通过 & 用户空间提交成功，B 成为已知良好 \\
+    候选 B & watchdog/启动失败 & 保留原因；有尝试则重试，否则回退 A \\
+    A/B 均不可用 & 验证或挂载失败 & 进入受验证 recovery，不降低安全版本 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+“先启动、失败后再减少计数”会在启动早期断电时形成无限尝试。计数应在控制权交给候选前以掉电安全方式消耗。健康服务只能在必要设备、关键数据迁移、核心业务和 watchdog 链路均通过后确认；网络不可达是否阻止确认要按产品离线能力定义。
+
+恢复系统必须与正式系统一样验证签名，且不应暴露绕过安全启动的维修入口。A/B 数据 schema 与回滚关系详见第~\ref{chap:system-build-update}~章。
+
+\section{watchdog 所有权与失败升级}
+
+启动阶段可能由多个 watchdog 覆盖：PMIC、SoC、平台固件、Bootloader 和 Linux。每一时刻必须明确谁负责配置与刷新，交接时避免短暂关闭或因超时单位不同立即复位。
+
+推荐为每个阶段分配上界与错误动作：
+
+\begin{itemize}
+  \item ROM/SPL 超时进入后备介质或下载模式；
+  \item DRAM/镜像验证失败记录稳定错误码并回退；
+  \item U-Boot 启动候选超时消耗尝试并选择已知良好槽；
+  \item 内核在根文件系统不可用时触发受控重启或 recovery；
+  \item 用户空间只在核心健康谓词满足时接管喂狗。
+\end{itemize}
+
+不要在尚未建立日志和槽位保护时使用过短 watchdog，使所有问题只表现为无信息复位。也不能在启动时无条件关闭 watchdog，从而失去对真实死锁的保护。
+
+\section{可观测性与调试方法}
+
+无输出时按 Boot ROM 下载能力、调试口、早期 GPIO、片上 SRAM 日志、SPL 串口、U-Boot console、内核 earlycon 和 pstore 的顺序建立可观测性。每一级都应能证明“已经进入”“输入是什么”“向下一级传递了什么”。
+
+早期事件宜使用稳定 stage ID 与错误码，避免只有自由文本：
+
+\begin{lstlisting}[language=C,caption={启动事件记录的逻辑结构}]
+struct boot_event {
+    uint32_t schema_version;
+    uint16_t stage_id;
+    uint16_t event_id;
+    uint64_t monotonic_ticks;
+    uint32_t reset_reason;
+    uint32_t boot_slot;
+    int32_t  status;
+    uint32_t detail;
+};
+\end{lstlisting}
+
+环形区应有 CRC、generation 和首次故障保护，防止重启循环不断覆盖最有价值的记录。进入 Linux 后，把早期日志连同固件版本、DTB 摘要和启动元数据纳入诊断包。
+
+已知良好镜像应同时保存串口日志、镜像摘要、内存布局、DTB、Bootloader 环境与测试条件。调试时一次只替换一个阶段，避免无法判断回归来源。
+
+\section{故障注入与验收矩阵}
+
+启动验证不能只执行正常上电。至少注入：
+
+\begin{itemize}
+  \item 空白、读超时、ECC 错误和部分写入的启动介质；
+  \item DRAM 训练边界、低温、低电压和错误容量配置；
+  \item 内核、DTB、initramfs、rootfs 和元数据的单项篡改；
+  \item 镜像过大、装载重叠、错误入口和不支持硬件组合；
+  \item 在元数据提交、候选启动和健康确认各窗口断电；
+  \item rootfs 缺失、数据迁移失败、存储只读和 PID~1 崩溃；
+  \item watchdog 在每个阶段超时以及连续重启限制；
+  \item 实时时钟无效、网络不可达和设备长时间离线。
+\end{itemize}
+
+\begin{table}[H]
+  \centering
+  \caption{启动链数字化验收矩阵示例}
+  \begin{tabular}{p{27mm}p{42mm}p{39mm}p{32mm}}
+    \hline
+    场景 & 条件与注入 & 关键证据 & 通过条件 \\
+    \hline
+    正常冷启动 & 温度/电压/料号组合 & 阶段时间、DTB 和版本 & 核心功能满足 P99.9 \\
+    候选试启动 & 各提交窗口断电 & 槽位 generation、复位原因 & 无无限尝试且可回退 \\
+    镜像篡改 & 修改内核、DTB、initramfs & 验证事件与恢复选择 & 未授权内容从不执行 \\
+    DRAM 边界 & 低温、降压、全容量压力 & 训练参数和错误地址 & 错误可检测或受控降级 \\
+    rootfs 故障 & 缺失、只读、verity 失败 & early userspace 错误码 & 进入授权 recovery \\
+    连续崩溃 & 不同阶段触发 watchdog & 首次证据、计数与槽位 & 有界重试并保留根因 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+每次测试应关联 SoC/板卡修订、DRAM 与存储料号、eFuse 状态、全部组件摘要、启动配置、温度、电压、工装和原始串口。只保存最终 Pass/Fail 无法解释低概率启动故障。
+
+\section{启动链验收清单}
+
+\begin{itemize}
+  \item 冷启动、热复位、watchdog、低功耗恢复和维修启动是否分别定义？
+  \item 各阶段的输入、入口、处理器状态、内存所有权和失败路径是否明确？
+  \item 复位原因是否在最早阶段保存，并能跨阶段关联启动计数？
+  \item DRAM 是否在不同料号、温度、频率和完整容量下验证？
+  \item 平台固件、PSCI/SBI 与目标内核是否具有兼容矩阵？
+  \item 镜像解压后范围、DTB、initramfs 和保留内存是否自动检查重叠？
+  \item 内核、DTB、initramfs、命令行和 rootfs 是否处于一致信任边界？
+  \item A/B 尝试是否在启动前持久消耗，健康确认是否代表核心功能 ready？
+  \item rootfs 缺失、单槽损坏和启动元数据损坏时能否安全恢复？
+  \item 各阶段 watchdog 是否有唯一 owner、超时预算和交接协议？
+  \item 启动时间是否按场景和阶段测量，并保留最慢与失败样本？
+  \item 量产配置是否关闭未经授权的调试、下载和参数覆盖路径？
 \end{itemize}

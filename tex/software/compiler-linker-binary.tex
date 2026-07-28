@@ -1,26 +1,88 @@
-\chapter{编译器、链接器与固件二进制工程}
+\chapter{编译链接与二进制工程}
 \label{chap:compiler-linker-binary}
 
-嵌入式构建的最终产物不是“编译成功”这一状态，而是与处理器 ABI、存储布局、启动代码和调试资产一致的二进制。编译器选项、链接脚本和后处理工具都会改变运行行为。
+嵌入式构建的最终产物不是“编译成功”这一状态，而是与处理器 ABI、存储布局、启动代码、加载器、安全策略和调试资产一致的二进制。编译器选项、链接脚本、运行库与后处理工具都会改变运行行为。只有把源代码、工具链、配置、ELF、镜像、符号和发布 manifest 视为同一条产物链，才能可靠定位 Release-only 故障、内存溢出和现场崩溃。
+
+\section{冻结完整构建输入}
+
+源码提交只是构建输入之一。发布基线还应冻结：
+
+\begin{itemize}
+  \item 编译器、汇编器、链接器、libc/运行库和插件版本；
+  \item target triple、CPU、ISA 扩展、浮点 ABI、字节序和代码模型；
+  \item 编译、汇编、链接和 objcopy 的完整选项；
+  \item 链接脚本、启动文件、默认库、sysroot 和 specs；
+  \item Kconfig/feature、生成代码、Device Tree 与外部固件；
+  \item 路径映射、时间戳、随机种子和环境中真正影响产物的变量；
+  \item 后处理、签名、加密、压缩、打包和 manifest 工具。
+\end{itemize}
+
+“在同一容器中构建”仍不充分，容器 tag、下载依赖和远端 SDK 可能变化。每个输入需要稳定版本或摘要，发布产物再记录工具执行链和输出摘要。
 
 \section{编译阶段与中间表示}
 
 典型流程包括预处理、前端语义分析、中间表示优化、指令选择、汇编、链接和镜像转换。问题定位时应判断错误首次出现在哪一级，而不是只阅读最终反汇编。
 
-预处理输出适合检查宏、条件编译和头文件选择；编译器 IR 适合分析优化；目标文件展示 section、symbol 和 relocation；最终 ELF 展示实际地址与链接结果。
+\begin{table}[H]
+  \centering
+  \caption{构建阶段与诊断资产}
+  \begin{tabular}{p{30mm}p{45mm}p{64mm}}
+    \hline
+    阶段 & 主要产物 & 适合诊断的问题 \\
+    \hline
+    预处理 & 展开后的源文件 & 宏、条件编译、头文件和配置选择 \\
+    前端/IR & AST、IR、优化记录 & 类型、内联、向量化和未定义行为假设 \\
+    汇编/目标文件 & assembly、ELF relocatable & 指令、section、symbol、relocation \\
+    链接 & executable/shared ELF、map & 地址、archive 拉入、segment 和溢出 \\
+    后处理 & BIN/HEX/FIT/包 & 填充、切片、摘要、签名和产品绑定 \\
+    \hline
+  \end{tabular}
+\end{table}
 
-\section{目标 ABI}
+预处理输出适合检查宏和头文件；编译器 IR/优化记录适合分析为何删除或变换代码；目标文件展示 input section、symbol 和 relocation；最终 ELF 展示真实 VMA/LMA、program header 和动态依赖。
 
-ABI 约束寄存器调用约定、栈对齐、数据布局、浮点传参、异常展开和目标文件格式。相同 ISA 不代表 ABI 相同，例如软浮点与硬浮点对象可能无法安全链接。
+构建系统应保留每个 translation unit 的实际命令，例如 \texttt{compile\_commands.json} 或等价记录。只保存顶层 CMake/Make 选项，无法解释某个文件被特殊 flag 编译的情况。
 
-工程应锁定 target triple、CPU、ISA 扩展、浮点 ABI、字节序和代码模型。库、启动文件和应用必须使用兼容选项，不能依赖链接器在最后阶段发现所有不一致。
+\section{目标 ISA、ABI 与对象兼容}
 
-\section{Section 与链接布局}
+ABI 约束寄存器调用约定、栈对齐、数据布局、浮点传参、TLS、异常展开和目标文件格式。相同 ISA 不代表 ABI 相同，例如软浮点与硬浮点对象、不同 RISC-V 扩展集合或不同 C++ ABI 可能无法安全链接。
 
-编译器把代码和数据放入 \texttt{.text}、\texttt{.rodata}、\texttt{.data}、\texttt{.bss} 等 input section，链接脚本把它们组织为 output section 和 load segment。
+工程应锁定：
 
-加载地址（LMA）与运行地址（VMA）可以不同，例如初始化数据存储在 Flash，启动时复制到 SRAM。启动代码应使用链接符号而不是重复硬编码地址。
+\begin{itemize}
+  \item 目标架构与 endianness；
+  \item CPU/架构级别和允许指令扩展；
+  \item 浮点寄存器、向量长度与调用 ABI；
+  \item short enum、wchar、结构体 packing 和 bit-field 约定；
+  \item 栈对齐、red zone、TLS 和异常展开模型；
+  \item C/C++ 语言版本、运行库和编译器扩展。
+\end{itemize}
 
+库、启动文件和应用必须使用兼容选项，不能依赖链接器发现所有不一致。某些 ABI 差异仍会产生可链接但运行错误的程序，例如双方对结构体 packing 或函数指针签名理解不同。
+
+跨工具链边界应优先使用标准 C ABI、固定宽度整数、显式结构大小和能力协商。不要把 STL 容器、异常、RTTI 对象或编译器私有向量类型作为插件或固件 ABI。
+
+\section{ELF 的 section 与 segment}
+
+System V ABI 定义 ELF header、section、program header、symbol 和 relocation 的总体模型\cite{system-v-abi}。需要区分：
+
+\begin{description}
+  \item[section] 面向链接与调试的逻辑分组，如 \texttt{.text}、\texttt{.rodata}、\texttt{.data}；
+  \item[segment] 加载器依据 program header 映射的运行区域，如 \texttt{PT\_LOAD}；
+  \item[symbol] 名称、地址、大小、binding、visibility 与类型；
+  \item[relocation] 描述尚需依据符号或装载地址修正的位置；
+  \item[note] 保存 build ID、ABI 属性和其他元数据。
+\end{description}
+
+运行时通常只关心 segment，section header 甚至可以被剥离。因此检查 W\textasciicircum X、装载范围和文件偏移时应读取 program header，不能只看 section 名称。
+
+BIN 只是线性字节序列，通常不包含装载地址、权限、符号和零初始化语义。它不能替代 ELF 作为发布、分析与崩溃解析主产物。
+
+\section{链接脚本与内存地图}
+
+编译器把代码和数据放入 input section，链接脚本把它们组织为 output section 与 load segment。GNU \texttt{ld} 的脚本语言支持 MEMORY、SECTIONS、符号、KEEP 和 ASSERT 等机制\cite{gnuld}。
+
+\begin{minipage}{\linewidth}
 \begin{lstlisting}[language=bash,caption={链接脚本的核心契约（示意）}]
 MEMORY {
   FLASH (rx)  : ORIGIN = 0x08010000, LENGTH = 448K
@@ -28,92 +90,337 @@ MEMORY {
 }
 
 SECTIONS {
-  .vectors : { KEEP(*(.isr_vector)) } > FLASH
+  .vectors : ALIGN(256) { KEEP(*(.isr_vector)) } > FLASH
   .text : { *(.text*) *(.rodata*) } > FLASH
-  .data : { __data_start = .; *(.data*) __data_end = .; }
-          > SRAM AT> FLASH
+
+  .data : {
+    __data_start = .;
+    *(.data*)
+    __data_end = .;
+  } > SRAM AT> FLASH
   __data_load = LOADADDR(.data);
-  .bss (NOLOAD) : { __bss_start = .; *(.bss*) *(COMMON)
-                    __bss_end = .; } > SRAM
-  ASSERT(__bss_end <= ORIGIN(SRAM) + LENGTH(SRAM), "SRAM overflow")
+
+  .bss (NOLOAD) : {
+    __bss_start = .;
+    *(.bss*) *(COMMON)
+    __bss_end = .;
+  } > SRAM
+
+  ASSERT(__bss_end <= ORIGIN(SRAM) + LENGTH(SRAM),
+         "SRAM overflow")
 }
 \end{lstlisting}
+\end{minipage}
 
-中断向量、注册表、initcall 和反射元数据常只被链接脚本引用，需要 \texttt{KEEP()} 防止 section garbage collection 删除。所有保留都应有理由，避免把未使用代码重新带回镜像。
+内存地图不应只包含 Flash 和 SRAM 总量，还要定义：
 
-\section{启动代码与 C 运行时}
+\begin{itemize}
+  \item 向量、Bootloader/应用槽、manifest 与签名区域；
+  \item ITCM/DTCM、普通 SRAM、retention/noinit 和共享内存；
+  \item secure/non-secure、MPU/MMU 区域及权限边界；
+  \item DMA buffer 的地址、对齐、cache 属性和可达范围；
+  \item heap、主栈、各任务栈、异常栈和 guard；
+  \item crash dump、校准、配置、EEPROM/OTP 映射；
+  \item 固件升级预留、页/sector 擦除对齐和供应商保留区。
+\end{itemize}
 
-进入 \texttt{main()} 前需要建立栈、复制 data、清零 bss，并按平台要求初始化 FPU、向量表、时钟和内存属性。C++ 还需要运行静态构造函数；退出和异常支持取决于运行时配置。
+链接脚本应对区域起止、对齐、重叠、镜像头大小、堆栈最小值和安全边界设置 ASSERT。只在最终 BIN 大于 Flash 时失败，通常已经太晚。
 
-裸机系统应明确是否支持 TLS、异常、RTTI、atexit 和线程安全静态初始化。这些功能可能引入堆、锁和隐藏运行库依赖。
+\section{VMA、LMA 与复制表}
 
-\section{重定位与位置无关代码}
+初始化数据常存储于 Flash 的加载地址（LMA），运行于 SRAM 的虚拟/运行地址（VMA）。启动代码需要从 LMA 复制到 VMA，并清零 \texttt{.bss}。
+
+当存在多个 SRAM、TCM 或 overlay 时，单一 \texttt{\_\_data\_start} 已不足够。可由链接脚本生成复制表和清零表：
+
+\begin{minipage}{\linewidth}
+\begin{lstlisting}[language=C,caption={启动复制表的逻辑结构}]
+struct copy_record {
+    const uint8_t *load;
+    uint8_t *run;
+    size_t size;
+};
+
+struct zero_record {
+    uint8_t *run;
+    size_t size;
+};
+\end{lstlisting}
+\end{minipage}
+
+启动代码遍历表时必须处理零长度、对齐、重叠和地址范围；表本身也要位于可信且已映射区域。若启用 ECC SRAM，清零可能同时承担初始化 ECC 的职责，不能随意优化掉。
+
+\texttt{NOLOAD} 不等于“复位后自动保留”。是否保持取决于复位类型、启动代码和硬件电源域。crash/noinit 区应带 magic、generation、长度和 CRC，防止把随机上电内容误认为有效记录。
+
+\section{启动代码与语言运行时}
+
+进入 \texttt{main()} 前通常需要：
+
+\begin{enumerate}
+  \item 建立初始栈和异常向量；
+  \item 配置必要内存属性、cache/FPU 和安全状态；
+  \item 执行复制表、清零表和可选 ECC 初始化；
+  \item 初始化 TLS、堆、标准库锁或系统调用桩；
+  \item 运行 C/C++ preinit/init array 与静态构造函数；
+  \item 建立 RTOS、设备和应用入口。
+\end{enumerate}
+
+C++ 静态构造次序跨 translation unit 通常不应作为业务依赖。全局对象若访问尚未初始化的时钟、堆或驱动，会产生与链接顺序相关的故障。优先使用显式初始化阶段和返回错误的工厂函数。
+
+裸机系统应明确是否支持：
+
+\begin{itemize}
+  \item C++ exceptions、RTTI、guarded local static 和 \texttt{atexit}；
+  \item new/delete、堆耗尽策略和线程安全；
+  \item TLS、locale、stdio、浮点格式化和宽字符；
+  \item Rust panic/unwind、allocator 与 \texttt{eh\_personality}；
+  \item 编译器辅助函数，如 64 位除法、原子和软浮点。
+\end{itemize}
+
+这些能力可能引入隐藏锁、堆、异常表和大体积格式化代码。不能只通过“不主动调用”假定它们不会进入镜像，应从 map 和未解析符号验证。
+
+\section{中断向量、注册表与 KEEP}
+
+中断向量、initcall、shell command、设备表和反射元数据常由链接脚本或运行时遍历，而没有普通代码引用。启用 \texttt{--gc-sections} 后，需要 \texttt{KEEP()} 或等价根节点防止删除。
+
+保留集合应尽可能精确。使用 \texttt{KEEP(*(.text*))} 会让垃圾回收失效并隐藏未使用功能。对自动注册表建议：
+
+\begin{itemize}
+  \item 使用专用 section 与明确起止符号；
+  \item 保证每项对齐和固定版本头；
+  \item 在链接脚本中 KEEP 该 section；
+  \item 启动时检查表范围、项大小和重复 ID；
+  \item 用静态/链接测试验证必要项存在。
+\end{itemize}
+
+\section{重定位、代码模型与 veneer}
 
 relocation 记录尚未确定的符号地址或偏移。静态固件通常在最终链接时解析；动态程序由加载器处理 GOT/PLT 和动态重定位。
 
-Bootloader、共享库和高地址内核可能要求 PIC/PIE。位置无关并不意味着可以加载到任意地址，代码模型、相对寻址范围和链接脚本仍有约束。
+分支和 PC-relative 访问通常有范围限制。链接器可能生成 veneer/thunk 或 literal pool；固件增长、section 排序或 LTO 都可能使原本可达的调用越界。map 和反汇编应检查新增 veneer、远调用和性能关键路径。
 
-\section{链接时优化}
+Bootloader、共享库和高地址内核可能要求 PIC/PIE。位置无关并不意味着可以加载到任意地址，代码模型、相对寻址范围、动态重定位和链接脚本仍有约束。
 
-LTO 可以跨 translation unit 内联、去虚函数化和删除无用代码，但会改变调试、链接时间和符号边界。启用后应比较：
+自搬移代码尤其危险：复制 \texttt{.text} 后，绝对地址、异常表、literal、函数指针和调试符号可能仍指向旧位置。除非使用经过验证的 PIC 或专用 relocation 机制，不应把任意静态固件当作可重定位镜像。
+
+\section{符号、可见性与动态链接}
+
+符号的 global/local、weak/strong 和 visibility 会影响解析与覆盖。weak 默认实现适合可选平台钩子，但也可能让本应强制提供的功能静默落到空实现。
+
+发布检查应列出：
+
 \begin{itemize}
-  \item Flash/RAM 大小与热点性能；
-  \item 中断和安全关键函数是否被意外合并或变形；
-  \item inline assembly、链接脚本保留符号和插件是否兼容；
-  \item 崩溃地址、backtrace 和覆盖率工具是否仍可使用。
+  \item 未定义符号及其提供库；
+  \item 意外导出的全局符号；
+  \item 重复/weak 覆盖及实际胜出实现；
+  \item 动态依赖、RPATH/RUNPATH 和加载搜索路径；
+  \item 插件 ABI、SONAME 与符号版本；
+  \item 构造/析构、异常和 TLS 相关隐藏入口。
 \end{itemize}
 
-\section{优化与未定义行为}
+Linux 用户空间应避免从可写工作目录或未经验证路径加载共享库/插件。量产 rootfs 的动态链接器、libc 与应用属于兼容基线，不能只替换一个库并假定所有消费者安全。
 
-Debug 构建正常而 Release 失败，经常来自未初始化变量、越界、strict aliasing、整数溢出、数据竞争和缺失屏障。降低优化只是诊断手段，不是修复。
+\section{垃圾回收、ICF 与链接时优化}
 
-编译器只需保持语言抽象机可观察行为。MMIO 需要 volatile/访问 API，并发需要原子或同步，DMA 需要架构和设备屏障；三者不能互相替代。
+\texttt{-ffunction-sections}/\texttt{-fdata-sections} 配合 section garbage collection 可以删除不可达内容。Identical Code Folding（ICF）可能合并机器码相同函数；LTO 则跨 translation unit 内联、去虚函数化和消除代码。
 
-\section{二进制分析}
+启用后应比较：
 
-发布检查应自动使用：
 \begin{itemize}
-  \item \texttt{readelf} 检查 ELF header、program header、section 和 relocation；
-  \item \texttt{nm} 检查符号大小、未解析符号和重复实现；
-  \item \texttt{objdump} 检查反汇编、调用和特殊指令；
-  \item map file 分析内存区域、archive 拉入原因和最大对象；
-  \item \texttt{size} 或自定义脚本生成 Flash/RAM 趋势。
+  \item Flash/RAM、启动时间和热点性能；
+  \item 中断、安全关键和放入特殊 section 的函数是否仍满足约束；
+  \item inline assembly、链接脚本符号、插件和注册表是否兼容；
+  \item 函数地址唯一性的非标准假设是否被 ICF 破坏；
+  \item 崩溃地址、backtrace、覆盖率和 profile 是否仍可解释；
+  \item 混合 LTO/non-LTO 对象与工具链插件版本。
 \end{itemize}
 
+LTO 会把“某源文件编译 flag”提升为全程序问题。对禁止内联、要求固定时序或必须保留边界的函数，应使用经过工具链验证的属性和反汇编门，而不是只依赖源码结构。
+
+\section{优化、语言规则与未定义行为}
+
+Debug 构建正常而 Release 失败，经常来自未初始化变量、越界、strict aliasing、整数溢出、数据竞争、悬空生命周期和缺失屏障。降低优化只是诊断手段，不是修复。
+
+C 与 C++ 标准定义语言抽象机和未定义行为边界\cite{iso-c-2024,iso-cpp-2024}。编译器只需保持有定义程序的可观察行为：
+
+\begin{itemize}
+  \item \texttt{volatile} 约束特定对象访问，不提供线程同步；
+  \item 原子与锁建立语言并发关系，不自动完成 DMA cache 维护；
+  \item CPU 内存屏障不替代设备协议、MMIO accessor 或持久化 flush；
+  \item 有符号整数溢出、非法移位和越界指针不能依赖“硬件回绕”；
+  \item packed/unaligned 访问是否可用取决于 ISA、编译器与总线。
+\end{itemize}
+
+MMIO、DMA 与语言内存模型的边界见第~\ref{chap:realtime-language-memory-model}~章。编译器 workaround 应带工具链版本、最小复现、影响范围和移除条件。
+
+\section{栈、堆与静态内存预算}
+
+链接成功只证明静态区域可放置，不证明运行栈和堆有足够空间。应为：
+
+\begin{itemize}
+  \item 启动/主栈、每个异常级或中断栈；
+  \item RTOS 每任务栈、Linux 线程栈与 guard；
+  \item 最大中断嵌套、递归和最深调用链；
+  \item printf/浮点、加密、协议解析和第三方库临时对象；
+  \item 堆峰值、长期碎片和故障恢复峰值；
+  \item DMA/共享内存与普通 heap 的竞争
+\end{itemize}
+
+建立独立预算。
+
+编译器 \texttt{-fstack-usage} 等报告可以提供静态线索，但函数指针、递归、inline assembly 和库代码会造成缺口。目标板 high-water mark 只能证明执行过的路径。关键任务应组合静态调用图、路径测试、MPU guard 和故障注入。
+
+堆应定义耗尽行为。安全/实时路径可以使用初始化后冻结、对象池、arena 或固定 slab，避免无界分配与碎片。异常处理和日志路径也不能在内存耗尽时再次依赖大分配。
+
+\section{二进制权限与加固}
+
+ELF program header 应检查：
+
+\begin{itemize}
+  \item 是否存在同时可写可执行的 \texttt{PT\_LOAD}；
+  \item 只读数据、代码、可写数据和 noinit 是否按页/MPU 粒度分离；
+  \item 栈是否标记不可执行，动态重定位是否尽早只读；
+  \item 可执行区是否来自授权镜像范围；
+  \item secure/non-secure 与特权/非特权边界是否对齐；
+  \item 调试、测试、符号和密钥材料是否意外进入量产 segment。
+\end{itemize}
+
+用户空间可根据平台采用 PIE、RELRO、stack protector、FORTIFY、CFI 或控制流保护。每项加固都要确认工具链、加载器、性能和故障诊断兼容；仅添加 flag 而没有检查最终 ELF 可能因不支持或链接顺序而无效。
+
+\section{DWARF、unwind 与 build ID}
+
+DWARF 保存类型、源文件、行号、变量位置、宏和调用框架，DWARF~5 规范定义了当前主要格式\cite{dwarf5}。优化后变量可能不存在或位于不同寄存器，调试器显示 \texttt{optimized out} 并不表示 DWARF 损坏。
+
+可靠 backtrace 还依赖：
+
+\begin{itemize}
+  \item frame pointer 或准确 CFI/unwind table；
+  \item 异常/中断入口正确描述保存帧；
+  \item 栈未被破坏且边界已知；
+  \item 动态库和模块的真实加载地址；
+  \item 与运行镜像完全匹配的调试文件。
+\end{itemize}
+
+产品应归档未剥离 ELF、独立 debug file、map、配置、反汇编、工具链和源码版本。build ID 用于把现场地址与符号绑定，但必须从最终链接产物读取；后续二进制修改若不更新标识，会造成错误符号化。
+
+发布镜像可以 strip 不必要 section，但不能丢弃独立符号资产。符号存储应有访问控制和与产品支持期一致的保留策略。
+
+\section{静态分析、Sanitizer 与多配置验证}
+
+编译告警应按项目基线治理，新增告警作为门禁。静态分析适合发现数据流、生命周期、锁与规则缺陷，但其配置、抑制和工具版本也属于证据。
+
+ASan、UBSan、TSan、MSan 等适合主机或资源充足目标；MCU 可以使用主机复用测试、编译器插桩、栈保护、MPU guard 和静态分析。诊断构建改变内存布局与时序，修复后必须在发布配置复验。
+
+建议至少比较：
+
+\begin{itemize}
+  \item Debug 与 Release；
+  \item LTO 开/关；
+  \item 主工具链与另一编译器/版本；
+  \item sanitizer/诊断与量产加固；
+  \item 最小功能与完整 feature 配置；
+  \item 不同硬件 ABI、字节序或可选 ISA 目标。
+\end{itemize}
+
+不同工具链输出不必逐字节相同。交叉验证的重点是发现扩展依赖、未定义行为、ABI 和布局差异。
+
+\section{可复现构建与差异分析}
+
+路径、时间戳、archive 顺序、locale、随机种子、压缩器和 build ID 都会影响二进制。Reproducible Builds 项目总结了确定构建输入与比较产物的方法\cite{reproducible-builds}。
+
+常见控制包括：
+
+\begin{itemize}
+  \item 固定工具链与依赖摘要；
+  \item 规范化时区、locale、文件顺序和归档时间戳；
+  \item 使用 prefix-map 消除工作目录；
+  \item 避免把当前时间、用户名和绝对路径写入程序；
+  \item 为随机化构建显式记录 seed；
+  \item 分离签名时间戳等必然变化的封装层；
+  \item 使用 diffoscope 或结构化 ELF 比较解释差异。
+\end{itemize}
+
+“两个 BIN 摘要不同”只是起点。应逐层比较 ELF header、segment、section、symbol、relocation、DWARF、压缩和签名，判断差异是否影响运行。
+
+可复现性不能替代来源可信和测试，但能提高供应链审计、缓存和独立重建能力。
+
+\section{后处理、打包与签名顺序}
+
+从最终 ELF 生成 BIN/HEX、分区镜像、压缩包和签名包时，顺序必须固定：
+
+\begin{enumerate}
+  \item 验证最终 ELF 的 ABI、segment、区域、权限和符号策略；
+  \item 生成线性或分段载荷，并明确未初始化洞与填充值；
+  \item 加入版本、产品、硬件范围、加载地址和安全版本 manifest；
+  \item 计算压缩前后所需摘要，按启动协议封装；
+  \item 对实际被 Bootloader 解释的配置和载荷签名；
+  \item 从最终包再次解析并与原始 ELF/manifest 交叉检查；
+  \item 归档全部中间摘要和验证报告。
+\end{enumerate}
+
+先签名后再由脚本修改 DTB、命令行或校验字段会破坏信任边界。反之，只签名 BIN 而未绑定装载地址、硬件和版本，也可能允许在错误上下文执行。
+
+\section{自动二进制分析}
+
+发布检查可组合：
+
+\begin{itemize}
+  \item \texttt{readelf}：ELF/program/section header、dynamic、note 和 relocation；
+  \item \texttt{nm}：符号大小、binding、未解析和重复实现；
+  \item \texttt{objdump}：反汇编、源代码、特殊指令和 veneer；
+  \item map file：内存区域、archive 拉入原因和最大对象；
+  \item \texttt{size} 或自定义脚本：Flash/RAM/栈趋势；
+  \item ABI checker：导出符号、类型和插件兼容；
+  \item 自定义 policy：W\^X、build ID、禁止 section 和区域边界。
+\end{itemize}
+
+\begin{minipage}{\linewidth}
 \begin{lstlisting}[language=bash,caption={固件布局的自动检查示意}]
-readelf -h -l -S firmware.elf
+readelf -h -l -S -n firmware.elf
+readelf -r -s firmware.elf
 nm --print-size --size-sort firmware.elf | tail -40
 objdump -d -S firmware.elf > firmware.dis
 verify-elf-layout firmware.elf layout-policy.json
 objcopy -O binary firmware.elf firmware.bin
 \end{lstlisting}
+\end{minipage}
 
-BIN 不包含地址、符号和 segment 信息，不能替代 ELF 作为发布和诊断主产物。
+自动报告应把本次大小与基线比较，列出增长最大的符号/section，并对接近边界的区域设置门槛。只看总 Flash 会遗漏快速耗尽的 retention RAM、TCM 或安全区。
 
-\section{DWARF 与崩溃解析}
+\section{数字化验收矩阵}
 
-DWARF 保存类型、源文件、行号、变量位置和调用框架。优化后变量可能不存在或位于不同寄存器，调试器显示 \texttt{optimized out} 并不表示 DWARF 损坏。
+\begin{table}[H]
+  \centering
+  \caption{编译链接与二进制验收矩阵示例}
+  \begin{tabular}{p{29mm}p{41mm}p{39mm}p{31mm}}
+    \hline
+    场景 & 条件与变更 & 关键证据 & 通过条件 \\
+    \hline
+    ABI 一致性 & 混合库、插件与浮点配置 & ELF attributes、ABI diff & 无未批准不兼容 \\
+    内存边界 & 最大 feature、诊断和恢复构建 & map、ASSERT、区域趋势 & 所有区域有规定裕量 \\
+    启动运行时 & 多区 copy/zero、复位类型 & RAM 比较、构造与 noinit & 状态符合复位契约 \\
+    Release/LTO & 优化、GC、ICF 开关 & 测试、反汇编、符号 & 功能/时序/调试均通过 \\
+    加固策略 & PIE、RELRO、W\textasciicircum X 等 & program header 与运行测试 & 最终 ELF 实际生效 \\
+    可复现性 & 独立环境重复构建 & 摘要与结构化差异 & 差异为零或可解释 \\
+    现场解析 & 注入 fault 与不同模块地址 & build ID、符号化报告 & 精确定位到匹配源码 \\
+    \hline
+  \end{tabular}
+\end{table}
 
-产品应归档未剥离 ELF、map、配置、工具链和源码版本。现场地址只有与完全匹配的 ELF 结合才有意义。若启用独立 debug file，应保存 build ID 与映射关系。
-
-\section{Sanitizer 与静态分析}
-
-ASan、UBSan、TSan 等适合主机或资源充足目标；MCU 可以使用主机复用测试、编译器告警、静态分析、栈使用报告和 MPU guard。诊断构建改变内存布局和时序，修复后必须在发布配置复验。
-
-\section{可复现与多工具链验证}
-
-路径、时间戳、archive 顺序、随机种子和构建 ID 都会影响二进制。可复现构建应使用固定工具链、规范化路径和确定输入，并对无法消除的差异提供解释。
-
-使用 GCC、Clang 或不同优化等级交叉验证，可以暴露扩展依赖和未定义行为，但不同工具链输出不必逐字节相同。比较重点应是 ABI、布局、测试行为和可解释差异。
-
-\section{验收清单}
+\section{编译链接验收清单}
 
 \begin{itemize}
-  \item CPU、ISA 扩展、浮点和调用 ABI 是否在所有对象间一致？
-  \item 链接脚本是否对区域溢出、对齐和保留段设置断言？
-  \item data LMA/VMA、bss 和构造函数是否由启动代码正确处理？
-  \item Release/LTO 是否完成目标板与故障路径验证？
-  \item ELF、map、DWARF、反汇编和工具链是否随发布归档？
-  \item 是否自动检查未定义符号、可写可执行段和内存增长？
-  \item BIN/HEX 是否由已经验证的最终 ELF 生成？
+  \item 源码之外的工具链、sysroot、脚本、生成物和后处理输入是否冻结？
+  \item CPU、ISA 扩展、浮点、数据布局和调用 ABI 是否在所有对象间一致？
+  \item ELF section 与 load segment 是否被正确区分并检查权限？
+  \item 链接脚本是否对区域溢出、重叠、对齐、堆栈和保留段设置断言？
+  \item data LMA/VMA、copy/zero 表、ECC、noinit 和构造函数是否正确处理？
+  \item 中断向量、注册表和 initcall 是否以精确 KEEP 规则保留？
+  \item relocation、代码模型、veneer 和自搬移假设是否经过反汇编验证？
+  \item Release/LTO/GC/ICF 是否完成目标板、时序与故障路径验证？
+  \item 语言未定义行为、MMIO、并发和 DMA 是否使用正确抽象？
+  \item 静态区、各栈、堆、DMA 与故障恢复峰值是否都有预算？
+  \item 最终 program header 是否满足 W\textasciicircum X、只读和安全区策略？
+  \item ELF、map、DWARF、build ID、反汇编和工具链是否随发布归档？
+  \item 独立重建是否可复现，所有非确定差异是否可解释？
+  \item BIN/HEX/FIT 是否只由已经验证的最终 ELF 生成并再次解析核对？
 \end{itemize}

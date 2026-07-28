@@ -1,40 +1,98 @@
-\chapter{嵌入式 Linux 用户空间服务架构}
+\chapter{嵌入式 Linux 用户空间服务}
 \label{chap:linux-userspace-services}
 
-嵌入式 Linux 产品的主要业务通常运行在多个长期服务中。服务架构需要同时处理启动依赖、IPC、权限、资源限制、状态持久化、崩溃恢复和版本兼容，而不是把全部功能堆入一个具有 root 权限的进程。
+嵌入式 Linux 产品的主要业务通常运行在多个长期服务中。服务架构需要同时处理启动依赖、IPC、权限、资源限制、状态持久化、崩溃恢复和版本兼容，而不是把全部功能堆入一个具有 root 权限的进程。一个服务能够被拉起，只能证明可执行文件开始运行；能否持续提供有界、可恢复且可升级的业务能力，取决于完整生命周期设计。
 
-\section{进程边界}
+\section{从服务清单开始}
 
-进程隔离可以限制崩溃和内存破坏，但也引入 IPC、部署和状态同步成本。适合独立进程的边界通常包括：
+架构设计前先维护服务清单，每个长期进程记录：
+
 \begin{itemize}
-  \item 权限或信任等级不同；
-  \item 生命周期和重启策略不同；
-  \item 需要独立资源限制；
-  \item 使用不稳定第三方库或复杂解析器；
-  \item 提供可版本化的稳定接口。
+  \item 唯一名称、功能职责和不在其职责内的工作；
+  \item 提供与消费的 IPC、设备、文件和网络接口；
+  \item 运行用户、capability、设备和文件权限；
+  \item 启动条件、ready 条件、停止顺序和重启策略；
+  \item CPU、内存、fd、线程、日志和队列预算；
+  \item 持有的权威状态、缓存、配置和迁移责任；
+  \item 与其他版本、硬件和 schema 的兼容范围；
+  \item 健康指标、故障码、诊断资产和 owner。
 \end{itemize}
 
-高频细粒度调用和共享大量可变状态的组件更适合位于同一进程，通过线程或消息队列协作。进程数量不是架构质量指标。
+清单应从最终 rootfs、服务管理器配置和权限策略自动核对，避免文档中已经删除的服务仍被视为系统依赖，或镜像中出现没有 owner 的高权限守护进程。
+
+\section{进程边界与故障域}
+
+进程隔离可以限制崩溃和内存破坏，但也引入 IPC、部署和状态同步成本。适合独立进程的边界通常包括：
+
+\begin{itemize}
+  \item 权限、信任等级或输入可信度不同；
+  \item 生命周期和重启策略不同；
+  \item 需要独立资源限制与故障隔离；
+  \item 使用不稳定第三方库或复杂解析器；
+  \item 具有独立升级节奏或稳定外部接口；
+  \item 必须防止一个组件阻塞实时或安全关键路径。
+\end{itemize}
+
+高频细粒度调用和共享大量可变状态的组件更适合位于同一进程，通过线程或消息队列协作。进程数量不是架构质量指标；如果拆分后每次业务操作都需要多次同步 RPC、复制和锁，系统可能更脆弱。
+
+\begin{table}[H]
+  \centering
+  \caption{组件边界的典型权衡}
+  \begin{tabular}{p{28mm}p{51mm}p{57mm}}
+    \hline
+    边界 & 主要收益 & 主要代价与验证点 \\
+    \hline
+    函数/库 & 低调用开销、类型检查 & 崩溃与权限共享、ABI/线程安全 \\
+    线程 & 共享地址空间、适合流水 & 数据竞争、栈和取消/关闭语义 \\
+    进程 & 地址空间、凭据和重启隔离 & IPC、状态恢复、部署兼容 \\
+    容器 & 依赖封装、namespace/cgroup & 共享内核、镜像与设备集成 \\
+    虚拟机 & 强隔离、独立内核 & 内存、启动、设备和运维复杂度 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+\section{控制面与数据面}
+
+服务接口宜区分控制面与数据面：
+
+\begin{description}
+  \item[控制面] 配置、状态、命令、能力协商和错误，流量小但语义稳定；
+  \item[数据面] 视频帧、音频、采样块、模型 tensor 等大数据，关注吞吐、零拷贝与 buffer 生命周期。
+\end{description}
+
+例如摄像头服务可以通过 Unix domain socket 发送配置与 DMA-BUF 文件描述符，通过共享 buffer 承载图像；不要为了“统一协议”把大帧复制进控制消息，也不要让数据面 buffer 绕过权限和所有权检查。
 
 \section{IPC 选择}
 
-\begin{description}
-  \item[Unix domain socket] 支持流或报文、凭据传递和文件描述符传递，适合本机服务 API；
-  \item[D-Bus] 提供对象、方法、信号和策略，适合控制面与桌面/系统服务集成；
-  \item[共享内存] 适合大数据与低拷贝，但需要额外同步、生命周期和权限设计；
-  \item[pipe/FIFO] 适合简单字节流与父子进程；
-  \item[netlink] 主要用于内核与用户空间的结构化控制和事件；
-  \item[消息中间件] 适合跨设备或需要持久队列的场景，但不应替代简单本机 IPC。
-\end{description}
+\begin{table}[H]
+  \centering
+  \caption{常用本机 IPC 的工程特征}
+  \begin{tabular}{p{29mm}p{48mm}p{58mm}}
+    \hline
+    机制 & 适用场景 & 关键风险 \\
+    \hline
+    Unix socket & 本机流/报文、凭据与 fd 传递 & framing、背压、对端重启与 fd 生命周期 \\
+    D-Bus & 对象化控制面、信号和策略 & 总线依赖、策略复杂度、消息大小与阻塞 \\
+    共享内存 & 高频大块数据、低拷贝 & 同步、cache、权限、版本与回收 \\
+    pipe/FIFO & 父子进程或简单字节流 & 单向、边界恢复、写端阻塞 \\
+    netlink & 内核与用户空间控制/事件 & family/version、丢事件、权限与 dump 一致性 \\
+    eventfd/signalfd & 计数通知和事件循环集成 & 仅表达通知，不携带完整业务状态 \\
+    消息代理 & 跨设备、持久队列和多订阅者 & 额外运行时、存储与端到端语义 \\
+    \hline
+  \end{tabular}
+\end{table}
 
-控制面与数据面可以分离：Unix socket 传递命令和 DMA-BUF fd，共享 buffer 承载视频或采样数据。
+Unix domain socket 支持流或报文、对端凭据与文件描述符传递，其细节以部署系统的 \texttt{unix(7)} 行为为准\cite{linux-unix-man}。D-Bus 提供对象、方法、信号和策略，适合控制面与系统服务集成\cite{dbus-spec}。
+
+选择 IPC 时要回答：消息边界是否保留、是否需要多播、能否传递 fd、是否需要持久化、对端崩溃后如何检测、队列满时谁减速，以及调试工具能否安全观察。
 
 \section{本机协议契约}
 
-IPC 协议仍需版本、长度、请求 ID、错误码和超时。不要直接把编译器相关 C++ 对象或裸指针写入 socket。
+IPC 协议仍需 magic、版本、长度、操作码、请求 ID、错误码、flags 和超时。不要直接把编译器相关 C++ 对象、裸指针、\texttt{size\_t} 或含隐式 padding 的结构体写入 socket。
 
 \begin{lstlisting}[language=C,caption={本机服务协议头}]
 struct service_message_header {
+    uint32_t magic;
     uint16_t version;
     uint16_t operation;
     uint32_t total_length;
@@ -44,79 +102,281 @@ struct service_message_header {
 };
 \end{lstlisting}
 
-服务升级时应保持至少一个兼容窗口，或通过能力协商拒绝不支持的请求。连接建立成功不代表业务版本兼容。
+接收方应先读取固定头部，使用溢出安全运算验证总长度和上限，再分配或读取 payload。流式 socket 一次 \texttt{read()} 可能只返回部分数据，一次 \texttt{write()} 也可能短写；代码必须维护显式 framing 状态机。
 
-Unix socket 可通过 \texttt{SO\_PEERCRED} 获取对端 PID/UID/GID，但 PID 可能复用，授权应主要依据凭据和安全策略，不能只维护进程号白名单。
+服务升级时应保持至少一个兼容窗口，或通过能力协商明确拒绝。连接建立成功不代表业务版本兼容。协议兼容、未知字段、幂等和持久 schema 的系统方法见第~\ref{chap:interface-protocol-data-contracts}~章。
+
+\section{调用方身份与授权}
+
+Unix socket 可通过 \texttt{SO\_PEERCRED} 获取对端 PID/UID/GID，但 PID 可能复用，授权应主要依据内核提供的连接凭据和 MAC 策略，不能只维护进程号白名单。传递文件描述符时，接收方还要验证对象类型、访问模式、大小和所属设备。
+
+认证与授权应分开：
+
+\begin{itemize}
+  \item 谁发起请求，由凭据、证书、token 或可信代理确定；
+  \item 该身份能否对目标对象执行特定操作；
+  \item 当前设备模式、租户、generation 和物理状态是否允许；
+  \item 请求是否过期、重复或超过速率/资源配额；
+  \item 高风险操作是否需要物理在场、短期授权或审计。
+\end{itemize}
+
+本机调用不自动可信。网络服务、容器、浏览器或解析器被攻陷后，Unix socket 可能成为权限提升路径。
 
 \section{事件循环与线程模型}
 
-设备服务常同时处理 socket、timer、signal、设备 fd 和异步完成。\texttt{epoll} 适合集中事件循环；耗时计算和阻塞库调用应进入有界 worker pool。
+设备服务常同时处理 socket、timer、signal、设备 fd 和异步完成。\texttt{epoll} 适合集中事件循环，其 level-triggered、edge-triggered 和 one-shot 行为必须按目标内核接口实现\cite{linux-epoll-man}。
 
-每个连接一个线程容易在异常客户端下耗尽资源。worker pool 需要固定上限、排队容量、取消和 shutdown 协议。队列满时应产生可观测背压，而不是无限增长。
+事件循环设计应遵循：
 
-\section{服务启动与依赖}
+\begin{itemize}
+  \item 回调只完成有界工作，耗时计算和阻塞库调用进入 worker；
+  \item 所有 fd 使用一致的 nonblocking 策略；
+  \item edge-triggered 模式持续读写到 \texttt{EAGAIN}；
+  \item timer 使用单调时钟，signal 通过 signalfd 或受控处理路径进入；
+  \item 每个连接设置输入、输出、未完成请求和内存上限；
+  \item 关闭时停止接收新工作，取消或排空旧工作，并回收 fd。
+\end{itemize}
 
-PID~1 或服务管理器负责启动、重启、超时、环境和权限。服务不应通过固定 sleep 猜测依赖是否就绪，而应等待设备节点、socket、mount 或明确健康条件。
+每个连接一个线程容易在异常客户端下耗尽资源。有界 worker pool 需要固定并发、排队容量、优先级、取消和 shutdown 协议。队列满时应产生可观测背压，而不是无限增长。
 
-启动顺序应区分“进程已经 fork”“IPC 已监听”“硬件已初始化”和“核心功能可用”。其他服务依赖的是最后一种状态时，需要 readiness 通知或健康 API。
+任务取消不是简单丢弃 future。若 worker 已经向设备写入命令或提交事务，调用方超时后仍可能完成；协议必须区分“请求未执行”“状态未知”和“已完成但响应丢失”。
 
-\section{崩溃与重启}
+\section{背压、超时与重试}
 
-自动重启只能恢复无持久副作用的瞬时故障。若服务在执行不可幂等操作时崩溃，重启后必须通过 journal、事务 ID 或设备状态判断操作是否已经完成。
+每个队列都应定义最大项数、最大字节数、oldest age 和满载策略。控制命令、实时数据、批处理和遥测通常需要不同优先级，不能共享一个先入先出无界队列。
 
-重启策略应包含速率限制和最大失败次数。反复崩溃时进入降级或恢复模式，并保留 core dump、日志和版本信息，避免无限重启覆盖首个故障证据。
+超时应使用单调时间，并明确起点：
 
-\section{权限最小化}
+\begin{itemize}
+  \item 客户端排队前还是写入 socket 后；
+  \item 服务收到消息还是 worker 开始执行；
+  \item 设备命令提交还是物理动作完成；
+  \item 超时是否自动取消下游工作；
+  \item 响应晚到时由谁丢弃、记录或补偿。
+\end{itemize}
 
-服务应使用独立用户、组和最小文件权限。需要少量特权时优先使用 Linux capability，而不是整个进程以 root 运行。
+重试只适合幂等操作或具有幂等键的事务。指数退避应加入随机抖动和总预算，防止所有服务同时重连。对永久错误、权限拒绝、schema 不兼容和资源上限，不应盲目重试。
 
-进一步隔离可以使用 namespace、seccomp、只读文件系统、设备访问白名单和 MAC 策略。沙箱规则必须覆盖动态加载库、配置、证书、socket 和必要设备，且在升级时进行兼容测试。
+\section{服务启动、ready 与依赖}
 
-\section{配置与状态}
+PID~1 或服务管理器负责启动、重启、超时、环境和权限。systemd 的 unit 依赖、服务类型和通知机制提供了一种实现，但具体语义应以部署版本文档为准\cite{systemd-service-man}；BusyBox init、OpenRC 或自定义 supervisor 也必须表达相同产品契约。
 
-配置应具有 schema、版本、默认值、范围和迁移路径。环境变量适合启动时少量非敏感覆盖，不适合作为大型持久配置数据库。
+服务不应通过固定 sleep 猜测依赖是否就绪，而应等待设备节点、socket、mount、消息总线名称或明确健康条件。以下状态必须区分：
 
-运行状态分为可重建缓存、临时状态、用户配置和安全关键状态。不同类型应放入不同目录或分区，并采用第~\ref{chap:storage-reliability}~章定义的持久化语义。
+\begin{description}
+  \item[started] 进程已经创建；
+  \item[listening] IPC 已经接受连接；
+  \item[initialized] 配置、硬件和持久状态加载完成；
+  \item[ready] 能够在规定 SLO 内完成核心请求；
+  \item[degraded] 仍可提供明确子集，且状态对外可见；
+  \item[stopping] 不接收新工作，正在排空和提交必要状态。
+\end{description}
 
-配置热更新需要明确事务边界。解析成功不代表可应用；服务应先验证完整候选配置，再一次性切换，失败时继续使用旧配置。
+依赖关系应尽量基于能力而不是进程名称。网络管理器进程存在不表示 DNS、路由和目标服务可达；设备节点存在也不表示传感器已校准并能产生新鲜数据。
 
-\section{资源管理}
+\section{有序关闭与系统切换}
 
-长期服务必须限制文件描述符、线程、内存、CPU、日志和临时文件。cgroup 可以实施资源上限和统计，但 OOM kill 后的业务恢复仍需应用设计。
+关机、重启、A/B 切换、容器更新和低功耗进入都需要有序停止。服务应处理：
 
-内存压力测试应覆盖缓存增长、消息积压和第三方库行为。使用 RSS 单值无法区分匿名页、共享库、page cache 和 DMA buffer，需要结合 smaps、cgroup 与子系统统计。
+\begin{enumerate}
+  \item 停止接受新请求并向调用方传播 draining；
+  \item 取消尚未开始且允许取消的工作；
+  \item 为进行中事务等待有界完成或写入恢复 journal；
+  \item flush 必须持久化的数据并关闭设备；
+  \item 释放唤醒锁、inhibitor、租约和临时权限；
+  \item 在总截止期前向 supervisor 报告完成。
+\end{enumerate}
+
+关闭回调不能假定其他服务仍然可用。系统管理器应明确停止顺序，但服务仍需应对依赖先消失、磁盘只读和总截止期逼近。
+
+\section{崩溃、重启与操作恢复}
+
+自动重启只能恢复无持久副作用的瞬时故障。若服务在执行不可幂等操作时崩溃，重启后必须通过 journal、事务 ID 或设备真实状态判断操作是否完成。
+
+典型策略是把业务操作建模为：
+
+\begin{enumerate}
+  \item 接收并验证带唯一 ID 的意图；
+  \item 持久记录待执行或确保操作可从外部状态查询；
+  \item 向设备/依赖提交；
+  \item 记录结果并以同一 ID 返回；
+  \item 重启后扫描未决项，查询、补偿或安全终止。
+\end{enumerate}
+
+重启策略应包含速率限制、退避和最大失败次数。反复崩溃时进入降级或恢复模式，并保留首次 core dump、日志和版本信息，避免无限重启覆盖证据。
+
+共享设备应由单一 owner 管理。若服务崩溃，内核驱动或独立安全机制应把执行器恢复到规定状态，而不能依赖同一崩溃进程执行清理。
+
+\section{权限最小化与沙箱}
+
+服务应使用独立用户、组和最小文件权限。需要少量特权时优先使用 Linux capability，而不是整个进程以 root 运行；capability 的实际拆分和继承规则以目标系统文档为准\cite{linux-capabilities-man}。
+
+进一步隔离可以使用：
+
+\begin{itemize}
+  \item \texttt{no\_new\_privs} 与 seccomp syscall 过滤；
+  \item mount、PID、network、IPC 和 user namespace；
+  \item 只读 rootfs、私有临时目录和受控 bind mount；
+  \item 设备 cgroup、文件 ACL、Landlock 或 MAC 策略；
+  \item 动态链接库、插件、配置和证书的只读来源；
+  \item 禁止 ptrace、core dump 或敏感环境导出。
+\end{itemize}
+
+seccomp 只按系统调用及参数过滤，不理解业务对象，也不是完整沙箱\cite{linux-seccomp-man}。规则必须覆盖架构、兼容 syscall 和动态加载行为，并在工具链、libc 与内核升级时回归测试。
+
+最小权限设计的顺序应是先缩小服务职责和接口，再设置 OS 机制。一个解析任意网络内容、控制执行器且持有更新密钥的单体进程，即使添加 seccomp 也仍具有过大的故障后果。
+
+\section{配置、状态与单一写入者}
+
+配置应具有 schema、版本、默认值、范围、来源优先级和迁移路径。环境变量适合启动时少量非敏感覆盖，不适合作为大型持久配置数据库。
+
+运行状态可以分为：
+
+\begin{description}
+  \item[可重建缓存] 丢失后可由权威来源重新生成；
+  \item[短期会话] 只在当前进程或启动周期有效；
+  \item[用户/产品配置] 需要事务更新、审计和兼容迁移；
+  \item[业务记录] 具有明确确认和持久语义；
+  \item[安全状态] 密钥、计数器、授权和防回滚状态；
+  \item[设备事实] 来自硬件、固件或云端权威源的状态。
+\end{description}
+
+不同类型应放入不同目录或分区，并采用第~\ref{chap:storage-reliability}~章定义的持久化语义。不要把缓存与不可重建状态混在同一个可随意清理的数据库中。
+
+配置热更新需要明确事务边界。推荐先解析完整候选、执行跨字段和资源验证、准备依赖、原子切换 generation，再异步清理旧资源。失败时继续使用旧配置，并报告稳定错误码。
+
+每份权威状态应有单一写入者，其他服务通过版本化 API 请求变更。多个进程直接修改同一 JSON、SQLite 或 sysfs 状态会使锁、迁移和审计不可控。
+
+\section{资源管理与压力行为}
+
+长期服务必须限制文件描述符、线程、内存、CPU、I/O、日志、临时文件和未完成请求。Linux cgroup v2 可以实施部分资源策略与统计\cite{linux-cgroup-v2}，Pressure Stall Information（PSI）则有助于观察 CPU、内存和 I/O 压力\cite{linux-psi}。
+
+资源限制必须配套业务行为：
+
+\begin{itemize}
+  \item 达到内存高水位时先缩减缓存还是拒绝新请求；
+  \item fd 耗尽时是否保留管理和诊断连接；
+  \item CPU 被节流时哪些截止期会失败；
+  \item I/O 配额不足时日志、数据库与 OTA 如何排序；
+  \item OOM kill 后谁重建状态，是否可能形成重启风暴；
+  \item 临时目录和日志满时能否保持安全控制。
+\end{itemize}
+
+使用 RSS 单值无法区分匿名页、共享库、page cache 和 DMA buffer，需要结合 smaps/PSS、cgroup、slab 与子系统统计。内存压力测试应覆盖缓存增长、消息积压、碎片、第三方库和异常客户端。
+
+\section{动态库、插件与升级兼容}
+
+用户空间更新不仅要考虑协议 schema，还要考虑 ELF ABI、动态加载器、libc、C++ 运行时和插件。共享库的 SONAME、符号版本和对象布局需要明确兼容规则；不要把私有 C++ 类跨独立升级边界暴露。
+
+插件接口宜使用窄 C ABI、显式版本、结构体大小和能力位：
+
+\begin{lstlisting}[language=C,caption={可演进插件描述符示意}]
+struct plugin_api_v1 {
+    uint32_t abi_version;
+    uint32_t struct_size;
+    uint64_t capabilities;
+    int (*start)(const void *config, size_t config_len);
+    int (*stop)(uint32_t timeout_ms);
+};
+\end{lstlisting}
+
+服务滚动替换时，要定义旧客户端与新服务、新客户端与旧服务、持久状态和配置迁移的兼容窗口。单设备通常没有数据中心式冗余，升级中进程短暂停机是否允许、如何排空事务和恢复 fd 都需设计。
+
+二进制与符号工程见第~\ref{chap:compiler-linker-binary}~章，系统镜像与 A/B 更新见第~\ref{chap:system-build-update}~章。
 
 \section{容器化应用}
 
-容器可以封装用户空间依赖并提供 namespace/cgroup 隔离，但共享宿主内核，不是虚拟机安全边界。嵌入式设备采用容器前应评估镜像体积、只读 rootfs、设备直通、启动时间和离线更新。
+容器可以封装用户空间依赖并提供 namespace/cgroup 隔离，但共享宿主内核，不是虚拟机安全边界。采用容器前应评估镜像体积、只读 rootfs、设备直通、启动时间、离线更新、日志和现场恢复。
 
-硬件访问应通过稳定设备 ABI 或宿主代理服务，不应把大量 \texttt{/dev} 和特权 capability 直接授予容器。容器镜像、宿主 BSP 和设备配置需要兼容矩阵。
-
-\section{健康与 watchdog}
-
-服务健康检查应验证关键依赖和工作进展，不只是进程存在。system watchdog、进程 watchdog 和硬件 watchdog 应形成层次：局部服务先尝试重启，系统失去核心能力时再触发整机恢复。
-
-喂狗线程不能与核心业务完全独立，否则业务死锁而 watchdog 仍被刷新。可使用阶段计数、任务心跳和关键事务进展形成健康谓词。
-
-\section{测试方法}
+容器运行时配置也属于产品基线：
 
 \begin{itemize}
-  \item 使用 socket 测试验证协议版本、短消息、超长消息和错误凭据；
-  \item 注入依赖晚启动、设备消失、磁盘满和 IPC 对端重启；
-  \item 在请求处理中杀死服务，验证幂等与恢复；
-  \item 执行连接洪泛、队列满、fd 耗尽和内存压力；
-  \item 验证升级过程中新旧服务和配置 schema 的兼容窗口；
-  \item 检查 sandbox/capability 是否既满足功能又没有过度授权。
+  \item 镜像摘要、签名、入口与只读层；
+  \item UID/GID 映射、capability、seccomp 和 mount；
+  \item cgroup 预算、restart policy 和健康检查；
+  \item 设备节点、socket 与宿主代理接口；
+  \item 宿主 BSP、容器应用和配置 schema 的兼容矩阵。
 \end{itemize}
 
-\section{检查清单}
+硬件访问应通过稳定设备 ABI 或宿主代理服务，不应把大量 \texttt{/dev}、host network 和 privileged capability 直接授予容器。容器内 root 若映射为宿主高权限，隔离收益会大幅降低。
+
+\section{健康、watchdog 与降级}
+
+健康检查应验证关键依赖和工作进展，不只是进程存在。可以分为：
+
+\begin{description}
+  \item[liveness] 进程是否仍能执行健康路径；
+  \item[readiness] 是否能接受并正确完成新业务；
+  \item[progress] 关键事务、采样或控制是否持续推进；
+  \item[dependency health] 必要设备、存储、网络和其他服务状态；
+  \item[resource health] 队列、水位、延迟和错误预算是否仍在界内。
+\end{description}
+
+system watchdog、进程 watchdog 和硬件 watchdog 应形成层次：局部服务先尝试有界恢复，系统失去核心能力时再触发整机恢复。喂狗线程不能与核心业务完全独立，否则业务死锁而 watchdog 仍被刷新。
+
+健康谓词应避免把外部非关键依赖变成重启源。例如云端暂时不可达时，离线产品不应不断重启。应报告 degraded，并按数据新鲜度和本地能力决定服务范围。
+
+\section{服务可观测性}
+
+每个服务至少暴露：
 
 \begin{itemize}
-  \item 进程边界是否对应权限、生命周期或故障隔离需求？
-  \item IPC 是否定义版本、长度、超时、错误和调用方身份？
-  \item 事件循环和 worker pool 是否有界并支持关闭？
-  \item 服务 readiness 是否区别于进程已启动？
-  \item 崩溃重启是否处理不可幂等操作和速率限制？
-  \item 配置、缓存、用户数据和安全状态是否分开管理？
-  \item root、capability、设备和文件访问是否最小化？
+  \item build ID、配置 generation、启动计数和当前模式；
+  \item 请求数、错误分类、延迟 histogram 和未完成请求；
+  \item worker/队列水位、oldest age、drop 和重试；
+  \item 内存、fd、线程、CPU、I/O 与压力指标；
+  \item 依赖状态、最近状态转换和最后成功进展；
+  \item 崩溃、重启、降级和恢复原因。
+\end{itemize}
+
+日志使用稳定 event ID、request ID 和单调时间。错误日志不能打印密钥、token、用户载荷和任意内存。现场观测、诊断包与机群运营详见第~\ref{chap:observability-fleet}~章。
+
+\section{故障注入与验收矩阵}
+
+服务测试不应只验证正常 RPC。至少注入：
+
+\begin{itemize}
+  \item 短消息、超长消息、未知版本、重复 ID 和错误凭据；
+  \item 连接洪泛、慢读写客户端、队列满和 worker 卡死；
+  \item 依赖晚启动、重启、返回部分成功和永久不响应；
+  \item 在设备操作、数据库提交和配置切换各阶段杀死服务；
+  \item fd、内存、线程、磁盘和 cgroup 配额耗尽；
+  \item 实时时钟回退、单调超时和长时间 suspend/resume；
+  \item 新旧服务、插件、配置和持久 schema 的兼容组合；
+  \item sandbox 拒绝、权限降级和被攻陷低权限调用方。
+\end{itemize}
+
+\begin{table}[H]
+  \centering
+  \caption{用户空间服务验收矩阵示例}
+  \begin{tabular}{p{29mm}p{42mm}p{38mm}p{31mm}}
+    \hline
+    场景 & 注入与条件 & 证据 & 通过条件 \\
+    \hline
+    协议边界 & 短包、畸形长度、旧版本 & 错误码、内存与覆盖 & 有界拒绝且连接可控 \\
+    过载 & 洪泛、慢客户端、队列满 & 水位、drop、P99 & 无无界增长并传播背压 \\
+    崩溃恢复 & 各事务阶段 SIGKILL & journal、设备状态、结果 & 无重复危险动作 \\
+    权限隔离 & 越权 UID、fd 与 syscall & audit、策略与返回码 & 最小权限且无旁路 \\
+    资源压力 & 内存/fd/I/O 配额 & PSI、降级和重启 & 核心功能保持或安全退出 \\
+    升级兼容 & 新旧进程/schema 组合 & 协商、迁移和回滚 & 支持矩阵内无状态丢失 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+\section{用户空间服务检查清单}
+
+\begin{itemize}
+  \item 是否从最终镜像自动生成服务、权限、接口和 owner 清单？
+  \item 进程边界是否对应权限、生命周期、资源或故障隔离需求？
+  \item 控制面与大数据面是否使用合适的传输和 buffer 所有权？
+  \item IPC 是否定义 framing、版本、长度、超时、错误和调用方身份？
+  \item 事件循环、连接、worker、队列和输出 buffer 是否全部有界？
+  \item started、listening、initialized、ready 和 degraded 是否明确区分？
+  \item 关闭、取消和超时后仍可能完成的操作是否具有恢复语义？
+  \item 崩溃重启是否处理不可幂等操作、首次证据和速率限制？
+  \item 配置、缓存、业务数据、安全状态和设备事实是否分开管理？
+  \item root、capability、syscall、设备、mount 和文件访问是否最小化？
+  \item cgroup 限制触发时，业务是否具有明确降级而非只被 kill？
+  \item 新旧服务、动态库、插件、配置和持久 schema 是否兼容测试？
+  \item watchdog 是否由真实业务进展驱动，并避免外部依赖造成重启风暴？
 \end{itemize}

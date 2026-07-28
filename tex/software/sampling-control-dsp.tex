@@ -1,52 +1,236 @@
-\chapter{采样、数字信号处理与控制系统}
+\chapter{采样、信号处理与控制}
 \label{chap:sampling-control-dsp}
 
-嵌入式控制系统把连续世界中的电压、位置、速度、温度和声音转换为离散采样，再经过滤波、估计和控制算法驱动执行器。算法正确性依赖采样时刻、量化、数值范围、延迟和执行器约束，不能脱离硬件链路单独讨论。
+嵌入式控制系统把连续世界中的电压、位置、速度、温度、压力和声音转换为离散采样，再经过校准、滤波、估计和控制算法驱动执行器。算法正确性依赖采样时刻、量化、数值范围、闭环延迟、执行器约束和物理对象，不能脱离传感器、模拟前端、定时器、PWM 与机械系统单独讨论。
 
-\section{信号链与误差预算}
+\section{从物理目标与运行包线开始}
 
-典型输入链路包括传感器、偏置/放大、抗混叠滤波、ADC、数字校准和算法。总误差可能来自传感器精度、参考电压、增益误差、offset、噪声、非线性、温漂和量化。
+设计信号链前，先定义被测量或被控制对象：
 
-误差预算应区分可校准系统误差与随机噪声。多个独立误差可以用均方根合成，具有共同来源的误差不能简单按独立项处理。
+\begin{itemize}
+  \item 物理量、单位、方向、坐标系和有效范围；
+  \item 目标精度、分辨率、带宽、响应时间和允许超调；
+  \item 传感器与执行器的饱和、死区、迟滞、速率和热限制；
+  \item 电压、温度、负载、机械公差和老化运行包线；
+  \item 正常、校准、启动、降级、安全与维护模式；
+  \item 允许的故障、检测时间和最终安全输出。
+\end{itemize}
 
-\section{采样与混叠}
+例如“温度精度 $0.5\,^{\circ}\mathrm{C}$”仍不完整，需要说明量程、环境梯度、稳定时间、传感器安装位置、参考仪器不确定度和是否包含批次/老化。控制目标“转速稳定”也要给出设定范围、负载阶跃、稳态误差、超调和整定时间。
 
-理想带限信号需要采样频率高于最高频率两倍，但实际抗混叠滤波具有过渡带，因此采样率必须为模拟滤波器留出裕量。高于 Nyquist 的输入会折叠到低频，数字滤波无法从已混叠样本中恢复原信号。
+所有模型、代码、日志和测试应使用同一单位与符号。传感器原始 count、校准后的 SI 单位、控制器内部归一化值和 PWM duty 之间的转换要有显式边界，避免隐式比例因子散落在代码中。
 
-控制系统的采样率还受闭环带宽约束。常见起点是采样频率达到目标闭环带宽的 10--20 倍，再结合相位裕量、ADC 转换、计算和 PWM 更新延迟验证。
+\section{端到端信号链}
 
-多通道 ADC 若使用单个采样保持电路轮询通道，各通道并非同时采样。高速电流、电压或多轴信号需要确认 channel skew，必要时使用同步 ADC 或外部采样保持。
+典型输入链路包括：
 
-\section{量化、参考与校准}
+\begin{center}
+\begin{tikzpicture}[node distance=5mm]
+  \tikzset{sig/.style={draw=bookline,fill=bookpaper,rounded corners=1mm,
+    minimum width=25mm,minimum height=9mm,align=center,font=\small}}
+  \node[sig] (sensor) {传感器};
+  \node[sig,right=of sensor] (afe) {偏置/放大\\模拟滤波};
+  \node[sig,right=of afe] (adc) {S/H 与 ADC};
+  \node[sig,right=of adc] (dsp) {校准/滤波\\状态估计};
+  \node[sig,right=of dsp] (ctrl) {控制/保护};
+  \draw[->,bookteal] (sensor)--(afe);
+  \draw[->,bookteal] (afe)--(adc);
+  \draw[->,bookteal] (adc)--(dsp);
+  \draw[->,bookteal] (dsp)--(ctrl);
+\end{tikzpicture}
+\end{center}
+
+输出链路则包括控制值、限幅/斜率限制、PWM/DAC、gate driver、功率级和物理执行器。反馈回路中的任何一级都可能增加增益误差、相位延迟或非线性。
+
+系统接口应记录每个边界的：
+
+\begin{itemize}
+  \item 标称量程、最坏范围和无效值；
+  \item 单位、scale、offset、坐标系和符号方向；
+  \item 采样/更新时间、时间戳位置和数据新鲜度；
+  \item 饱和、削顶、缺样、重复和校准状态；
+  \item 数值格式、字节序、Q 格式或浮点精度；
+  \item 质量标志与故障分类。
+\end{itemize}
+
+\section{误差与测量不确定度预算}
+
+总误差可能来自传感器精度、参考电压、增益/offset、非线性、温漂、噪声、机械安装、量化、时间偏差和校准参考。应区分：
+
+\begin{description}
+  \item[系统误差] 在相同条件下方向稳定，可通过校准或补偿降低；
+  \item[随机误差] 由噪声和扰动造成，需要统计描述和滤波；
+  \item[分辨率] 输出可区分的最小步进，不等同于准确度；
+  \item[重复性] 相同条件重复测量的一致程度；
+  \item[不确定度] 对测量值可能偏离真实量的量化表述。
+\end{description}
+
+JCGM~100 给出了测量不确定度表达的通用框架\cite{jcgm100}。多个近似独立的小误差可按均方根合成：
+
+\begin{equation}
+  u_c=\sqrt{\sum_i u_i^2}
+\end{equation}
+
+但共同参考、共同温度或同一算法产生的相关误差不能按独立项处理。最坏值安全边界也可能需要线性叠加，而不是统计合成。
+
+\begin{table}[H]
+  \centering
+  \caption{信号链误差预算示例}
+  \begin{tabular}{p{31mm}p{31mm}p{37mm}p{38mm}}
+    \hline
+    来源 & 规格/分布 & 证据 & 处置 \\
+    \hline
+    传感器 offset & 温度相关、批次相关 & 数据手册与标定样本 & 两点/温度校准 \\
+    参考电压 & 初始误差与温漂 & 板级实测 & 比率测量或高精度参考 \\
+    模拟增益 & 电阻容差与放大器误差 & Monte Carlo/测量 & 选件与校准 \\
+    ADC 噪声 & RMS/频谱 & 静态采样 histogram & 滤波与布局优化 \\
+    时间偏差 & 触发、DMA、任务抖动 & timer/示波器 trace & 硬件同步与时间戳 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+\section{采样定理、混叠与模拟滤波}
+
+理想带限信号需要采样频率高于最高频率两倍，但实际抗混叠滤波器具有过渡带，因此采样率必须为模拟滤波器留出裕量。高于 Nyquist 的输入会折叠到低频，数字滤波无法从已经混叠的样本中恢复原信号。
+
+离散时间信号处理的频谱、采样和滤波基础可参考 Oppenheim 与 Schafer\cite{oppenheim-schafer-dsp}。工程上需要同时考虑：
+
+\begin{itemize}
+  \item 业务信号最高频率与需要抑制的干扰频段；
+  \item 模拟滤波器的阶数、截止、容差和相位；
+  \item ADC 输入带宽、source impedance 与采样电容充电；
+  \item PWM、开关电源、无线和数字时钟的确定性干扰；
+  \item 采样率、过采样、数字 decimation 与 CPU/功耗；
+  \item 故障瞬态是否会在滤波前造成前端饱和。
+\end{itemize}
+
+控制系统的采样率还受闭环带宽约束。常见起点是采样频率达到目标闭环带宽的 10--20 倍，再结合相位裕量、ADC 转换、计算和 PWM 更新延迟验证；该比例不是证明，快速对象和大延迟系统可能需要更严格分析。
+
+\section{采样时刻、jitter 与多通道 skew}
+
+ADC 数值之外，采样时刻本身也是测量。若输入为正弦，采样时刻误差 $\Delta t$ 在小误差近似下产生幅值误差：
+
+\begin{equation}
+  \Delta x \approx \frac{dx}{dt}\Delta t
+\end{equation}
+
+信号变化越快，相同 jitter 造成的幅值误差越大。采样应尽量由硬件 timer、PWM compare 或 ADC 触发，而不是普通任务周期性调用。
+
+时间戳应对应明确物理边界：
+
+\begin{itemize}
+  \item 触发进入 sample-and-hold 的时刻；
+  \item ADC end-of-conversion；
+  \item DMA 写入内存完成；
+  \item ISR 或任务读取样本；
+  \item 执行器 compare value 实际装载。
+\end{itemize}
+
+只在任务收到消息时打时间戳，会把调度抖动误认为传感器时间。硬件不提供精确时间戳时，应测量固定延迟和分布，并在融合模型中表达不确定度。
+
+多通道 ADC 若使用单个采样保持电路轮询通道，各通道并非同时采样。高速电流、电压、多相或多轴信号需要确认 channel skew，必要时使用同步 ADC、外部采样保持或对已知运动模型做时间补偿。
+
+\section{ADC、参考与动态性能}
 
 理想 $N$ 位 ADC 的 LSB 为：
+
 \begin{equation}
   LSB=\frac{V_{ref}}{2^N}
 \end{equation}
 
-有效位数还受噪声、失真和参考稳定性限制。增加分辨率不能弥补前端饱和、接地噪声或参考漂移。
+这只描述码宽。实际有效位数还受噪声、失真、参考稳定性、INL/DNL、输入驱动和时钟 jitter 限制。增加分辨率不能弥补前端饱和、接地噪声或参考漂移。
 
-校准模型可以从简单 offset/gain 扩展为分段或温度补偿：
+验证 ADC 链路应覆盖：
+
+\begin{itemize}
+  \item 零点、满量程、增益、INL/DNL 和 missing code；
+  \item 静态输入 histogram 与噪声 RMS；
+  \item 正弦输入的 SNR、THD/SINAD 和频率响应；
+  \item 不同 source impedance 与采样时间；
+  \item 通道切换后的 settling 与 ghosting；
+  \item DMA burst、cache、一致性和丢样；
+  \item 最低/最高参考、电压、温度和时钟。
+\end{itemize}
+
+外部参考和比率测量策略要与传感器供电一致。例如电阻桥传感器与 ADC 使用同一参考，可抵消部分参考绝对误差；但参考噪声、布局和不同带宽仍需评估。
+
+\section{过采样、抽取与数据率}
+
+过采样可以放宽模拟滤波过渡带、平均某些噪声并支持数字抽取，但不会自动增加有效分辨率。输入需要具有足够非相关噪声或 dither，且系统不能已经受系统误差和低频漂移主导。
+
+抽取前必须使用低通滤波，防止高频内容在降低采样率时重新混叠。多级 decimation 可以降低计算量，但每级的通带、阻带、位宽和群延迟都要进入预算。
+
+总数据率为：
+
+\begin{equation}
+  R=N_{ch}\,f_s\,B_s
+\end{equation}
+
+其中 $N_{ch}$ 为通道数，$f_s$ 为每通道采样率，$B_s$ 为每样本实际存储/传输字节数。协议头、时间戳、对齐、double buffer 和峰值突发会进一步增加 DMA、RAM、存储与网络需求。
+
+\section{校准模型与生命周期}
+
+校准模型可以从简单 offset/gain 扩展为分段、矩阵和温度补偿：
+
 \begin{equation}
   y=(x-x_0)k(T)+b(T)
 \end{equation}
 
-校准参数应带 schema、适用硬件版本、单位和 CRC，并明确缺失或越界时的安全策略。
+多轴传感器还可能需要：
 
-\section{数字滤波}
+\begin{equation}
+  \mathbf{y}=\mathbf{M}(T)(\mathbf{x}-\mathbf{b}(T))
+\end{equation}
 
-移动平均容易实现并能抑制高频噪声，但会引入窗口相关延迟。单极点 IIR 可写为：
+其中 $\mathbf{M}$ 同时表达 scale、轴不正交和安装旋转。应用矩阵前必须固定坐标系、左右手约定和旋转方向。
+
+校准记录应包含：
+
+\begin{itemize}
+  \item schema、设备/通道身份、硬件版本和序列号；
+  \item 原始点、拟合方法、系数、单位和有效范围；
+  \item 参考设备、校准日期、温度与不确定度；
+  \item CRC/签名、generation 和写入工站；
+  \item 缺失、损坏、越界和硬件更换后的策略；
+  \item 重新校准触发条件与历史保留。
+\end{itemize}
+
+只保存最终系数会使后续无法重新拟合或判断异常。生产数据库应保存原始观测与工装版本；设备上保存运行所需的紧凑、受保护参数。
+
+\section{数字滤波器的规格与实现}
+
+滤波器应从需求推导：通带、阻带、允许 ripple、采样率、相位/群延迟、阶跃响应、计算量和数值格式。只写“使用低通滤波”无法评审。
+
+移动平均容易实现并能抑制部分高频噪声，但具有 sinc 频响、零点和窗口相关延迟。单极点 IIR 可写为：
+
 \begin{equation}
   y[n]=y[n-1]+\alpha(x[n]-y[n-1])
 \end{equation}
 
-$\alpha$ 应由实际采样周期和截止频率推导。若任务周期抖动明显，固定系数滤波器的真实频率响应也会变化。
+若从连续一阶低通时间常数 $\tau$ 采用精确零阶保持离散化，可取：
 
-FIR 具有有限脉冲响应和易于线性相位设计的特点；IIR 在较少计算量下获得陡峭响应，但需要关注量化、稳定性和内部状态溢出。高阶 IIR 宜实现为二阶节级联，而不是直接使用高阶多项式。
+\begin{equation}
+  \alpha=1-e^{-T_s/\tau}
+\end{equation}
 
-\section{固定点数值设计}
+$\alpha$ 应对应真实采样周期。若任务周期抖动明显，固定系数滤波器的实际频率响应会变化；可以改用硬件定时采样，或在模型允许时按实际 $\Delta t$ 更新系数。
 
-无 FPU 或要求确定时延的 MCU 常使用 Q 格式。设计必须记录每个信号的小数位、范围和饱和策略。乘法会扩大位宽，右移舍入和截断位置会影响偏差。
+FIR 易于获得线性相位；IIR 用较少计算获得陡峭响应，但要关注稳定性、量化和内部状态溢出。高阶 IIR 宜实现为二阶节级联，并选择 section 顺序和 scale，避免单节峰值过大。
+
+滤波验证应同时检查频域与时域：
+
+\begin{itemize}
+  \item magnitude、phase/group delay、极点/零点；
+  \item impulse、step、ramp 和饱和恢复；
+  \item 最大输入、DC、噪声和干扰频率；
+  \item 浮点设计与定点实现的逐样本误差；
+  \item 长时间状态漂移、limit cycle 和系数损坏；
+  \item 实际运行时间、栈和 cache 行为。
+\end{itemize}
+
+\section{固定点与数值范围设计}
+
+无 FPU 或要求确定时延的 MCU 常使用 Q 格式。设计必须记录每个信号的物理范围、scale、小数位、中间位宽、舍入和饱和策略。
 
 \begin{lstlisting}[language=C,caption={带舍入和饱和的 Q15 乘法}]
 static int16_t q15_mul(int16_t a, int16_t b)
@@ -60,75 +244,258 @@ static int16_t q15_mul(int16_t a, int16_t b)
 }
 \end{lstlisting}
 
-验证时应对比浮点参考模型，覆盖最大输入、长期 DC、脉冲和极限系数组合，并使用 UBSan 或静态分析发现有符号溢出和非法移位。
+需要特别检查：
 
-\section{离散控制与 PID}
+\begin{itemize}
+  \item 两数相乘后的双倍位宽和累加器 guard bits；
+  \item 负数右移、舍入偏差和有符号溢出；
+  \item 饱和发生位置与状态变量是否已经污染；
+  \item 系数量化后极点是否仍位于稳定区域；
+  \item 不同编译器对 SIMD intrinsic、对齐和饱和指令的行为；
+  \item NaN、Inf、denormal 与浮点异常的产品策略。
+\end{itemize}
 
-连续控制器部署到 MCU 前需要离散化。位置式 PID 的离散表达为：
+ARM CMSIS-DSP 提供常见滤波、变换和数学内核，但调用方仍要选择正确数据格式、状态长度和缩放\cite{cmsis-dsp-doc}。库函数通过单元测试不表示整条信号链的单位、延迟和饱和正确。
+
+\section{多速率系统与速率转换}
+
+实际系统常同时存在高速电流环、中速速度环、低速温度/通信任务。每个速率域应定义触发源、相位关系、数据保持和跨域语义。
+
+从快域到慢域可以 decimate、平均或提取最新值；从慢域到快域可以零阶保持、插值或轨迹生成。选择取决于物理意义：
+
+\begin{itemize}
+  \item “最新样本”可能产生别名和随机相位；
+  \item 平均值会丢失峰值，不能用于过流保护；
+  \item 零阶保持增加相位滞后；
+  \item 插值不能创造传感器没有测得的信息；
+  \item 跨线程 double buffer 需要 generation 与时间戳；
+  \item 缺样时必须区分保持旧值、预测和标记 invalid。
+\end{itemize}
+
+多速率调度要验证 harmonic relationship 和 worst-case phasing，防止多个低频任务周期性在同一 tick 聚集造成控制 jitter。
+
+\section{对象建模与系统辨识}
+
+控制器设计依赖对象模型。模型可以来自物理方程、供应商参数或系统辨识，但必须声明适用工作点、线性化、延迟、饱和和未建模动态。
+
+辨识实验应：
+
+\begin{itemize}
+  \item 在安全范围内使用足够激励，覆盖目标频段；
+  \item 同步记录输入、输出、模式、温度和负载；
+  \item 避免闭环控制器掩盖对象特性，或使用适合闭环的辨识方法；
+  \item 将训练/拟合数据与独立验证数据分开；
+  \item 检查残差相关、参数置信区间和不同工作点；
+  \item 保留原始数据、脚本、模型版本和单位。
+\end{itemize}
+
+拟合误差很小不表示模型适合控制。错误延迟、遗漏不稳定零点、执行器饱和或未建模共振，可能在闭环中产生严重后果。
+
+\section{反馈、前馈与控制架构}
+
+反馈控制利用误差抵抗扰动，但受传感器噪声和闭环带宽限制；前馈利用可测扰动或模型提前补偿，但依赖模型准确度。常见架构包括：
+
+\begin{itemize}
+  \item 单环反馈；
+  \item 电流--速度--位置级联；
+  \item 前馈 + 反馈修正；
+  \item 状态反馈与观测器；
+  \item gain scheduling 与工作点切换；
+  \item reference governor/轨迹规划 + 底层控制；
+  \item 独立安全限制器与硬件保护。
+\end{itemize}
+
+内环通常需要更高带宽并在更快周期运行。外环不应直接命令超出内环或执行器能力的跳变；轨迹生成器负责限制速度、加速度和 jerk。
+
+反馈系统的稳定性、灵敏度和频域分析可参考 Åström 与 Murray\cite{astrom-murray-feedback}。设计报告应保存 plant、controller、离散化方法、采样延迟和裕量，而不是只保留最终增益。
+
+\section{离散 PID 与抗饱和}
+
+位置式 PID 的离散表达可写为：
+
 \begin{equation}
-  u[k]=K_p e[k]+K_i T_s\sum e[k]+K_d\frac{e[k]-e[k-1]}{T_s}
+  u[k]=K_p e[k]+I[k]+K_d\frac{e[k]-e[k-1]}{T_s}
 \end{equation}
 
-实际实现需要输出限幅、积分抗饱和、微分滤波和模式切换。执行器达到上限后若积分继续累积，会产生 windup，并在误差反向后长时间无法退出饱和。
+实际实现通常对测量而非误差求微分，避免设定值阶跃产生 derivative kick；微分项还需要低通滤波。PID 工程实现与抗饱和方法可参考 Åström 与 Hägglund\cite{astrom-hagglund-pid}。
+
+执行器饱和后若积分继续累积，会产生 windup。常用方法包括：
+
+\begin{description}
+  \item[条件积分] 输出未饱和或误差帮助退出饱和时才积分；
+  \item[反算 anti-windup] 根据饱和前后输出差反馈修正积分；
+  \item[积分限幅] 直接限制积分状态，但需匹配前馈和输出范围；
+  \item[跟踪模式] 手动/外部控制时让积分跟踪实际输出，实现无扰切换。
+\end{description}
 
 \begin{lstlisting}[language=C,caption={带条件积分和输出限幅的 PID 骨架}]
 float pid_step(struct pid *p, float setpoint, float measurement)
 {
     float e = setpoint - measurement;
-    float d = lowpass((e - p->last_error) / p->dt, &p->d_state);
+    float d_input = (measurement - p->last_measurement) / p->dt;
     float candidate_i = p->integral + p->ki * p->dt * e;
-    float raw = p->kp * e + candidate_i + p->kd * d;
+    float raw = p->kp * e + candidate_i - p->kd * lowpass(d_input);
     float out = clamp(raw, p->out_min, p->out_max);
 
     if (out == raw || signbit(e) != signbit(raw - out))
         p->integral = candidate_i;
-    p->last_error = e;
+    p->last_measurement = measurement;
     return out;
 }
 \end{lstlisting}
 
-控制器从手动切换到自动时应实现 bumpless transfer，使积分状态与当前输出匹配，避免瞬间跳变。
+增益单位必须与误差、输出和时间单位一致。修改采样周期而不重新离散化 $K_i/K_d$ 是常见故障。控制器从手动切换到自动、增益调度或主备切换时，应初始化状态实现 bumpless transfer。
 
-\section{时序与延迟}
+\section{执行器约束与命令整形}
 
-控制任务必须由硬件 timer、ADC end-of-conversion 或 PWM 同步事件触发。采样、计算和输出更新时间相对于 PWM 周期的位置会改变闭环相位。
+真实执行器具有：
 
-端到端延迟包括采样保持、ADC、DMA/ISR、调度、计算、通信和执行器更新。最坏延迟和抖动都需要进入稳定性分析，不能只使用平均执行时间。
+\begin{itemize}
+  \item 幅值、速度、加速度、jerk 和 duty 限制；
+  \item deadband、摩擦、backlash、hysteresis 和量化；
+  \item 电流、电压、温度和工作周期限制；
+  \item 驱动延迟、最小脉宽、死区时间和方向切换约束；
+  \item 机械行程、碰撞区和安全互锁。
+\end{itemize}
 
-DMA double buffer 可以让 CPU 处理上一批样本，同时硬件采集下一批。buffer ownership、丢块和过载策略必须明确。
+限幅不是最后一行 \texttt{clamp()} 就结束。控制器、前馈、积分、状态估计和安全监控都要知道实际施加输出。若软件命令 80\%，电源因欠压只实现 50\%，观测器仍按 80\% 预测会快速漂移。
+
+最终输出路径宜分层：
+
+\begin{enumerate}
+  \item 业务/轨迹命令；
+  \item 控制器与前馈；
+  \item 模式和仲裁；
+  \item 物理幅值/斜率限制；
+  \item 安全限制器；
+  \item 驱动与硬件保护。
+\end{enumerate}
+
+高层算法、远程命令或 AI 策略都不能绕过最终物理安全边界。
 
 \section{状态估计与传感器融合}
 
-多个传感器具有不同带宽、噪声和偏置。互补滤波可以融合高频响应好的陀螺与低频稳定的加速度/磁场信息；Kalman filter 则显式建模状态、过程噪声和测量噪声。
+多个传感器具有不同带宽、噪声、bias 和失效模式。互补滤波可以融合高频响应好的陀螺与低频稳定的加速度/磁场信息；Kalman filter 则显式建模状态、过程噪声和测量噪声。
 
-复杂滤波器并不会自动提高精度。模型、坐标系、单位、时间戳和噪声协方差错误，会产生稳定但错误的估计。融合前应先验证单传感器标定和时间同步。
-
-\section{控制安全与降级}
-
-算法输入应检查范围、变化率、新鲜度和一致性。输出还需要独立限幅、斜率限制和硬件保护。控制器数值异常、任务超时或传感器失效时，应进入预定义安全状态或降级模式。
-
-安全限制器应比高级控制算法简单，并位于最终输出路径。即使上层模型预测控制或 AI 策略产生异常值，也不能越过物理安全边界。
-
-\section{验证方法}
+复杂滤波器并不会自动提高精度。必须先统一：
 
 \begin{itemize}
-  \item 使用离线记录数据验证滤波、估计与控制输出；
-  \item 将定点实现与高精度参考模型逐样本比较；
-  \item 执行 step、impulse、sine sweep 和边界输入测试；
-  \item 使用 Software-in-the-Loop 验证算法状态机；
-  \item 使用 Processor-in-the-Loop 测量目标数值和执行时间；
-  \item 使用 HIL 模拟传感器、负载、故障和机械极限；
-  \item 在最低电压、最高温度和最大负载下验证最坏延迟。
+  \item 坐标系、姿态表示、单位和符号；
+  \item 每个样本的物理时间、延迟和不确定度；
+  \item bias、scale、安装误差与温度补偿；
+  \item 过程/测量噪声的来源和协方差；
+  \item 缺样、乱序、重复和 outlier gating；
+  \item 初始化、重置和模式切换时的状态。
 \end{itemize}
 
-\section{检查清单}
+融合器输出应带时间戳、有效性、协方差/质量和使用的输入 generation。只输出“姿态值”会让控制器无法判断它是新鲜测量、预测结果还是长时间失锁后的旧状态。
+
+\section{实时执行与端到端延迟}
+
+控制任务必须由硬件 timer、ADC end-of-conversion 或 PWM 同步事件触发。采样、计算和输出更新时间相对于 PWM 周期的位置会改变闭环相位。
+
+端到端延迟可以分解为：
+
+\begin{equation}
+  T_{loop}=T_{sample}+T_{adc}+T_{dma}+T_{schedule}
+          +T_{compute}+T_{comm}+T_{actuate}
+\end{equation}
+
+必须同时测量最坏延迟和 jitter。平均执行时间无法证明稳定性或截止期。DMA double buffer 可以让 CPU 处理上一批样本，同时硬件采集下一批，但要定义：
 
 \begin{itemize}
-  \item 模拟滤波、采样率和控制带宽是否共同设计？
-  \item ADC 参考、量化、通道 skew 和校准误差是否进入预算？
-  \item 滤波器系数是否对应真实采样周期，并验证数值稳定性？
-  \item 固定点中间位宽、舍入和饱和是否明确？
-  \item PID 是否处理积分饱和、微分噪声和模式切换？
-  \item 控制延迟和抖动是否在最坏负载下测量？
-  \item 最终输出是否具有独立安全限幅和故障降级？
+  \item buffer owner、generation 和 cache 维护；
+  \item producer 覆盖前 consumer 是否完成；
+  \item 丢块、超载和半传输中断策略；
+  \item 时间戳对应第一样本、最后样本还是触发；
+  \item stop/restart 时旧 DMA 完成如何丢弃。
+\end{itemize}
+
+浮点、除法、cache miss、中断嵌套和总线争用都可能产生长尾。应在最大合法负载、最低频率和热稳态下用 cycle counter、trace 与示波器交叉验证。
+
+\section{故障检测、降级与功能安全}
+
+算法输入应检查：
+
+\begin{itemize}
+  \item 范围、变化率、时间新鲜度和质量标志；
+  \item 多传感器一致性与物理不变量；
+  \item 长时间常值、噪声突变、丢样和时间回退；
+  \item 校准缺失、温度越界和硬件自检；
+  \item NaN/Inf、固定点饱和和内部状态发散。
+\end{itemize}
+
+故障反应可以是使用备用传感器、降低带宽/输出、保持最后安全值、开环受限运行或进入安全状态。每种降级都要定义进入、退出、最大持续时间和操作者可见状态。
+
+安全限制器应比高级控制算法简单，并位于最终输出路径。对功能安全系统，检测、反应和执行器生效总时间必须小于 FTTI，详见第~\ref{chap:functional-safety}~章。
+
+watchdog 只检测软件进展，不能替代控制不变量。即使任务按时运行，也可能输出错误方向或传感器冻结；需要独立 plausibility 与硬件保护。
+
+\section{模型、软件与硬件验证}
+
+推荐建立同一组场景跨环境复用：
+
+\begin{enumerate}
+  \item \textbf{离线参考模型}：高精度计算滤波与控制期望；
+  \item \textbf{MIL}：算法模型与对象模型闭环；
+  \item \textbf{SIL}：产品 C/C++/Rust 算法在主机执行；
+  \item \textbf{PIL}：目标处理器执行，验证数值与时序；
+  \item \textbf{HIL}：真实控制器连接实时对象/信号模拟；
+  \item \textbf{实物试验}：最终传感器、执行器、负载和环境。
+\end{enumerate}
+
+测试向量应覆盖：
+
+\begin{itemize}
+  \item DC、ramp、step、impulse、sine sweep、chirp 与噪声；
+  \item 最大/最小输入、饱和、反向、死区和速率限制；
+  \item 采样 jitter、缺样、重复、乱序与时间戳偏差；
+  \item 传感器 bias、漂移、冻结、断线和不一致；
+  \item 执行器卡滞、负载阶跃、电源下降和热限制；
+  \item 模式切换、增益调度、复位和参数损坏；
+  \item 最低 CPU 频率、最大中断和总线并发。
+\end{itemize}
+
+浮点参考与定点实现比较时，要预先定义绝对/相对误差、相位、饱和与状态误差，不应逐位相等。HIL 必须验证真实外部输出和故障反应时间，而不只比较内部变量。
+
+\section{数字化验收矩阵}
+
+\begin{table}[H]
+  \centering
+  \caption{采样、DSP 与控制验收矩阵示例}
+  \begin{tabular}{p{28mm}p{41mm}p{39mm}p{32mm}}
+    \hline
+    场景 & 条件与注入 & 关键证据 & 通过条件 \\
+    \hline
+    测量精度 & 温度/量程/批次与参考仪器 & 原始码、校准和不确定度 & 全包线满足误差预算 \\
+    抗混叠 & 带外扫频和 PWM 干扰 & 输入/输出频谱 & 别名分量低于门槛 \\
+    数值一致 & 浮点参考与目标定点 & 逐样本误差和饱和计数 & 误差界内且无 UB \\
+    闭环动态 & 设定/负载 step、sweep & 超调、整定、裕量和输出 & 满足稳定与响应要求 \\
+    实时路径 & 最大负载、降频和热稳态 & GPIO/trace 延迟 histogram & 截止期与 jitter 通过 \\
+    传感器故障 & 冻结、bias、丢样与乱序 & 检测、降级和安全输出 & 在规定时间受控反应 \\
+    模式切换 & 手动/自动、增益与主备切换 & 输出波形和内部状态 & 无不允许突变 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+所有证据应关联硬件修订、传感器/执行器料号、校准 generation、算法与参数版本、编译配置、对象模型、采样率、环境和原始数据。
+
+\section{采样与控制检查清单}
+
+\begin{itemize}
+  \item 物理量、单位、坐标系、运行包线与动态目标是否明确？
+  \item 误差预算是否包含传感器、模拟、参考、ADC、时间和安装因素？
+  \item 模拟滤波、采样率、过采样/抽取和控制带宽是否共同设计？
+  \item 采样时间戳是否对应真实物理边界，并量化 jitter 与 channel skew？
+  \item ADC 参考、source impedance、动态性能和校准误差是否验证？
+  \item 校准是否保存原始证据、schema、硬件绑定、CRC 与生命周期？
+  \item 滤波器规格是否包含幅相、群延迟、阶跃和数值稳定性？
+  \item 固定点中间位宽、舍入、饱和和 limit cycle 是否明确？
+  \item 多速率跨域是否定义滤波、保持、generation 和缺样策略？
+  \item 对象模型是否经过独立数据验证并声明适用工作点与延迟？
+  \item PID 是否处理微分噪声、anti-windup、周期变化和无扰切换？
+  \item 执行器饱和、死区、速率、温度和实际施加输出是否反馈？
+  \item 控制延迟和 jitter 是否在最低频率、最大负载和热稳态测量？
+  \item 最终输出是否具有独立安全限制、故障降级和硬件保护？
+  \item 同一场景是否跨参考模型、SIL、PIL、HIL 和实物复用？
 \end{itemize}
