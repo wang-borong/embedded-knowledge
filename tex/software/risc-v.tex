@@ -1,679 +1,190 @@
-RISC-V 起源于加州大学伯克利分校，目前由 RISC-V International 维护开放标准。
-其基础 ISA 与标准扩展采用模块化设计，规范可公开实现；具体处理器核、SoC IP、扩展和软件仍可能具有各自的许可证或专利约束。
-本节以公开的非特权与特权架构规范为依据\cite{riscvspec,riscvpri}，只介绍常用子集，
-不应把这里的列表视为对当前全部标准扩展的枚举。
+RISC-V 由开放且版本化的基础 ISA、标准扩展和特权架构组成，目前由 RISC-V International 维护。开放规范不等于所有实现彼此相同：处理器核、SoC 平台、固件接口、中断控制器、缓存一致性和调试生命周期仍由具体产品决定。
 
-\subsection{Privileged Architecture}
+本节以非特权 ISA 与特权架构规范为语义边界\cite{riscvspec,riscvpri}，重点说明软件真正需要固化的工程契约。扩展状态和版本持续演进，目标项目必须保存所用规范、工具链、处理器修订号与平台资料，不能把本节的扩展列表当作当前全部标准的枚举。
 
-RISC-V 特权架构定义了系统级的功能，包括异常处理、内存管理、中断处理等。
+\subsection{ISA、ABI 与平台契约}
 
-\subsubsection{特权级别}
+“支持 RV64”只说明 XLEN 与基础编码的一部分，不能推出乘除法、原子、压缩、浮点、向量、位操作或虚拟化一定存在。一个可复现的软件目标至少包含四层：
+\begin{description}
+  \item[ISA] 基础指令集、全部单字母与多字母扩展、各扩展版本及 XLEN；
+  \item[ABI] 整数宽度、指针宽度、浮点调用约定、栈对齐和目标文件属性；
+  \item[特权架构] M/S/U 模式、页表模式、PMP、H 扩展和可用 CSR；
+  \item[平台] 启动协议、hart 拓扑、地址图、中断、计时器、SBI、设备发现与缓存一致性。
+\end{description}
 
-特权架构定义 M、S、U 三类基本模式，其中 M-mode 是特权架构实现必须具备的模式，
-S-mode 和 U-mode 是否存在取决于实现与目标平台：
+编译器的 \texttt{-march} 与 \texttt{-mabi}、汇编器属性、链接对象、Bootloader 描述和操作系统运行时探测必须一致。例如，使用 \texttt{lp64d} 编译的对象要求匹配的双精度浮点 ABI，不能只因 CPU 能执行部分 F/D 指令就与软浮点对象任意混合。
 
+\texttt{misa} 不能完整表达所有多字母扩展和平台属性，也不应作为唯一发现机制。裸机固件可以使用生成期 manifest；操作系统通常结合 Device Tree、ACPI、固件接口或架构提供的运行时探测。Device Tree 的 ISA、MMU、hart、中断与 \texttt{timebase-frequency} 属性必须来自真实平台，而不是从 QEMU \texttt{virt} 配置复制\cite{devicetree-spec,qemu-riscv}。
+
+建议把下列信息写入构建与崩溃记录：
+\begin{itemize}
+  \item 规范版本、ISA 扩展字符串、ABI 和工具链版本；
+  \item 处理器核、修订号、SoC 与板级版本；
+  \item 缓存 line、大页、ASID、PMP entry 和向量 VLEN 等实现属性；
+  \item SBI、Bootloader、Device Tree/ACPI 与操作系统版本；
+  \item 已应用勘误、workaround 和验证用例。
+\end{itemize}
+
+\subsection{寄存器与调用约定}
+
+RV32I/RV64I 通常提供 32 个整数寄存器，\texttt{x0} 固定为零。标准 ABI 为寄存器赋予稳定角色：
+\begin{description}
+  \item[控制与平台] \texttt{ra} 保存返回地址，\texttt{sp} 是栈指针，\texttt{gp} 与 \texttt{tp} 分别服务全局与线程局部数据；
+  \item[参数与返回值] \texttt{a0--a7} 传递整数/指针参数，\texttt{a0--a1} 也承载常见返回值；
+  \item[临时寄存器] \texttt{t0--t6} 由调用者保存；
+  \item[保存寄存器] \texttt{s0--s11} 由被调用者保存，\texttt{s0} 也可作为帧指针。
+\end{description}
+
+浮点寄存器和参数约定取决于所选 ABI；向量调用约定也不能从“实现 V 扩展”直接推出。中断、信号、内核任务切换和虚拟机切换需要根据状态寄存器判断扩展上下文是否活动，再选择惰性或主动保存策略。
+
+ABI 还定义栈对齐、结构体传递、可变参数、TLS、重定位和代码模型。Bootloader、固件、内核与模块若使用不同代码模型或调用约定，可能在链接阶段不报错，却在远跳转、浮点参数或异常展开时失败。发布前应检查 ELF attributes、反汇编和链接映射，而不是只比较源代码宏。
+
+\subsection{特权级、CSR 与 Trap}
+
+常见特权模式为：
+\begin{description}
+  \item[M-mode] 机器模式，管理最低层平台状态、PMP 和固件服务；
+  \item[S-mode] 监管者模式，通常运行支持虚拟内存的操作系统内核；
+  \item[U-mode] 用户模式，运行受限应用；
+  \item[HS/VS/VU] H 扩展提供的宿主监管者和客户机监管者/用户执行环境，而不是独立的“H-mode”。
+\end{description}
+
+具体实现可以是 M-only 微控制器，也可以提供 M/S/U 与 H 扩展。较高特权级通过 \texttt{medeleg/mideleg} 等机制委托部分 Trap，但委托不是简单的优先级设置；它改变入口 CSR、处理栈、返回指令和安全边界。
+
+常用 M-mode CSR 包括 \texttt{mstatus}、\texttt{mtvec}、\texttt{mepc}、\texttt{mcause}、\texttt{mtval}、\texttt{mie/mip}、\texttt{mscratch} 和 PMP 配置；S-mode 对应 \texttt{sstatus}、\texttt{stvec}、\texttt{sepc}、\texttt{scause}、\texttt{stval}、\texttt{sie/sip}、\texttt{sscratch} 与 \texttt{satp}。CSR 是否存在、哪些位可写以及访问失败如何 Trap，都要按目标规范与实现解释。
+
+Trap 入口不会像 Cortex-M 那样自动压入完整通用寄存器帧。入口汇编至少要：
 \begin{enumerate}
-  \item \textbf{用户模式（User Mode，U-Mode）}
-    \begin{itemize}
-      \item 最低特权级别
-      \item 运行用户应用程序
-      \item 受限的指令和资源访问
-    \end{itemize}
-
-  \item \textbf{监管者模式（Supervisor Mode，S-Mode）}
-    \begin{itemize}
-      \item 运行操作系统内核
-      \item 管理虚拟内存
-      \item 处理系统调用和异常
-    \end{itemize}
-
-  \item \textbf{机器模式（Machine Mode，M-Mode）}
-    \begin{itemize}
-      \item 最高特权级别
-      \item 运行固件和引导代码
-      \item 最低级别的硬件访问
-    \end{itemize}
-
-  \item \textbf{Hypervisor 扩展（H Extension）}
-    \begin{itemize}
-      \item 它不是位于 S-mode 与 M-mode 之间的独立“H-mode”
-      \item 扩展后的 S-mode 作为 HS-mode 运行宿主 Hypervisor
-      \item 客户机使用虚拟化的 VS-mode/VU-mode，并可使用两阶段地址转换
-    \end{itemize}
+  \item 获得不会被当前上下文覆盖的 scratch 或处理栈；
+  \item 保存将被修改的寄存器与原始 SP；
+  \item 快照 cause、tval、epc、status、特权级和 hart ID；
+  \item 区分异常与中断并分发到有界处理路径；
+  \item 在返回前恢复前一特权级、中断状态和完整上下文。
 \end{enumerate}
 
-\subsubsection{控制状态寄存器（CSR）}
-
-RISC-V 使用控制状态寄存器来管理系统状态：
-
-\paragraph{机器模式 CSR}
-
-\begin{itemize}
-  \item \textbf{mstatus}：机器状态寄存器
-  \item \textbf{misa}：机器 ISA 寄存器
-  \item \textbf{medeleg}：机器异常委托寄存器
-  \item \textbf{mideleg}：机器中断委托寄存器
-  \item \textbf{mie}：机器中断使能寄存器
-  \item \textbf{mtvec}：机器陷阱向量基址寄存器
-  \item \textbf{mepc}：机器异常程序计数器
-  \item \textbf{mcause}：机器异常原因寄存器
-  \item \textbf{mtval}：机器陷阱值寄存器
-  \item \textbf{mip}：机器中断挂起寄存器
-\end{itemize}
-
-\paragraph{监管者模式 CSR}
-
-\begin{itemize}
-  \item \textbf{sstatus}：监管者状态寄存器
-  \item \textbf{sie}：监管者中断使能寄存器
-  \item \textbf{stvec}：监管者陷阱向量基址寄存器
-  \item \textbf{sepc}：监管者异常程序计数器
-  \item \textbf{scause}：监管者异常原因寄存器
-  \item \textbf{stval}：监管者陷阱值寄存器
-  \item \textbf{sip}：监管者中断挂起寄存器
-  \item \textbf{satp}：监管者地址转换和保护寄存器
-\end{itemize}
-
-\subsubsection{异常和中断}
-
-\paragraph{异常类型}
-
-RISC-V 定义了多种异常类型：
-\begin{itemize}
-  \item 指令地址未对齐
-  \item 指令访问错误
-  \item 非法指令
-  \item 断点
-  \item 加载地址未对齐
-  \item 加载访问错误
-  \item 存储/原子操作地址未对齐
-  \item 存储/原子操作访问错误
-  \item 用户模式环境调用
-  \item 监管者模式环境调用
-  \item 机器模式环境调用
-  \item 指令页错误
-  \item 加载页错误
-  \item 存储/原子操作页错误
-\end{itemize}
-
-异常编号及可选异常会随扩展变化，例如 Hypervisor 扩展还定义客户机页错误；
-软件必须依据目标规范版本和已实现扩展解释 \texttt{mcause/scause}。
-
-\paragraph{中断类型}
-
-RISC-V 支持多种中断：
-\begin{itemize}
-  \item 软件中断（Software Interrupt）
-  \item 定时器中断（Timer Interrupt）
-  \item 外部中断（External Interrupt）
-\end{itemize}
-
-\subsubsection{内存管理}
-
-\paragraph{Sv32（32 位虚拟内存）}
-
-\begin{itemize}
-  \item 32 位虚拟地址空间
-  \item 4 KB 页大小
-  \item 两级页表
-\end{itemize}
-
-\paragraph{Sv39（39 位虚拟内存）}
-
-\begin{itemize}
-  \item 39 位虚拟地址空间（512 GB）
-  \item 4 KB 页大小
-  \item 三级页表
-  \item 64 位系统常用
-\end{itemize}
-
-\paragraph{Sv48（48 位虚拟内存）}
-
-\begin{itemize}
-  \item 48 位虚拟地址空间（256 TB）
-  \item 4 KB 页大小
-  \item 四级页表
-  \item 大型系统使用
-\end{itemize}
-
-\paragraph{Sv57（57 位虚拟内存）}
-
-\begin{itemize}
-  \item 57 位规范虚拟地址
-  \item 4 KB 基础页大小
-  \item 五级页表
-  \item 是否实现由平台与处理器决定
-\end{itemize}
+\texttt{mtvec/stvec} 可配置 Direct 或 Vectored 模式。Vectored 模式只对中断按 cause 形成偏移，异常仍进入公共基址；入口基址还要满足模式要求的对齐。嵌套 Trap 必须使用 per-hart 栈或帧链，不能让第二次异常覆盖第一份现场。
 
-\paragraph{页表项（PTE）}
+ECALL、断点、非法指令和页错误具有不同的 EPC 处置。不能统一执行 \texttt{epc += 4}：压缩指令可能为 16 bit，可恢复页错误通常要修复映射后重试原指令，而部分异步错误的 EPC 只表示观察点。崩溃记录应包含镜像 build ID、CSR 快照、Trap frame、页表根、活动中断与平台版本，便于离线符号化。
 
-RISC-V 页表项格式：
-\begin{itemize}
-  \item V（Valid）：有效位
-  \item R（Read）：读权限
-  \item W（Write）：写权限
-  \item X（Execute）：执行权限
-  \item U（User）：用户模式可访问
-  \item G（Global）：全局映射
-  \item A（Accessed）：已访问
-  \item D（Dirty）：已修改
-  \item RSW：保留给软件使用
-  \item PPN：物理页号
-\end{itemize}
+\subsection{中断控制器与时间基准}
 
-\subsection{Unprivileged ISA}
+特权架构只规定软件、计时器和外部中断如何进入 hart。具体平台可能使用传统 CLINT/PLIC，也可能采用 AIA 体系中的 ACLINT、APLIC 与 IMSIC。驱动应通过平台描述发现控制器类型、地址和 context，不能把某个开发板或模拟器的固定地址视为 ISA 常量。
 
-RISC-V 非特权 ISA 定义了用户程序可以使用的指令。
+PLIC 的典型流程是读取 claim 获得中断 ID，处理设备源，再向 complete 写回同一 ID。设备级清中断、控制器 claim/complete、优先级阈值和 context enable 的顺序共同决定是否丢中断或重复触发。IMSIC 以面向 hart 的消息表示中断，更适合 MSI、PCIe 和虚拟化，但仍要定义消息 ID 分配与客户机注入边界。
 
-\subsubsection{基本指令集}
+\texttt{time} 计数与 CPU 主频不是同一概念。平台必须给出稳定的 timebase 频率、跨 hart 同步保证、低功耗行为和回绕语义。S-mode 通常通过 SBI 设置定时事件；所用 SBI 扩展、返回码、并发与阻塞属性必须与固件版本匹配\cite{riscv-sbi}。
 
-\paragraph{RV32I（32 位基础指令集）}
+中断验收应测量从设备事件到首条处理指令、设备确认完成和业务任务被唤醒的端到端延迟，并覆盖屏蔽窗口、嵌套、缓存冷启动、共享互连和目标最低频点。只测空闲系统中的 Trap 入口周期数不能证明实时边界。
 
-\begin{itemize}
-  \item 32 个通用寄存器（x0--x31）
-  \item x0 硬连线为 0
-  \item 基本整数运算指令
-  \item 加载/存储指令
-  \item 分支和跳转指令
-  \item 系统调用指令（ECALL）
-\end{itemize}
+\subsection{启动、hart 生命周期与固件边界}
 
-\paragraph{RV64I（64 位基础指令集）}
+复位后的 PC、可用 hart、内存状态和设备默认值属于平台契约。每个 hart 都需要独立栈、Trap scratch、per-CPU 数据和页表切换状态；主 hart 负责全局初始化并不意味着次级 hart 可以在共享状态发布前提前访问。
 
-\begin{itemize}
-  \item 扩展 RV32I 到 64 位
-  \item 64 位寄存器
-  \item XLEN 为 64，通用寄存器宽度为 64 位
-  \item 实际实现的物理与虚拟地址位数可以小于 64 位
-  \item 提供面向 32 位字运算的 \texttt{*W} 指令
-\end{itemize}
+多 hart 启动应使用 acquire/release 原子或平台规定的屏障发布阶段状态。启动 epoch 需要拒绝旧消息和上一次运行留下的完成标志；仅把共享变量声明为 \texttt{volatile} 不能提供跨 hart 顺序。
 
-\subsubsection{标准扩展}
+SBI 为 S-mode 软件提供计时器、IPI、远程 fence、hart state management、系统复位等标准服务，但扩展集合与版本需要运行时探测。调用方应处理不支持、拒绝、已启动和暂时失败等结果，不能假设所有 OpenSBI 或厂商固件行为一致。
 
-\paragraph{M 扩展（乘法/除法）}
+Linux 启动还规定进入模式、寄存器参数、页表与中断状态等约束，应使用目标内核文档而非过时样例\cite{linux-riscv-booting}。Bootloader 传递的 Device Tree 必须描述实际内存、保留区、hart、ISA、PLIC/AIA、计时器和设备；镜像、DTB、固件与远端核版本应作为整组兼容单元更新。
 
-\begin{itemize}
-  \item MUL：乘法
-  \item MULH：高位乘法
-  \item DIV：有符号除法
-  \item DIVU：无符号除法
-  \item REM：有符号取余
-  \item REMU：无符号取余
-\end{itemize}
+\subsection{PMP、DMA 与物理隔离}
 
-\paragraph{A 扩展（原子操作）}
+PMP 由 M-mode 配置物理地址匹配和 R/W/X 权限，用于限制较低特权模式。常见匹配形式包括 TOR、NA4 和 NAPOT；entry 数量、最小粒度、优先级、锁定位和可选增强扩展均由实现决定。
 
-\begin{itemize}
-  \item LR（Load Reserved）：保留加载
-  \item SC（Store Conditional）：条件存储
-  \item AMO（Atomic Memory Operation）：原子内存操作
-  \item 用于实现锁和同步原语
-\end{itemize}
+TOR 区域的下界来自前一个 entry，因而排序本身就是安全语义。锁定 entry 后通常要到复位才能修改，并可能影响 M-mode 访问。设计默认拒绝策略时，需要为固件调用缓冲、共享页、只读测量区和设备 MMIO 建立最小窗口，同时验证区域边界和空洞。
 
-\subsubsection{指令集组合与平台契约}
+PMP 只约束 hart 发起的访问，不自动限制 DMA、调试模块、NPU 或其他总线主设备。完整隔离还需要 IOMMU/IOPMP、SoC 防火墙、设备复位、缓存所有权与调试认证。安全启动只证明初始镜像，若后续 M-mode 固件可以任意改写 PMP 或开放调试，运行时边界仍然不成立。
 
-RISC-V 软件不能只检查“RV64”便假定扩展齐全。基础整数 ISA、乘除法、原子、压缩、浮点、向量和位操作等扩展分别版本化。编译器的 \texttt{-march}、链接对象的属性、Bootloader 暴露的 ISA 字符串和操作系统运行时探测必须一致。
+PMP 验收应包含越界读写取指、重叠 entry、锁定后修改、Trap 入口栈、固件调用缓冲和 DMA 绕过测试。H 扩展、PMP 与设备直通的组合边界见第~\ref{chap:virtualization-isolation}~章。
 
-平台还定义 ISA 之外的启动核、内存映射、中断控制器、定时器、固件接口和设备发现。SBI 是 S-mode 软件请求 M-mode 固件服务的标准边界，但实现哪些扩展、调用是否可阻塞以及错误码语义仍需依据目标版本\cite{riscv-sbi}。
+\subsection{虚拟内存与 TLB 一致性}
 
-\subsubsection{Trap 入口与返回}
-
-Trap 入口的最小工作包括保存被覆盖寄存器、区分异常与中断、读取 cause/tval/epc、选择处理栈并建立可由高级语言使用的上下文。硬件不会像 Cortex-M 那样自动压入完整通用寄存器帧。
-
-\texttt{mtvec/stvec} 可以使用 Direct 或 Vectored 模式。Vectored 模式只对中断按 cause 偏移，异常仍进入基址；入口地址还必须满足模式要求的对齐。处理程序返回前应确认：
-\begin{itemize}
-  \item \texttt{mepc/sepc} 指向重试指令还是下一条指令；
-  \item 中断源已按平台顺序 claim、清除或 complete；
-  \item 状态寄存器中的前一特权级和中断使能位正确；
-  \item 嵌套 Trap 不会覆盖当前栈帧或 per-hart scratch。
-\end{itemize}
-
-ECALL、断点、非法指令和页错误需要不同的 PC 推进策略。尤其不能固定把 EPC 加 4，因为压缩指令可能为 16 bit，而可恢复的 fault 通常需要修正页表或状态后重试原指令。
-
-\subsubsection{hart 本地状态与启动}
-
-每个 hart 都有独立 CSR 和执行状态。多核启动时应为每个 hart 建立独立栈、Trap scratch、页表切换状态和 per-CPU 数据，再参与全局初始化屏障。主 hart 负责全局资源并不意味着其他 hart 可以在共享状态未发布时提前访问。
-
-发布启动状态需要语言原子操作或与平台匹配的 acquire/release 同步。只把共享标志声明为 \texttt{volatile} 不能提供跨 hart 顺序。
-
-\subsubsection{中断控制器与定时器}
-
-特权规范只定义软件、定时器和外部中断的架构入口。具体平台可能使用传统 CLINT/PLIC，也可能实现 Advanced Interrupt Architecture（AIA）的 ACLINT、APLIC 和 IMSIC。驱动必须由 Device Tree、ACPI 或平台规范发现，不能把 QEMU \texttt{virt} 地址当作所有 SoC 的架构常量。
-
-PLIC 的典型流程是读取 claim 获得中断 ID，处理设备源，再向 complete 写回同一 ID。优先级阈值、每个 context 的 enable 位和设备级清中断顺序共同决定是否重复触发。MSI/IMSIC 路径则把中断表示为面向 hart 的消息，适合虚拟化和 PCIe 设备。
-
-时间服务应明确 \texttt{time} CSR、平台计时器频率和 SBI timer 的关系。频率来自固件描述而非 CPU 主频；跨 hart 比较时间戳前还要确认平台提供的同步保证。
-
-\subsubsection{PMP 与物理隔离}
-
-PMP 在 M-mode 配置物理地址范围和 R/W/X 权限，用于约束 S/U-mode。区域可以使用 TOR、NA4 或 NAPOT 等匹配形式，数量、粒度和是否实现由处理器决定。
-
-配置时必须检查排序和锁定位：TOR 区域的下界来自前一 entry；锁定 entry 后通常要到复位才能修改，并可能影响 M-mode 访问。默认拒绝策略需要为固件调用缓冲、共享内存和设备 MMIO 建立最小窗口。
-
-PMP 只限制 hart 发起的访问。DMA、调试模块和其他总线主设备仍需 IOMMU 或 SoC 防火墙。安全启动、PMP 和设备访问控制必须构成同一启动策略。
-
-\subsubsection{虚拟内存与 TLB 一致性}
-
-写入 \texttt{satp} 选择根页表和地址空间标识，但页表更新与地址转换缓存之间需要 \texttt{SFENCE.VMA} 协调。多 hart 系统修改另一个 hart 可能使用的映射时，通常需要：发布页表写入、向目标 hart 发送 shootdown、目标执行 \texttt{SFENCE.VMA}、确认完成后再回收旧页或物理内存。
-
-大页要求虚拟地址、物理地址和 PPN 对齐；PTE 的非法 R/W 组合、A/D 位处理和访问权限必须遵循目标特权规范。页表 walker 是否与数据缓存一致、IOMMU 是否使用另一套页表，则属于具体 SoC 契约。
-
-\subsubsection{RVWMO、FENCE 与原子顺序}
-
-RISC-V 默认采用弱内存顺序模型 RVWMO。两个 hart 对普通内存的观察顺序不能从单线程程序顺序直接推出。同步应优先使用 C/C++/Rust 原子和锁，让工具链依据目标 ISA 生成 acquire、release、AMO、LR/SC 或 fence。
-
-\texttt{FENCE} 的 predecessor/successor 集合区分设备输入、设备输出、内存读和内存写；\texttt{FENCE.I} 用于保证当前 hart 后续取指看到先前写入的指令内容。跨 hart 代码更新还需要使其他 hart 执行相应取指同步，不能只在写代码的 hart 调用一次。
-
-MMIO 顺序还依赖平台内存属性与 interconnect。语言原子不能自动把设备寄存器变成普通缓存一致内存，驱动应使用操作系统或平台提供的 MMIO accessor 和 DMA API。
-
-\subsubsection{向量扩展}
-
-V 扩展采用向量长度无关模型。\texttt{VLEN} 是实现属性，程序通过 \texttt{vsetvl/vsetvli} 根据剩余元素和元素宽度选择本轮 VL，而不能假设固定 128 或 256 bit。
-
-向量上下文包含大量状态，操作系统需要依据扩展状态位执行惰性或主动保存。中断/信号处理、任务迁移和虚拟机切换都必须保持 vtype、vl、vstart 和向量寄存器语义。算法验收应覆盖不同 VLEN 的模拟器或硬件，避免只在单一实现上正确。
-
-\subsubsection{调试与性能监控}
-
-RISC-V Debug Specification 定义 Debug Module、hart halt/resume、abstract command 和 program buffer 等机制。具体 SoC 还需要调试传输模块、复位和认证策略。量产状态不应默认保留可任意读写内存的调试权限。
-
-性能计数器通过 \texttt{cycle}、\texttt{instret} 和实现定义事件提供证据，但事件含义、计数权限和多路复用方式必须记录。比较不同处理器时，应使用相同工作负载、编译参数、频率和缓存状态，而不是只比较 cycle 数。
-
-\subsubsection{RISC-V 系统检查清单}
-
-\begin{itemize}
-  \item ISA 扩展字符串、ABI、工具链和运行时探测是否一致？
-  \item Trap 入口是否覆盖压缩指令、嵌套、per-hart 栈和不可恢复故障？
-  \item PLIC/AIA、timer 和 SBI 是否依据平台描述而非固定地址实现？
-  \item PMP、DMA 防火墙、调试和安全启动是否形成完整隔离边界？
-  \item 页表更新、TLB shootdown、代码更新和弱内存序是否使用正确同步？
-  \item 向量和性能计数器代码是否在不同实现属性下验证？
-\end{itemize}
-
-\paragraph{F 扩展（单精度浮点）}
-
-\begin{itemize}
-  \item 32 位浮点运算
-  \item 32 个浮点寄存器（f0--f31）
-  \item IEEE 754 标准
-\end{itemize}
-
-\paragraph{D 扩展（双精度浮点）}
-
-\begin{itemize}
-  \item 64 位浮点运算
-  \item 扩展 F 扩展
-\end{itemize}
-
-\paragraph{C 扩展（压缩指令）}
-
-\begin{itemize}
-  \item 16 位指令编码
-  \item 减少代码大小
-  \item 提高代码密度
-\end{itemize}
-
-现代通用软件平台通常还依赖 \texttt{Zicsr}、\texttt{Zifencei} 等扩展；
-位操作（B）、向量（V）、加密及众多 \texttt{Z*} 扩展需要根据目标平台配置文件单独确认。
-
-\subsubsection{寄存器约定}
-
-\paragraph{通用寄存器用途}
-
-\begin{itemize}
-  \item x0：零寄存器（硬连线为 0）
-  \item x1（ra）：返回地址
-  \item x2（sp）：栈指针
-  \item x3（gp）：全局指针
-  \item x4（tp）：线程指针
-  \item x5--x7（t0--t2）：临时寄存器
-  \item x8（s0/fp）：保存寄存器/帧指针
-  \item x9（s1）：保存寄存器
-  \item x10--x11（a0--a1）：函数参数/返回值
-  \item x12--x17（a2--a7）：函数参数
-  \item x18--x27（s2--s11）：保存寄存器
-  \item x28--x31（t3--t6）：临时寄存器
-\end{itemize}
-
-\subsubsection{调用约定}
-
-\paragraph{参数传递}
-
-\begin{itemize}
-  \item 前 8 个整数参数通过 a0--a7 传递
-  \item 在硬浮点 ABI 中，前 8 个浮点参数通过 fa0--fa7（f10--f17）传递
-  \item 更多参数通过栈传递
-\end{itemize}
-
-\paragraph{返回值}
-
-\begin{itemize}
-  \item 整数返回值通过 a0 传递
-  \item 在硬浮点 ABI 中，浮点返回值通过 fa0--fa1（f10--f11）传递
-  \item 大结构体通过内存传递
-\end{itemize}
-
-\paragraph{调用者保存 vs 被调用者保存}
-
-\begin{itemize}
-  \item 临时寄存器（t0--t6）：调用者保存
-  \item 保存寄存器（s0--s11）：被调用者保存
-  \item 参数寄存器（a0--a7）：调用者保存
-\end{itemize}
-
-\section{内存层级}
-
-现代计算机系统采用多级内存层次结构，以平衡性能、容量和成本。
-
-\subsection{内存层次结构}
-
-\subsubsection{层次结构}
-
-典型的内存层次结构（从快到慢，从小到大）：
-
-\begin{enumerate}
-  \item \textbf{寄存器}
-    \begin{itemize}
-      \item 最快，容量最小（几十到几百字节）
-      \item 位于处理器核心内部；相关指令的结果延迟通常至少为一个流水线周期，并非“0 周期”
-    \end{itemize}
-
-  \item \textbf{L1 缓存}
-    \begin{itemize}
-      \item 很快，容量小（32--64 KB）
-      \item 通常位于核心内部；命中延迟依具体微架构而定
-    \end{itemize}
-
-  \item \textbf{L2 缓存}
-    \begin{itemize}
-      \item 较快，容量中等（256 KB--1 MB）
-      \item 通常位于芯片内部，可为私有或共享缓存；延迟依具体实现而定
-    \end{itemize}
-
-  \item \textbf{L3 缓存}
-    \begin{itemize}
-      \item 中等速度，容量较大（几 MB 到几十 MB）
-      \item 常见于高性能多核处理器，但许多嵌入式 SoC 不实现 L3
-    \end{itemize}
-
-  \item \textbf{主内存（DRAM）}
-    \begin{itemize}
-      \item 较慢，容量大（几 GB 到几 TB）
-      \item 延迟受到内存类型、频率、控制器、排队和 NUMA 拓扑影响
-    \end{itemize}
-
-  \item \textbf{辅助存储（SSD/HDD）}
-    \begin{itemize}
-      \item 最慢，容量最大（几百 GB 到几十 TB）
-      \item 访问延迟：数万到数百万周期
-    \end{itemize}
-\end{enumerate}
-
-\subsubsection{访问时间对比}
-
+常用页表模式如下，均以 4 KiB 为基础页并支持满足对齐要求的更大页：
 \begin{table}[H]
   \centering
-  \caption{不同存储层次的典型访问时间}
-  \begin{tabular}{|l|l|l|}
+  \caption{常用 RISC-V 地址转换模式}
+  \begin{tabular}{llll}
     \hline
-    存储类型 & 容量 & 访问时间 \\
+    模式 & XLEN & 页表级数 & 规范虚拟地址宽度 \\
     \hline
-    寄存器 & 与 ISA/实现相关 & 指令相关的流水线延迟 \\
-    L1 缓存 & 数十 KB（常见） & 数个核心周期（常见） \\
-    L2 缓存 & 数百 KB 到数 MB & 数十周期量级（常见） \\
-    L3/系统缓存 & 可选，数 MB 以上 & 高于 L2，且受共享竞争影响 \\
-    主内存 & 平台相关 & 通常为数十到数百 ns \\
-    SSD & 平台相关 & 通常为数十 $\mu$s 以上 \\
-    HDD & 平台相关 & 通常为 ms 量级 \\
+    Sv32 & 32 & 2 & 32 bit \\
+    Sv39 & 64 & 3 & 39 bit \\
+    Sv48 & 64 & 4 & 48 bit \\
+    Sv57 & 64 & 5 & 57 bit \\
     \hline
   \end{tabular}
 \end{table}
 
-\subsection{缓存性能}
+\texttt{satp} 选择地址转换模式、ASID 和根页表。写入页表后，软件必须按作用域使用 \texttt{SFENCE.VMA} 协调当前 hart 的地址转换缓存。若映射可能被其他 hart 使用，还需要发布页表写入、发送 shootdown、让目标 hart 执行 fence、等待确认，再回收旧页或物理内存。
 
-\subsubsection{缓存命中率}
+PTE 的 V/R/W/X/U/G/A/D、PPN 与保留位必须按目标规范组合。非法 R/W 组合、未对齐大页、A/D 位更新策略和权限提升都需要测试。页表 walker 是否与数据缓存一致、是否可能读取旧 PTE，以及 IOMMU 是否使用另一套页表，属于具体 SoC 契约。
 
-缓存命中率是衡量缓存性能的重要指标：
+TLB shootdown 是分布式协议，不是单条指令。超时、离线 hart、低功耗唤醒和重复 IPI 都要定义；在所有观察者确认前回收旧页，会形成低概率但严重的数据破坏。
 
-\begin{equation}
-\text{命中率} = \frac{\text{缓存命中次数}}{\text{总访问次数}} \label{eq:cache-hit-rate}
-\end{equation}
+\subsection{RVWMO、原子与代码更新}
 
-\subsubsection{平均访问时间}
+RISC-V 默认内存模型 RVWMO 允许不同 hart 以弱顺序观察普通内存访问。同步应优先使用 C/C++/Rust 原子、锁和操作系统 API，让工具链依据目标扩展生成 acquire/release、AMO、LR/SC 或 fence。手写汇编必须同时维护编译器与硬件顺序，不能只插入一条 \texttt{FENCE} 后假定正确。
 
-平均内存访问时间：
+A 扩展提供原子内存操作以及 load-reserved/store-conditional。reservation 的粒度和失效原因是实现属性，SC 可以因中断、另一 hart、缓存替换或实现行为失败；无界重试不能直接进入硬实时路径。LR/SC 对设备 MMIO 通常也不是可移植同步方式。
 
-\begin{equation}
-T_{avg} = T_{hit} + (1-H) \times T_{\text{miss penalty}} \label{eq:avg-access-time}
-\end{equation}
+\texttt{FENCE} 的 predecessor/successor 集合区分设备输入、设备输出、内存读和内存写。语言原子不能把 MMIO 变成普通缓存一致 RAM；设备寄存器、posted write 和 DMA 所有权应使用平台 accessor 与 DMA API。跨核与设备边界的完整方法见第~\ref{chap:realtime-language-memory-model}~章。
 
-其中：
-\begin{itemize}
-  \item $T_{hit}$：缓存命中时间
-  \item $T_{\text{miss penalty}}$：未命中后相对于命中路径额外增加的代价
-  \item $H$：缓存命中率
-\end{itemize}
+\texttt{FENCE.I} 只保证当前 hart 后续取指观察到先前指令存储更新。JIT、模块加载或补丁跨 hart 发布时，还要通知其他 hart 执行取指同步；S-mode 可以使用 SBI remote fence 或操作系统 IPI 协议。写代码页、清数据缓存、修改权限和刷新取指的顺序必须由目标平台共同定义。
 
-\subsubsection{缓存效率}
+\subsection{扩展、上下文与可移植性}
 
-缓存效率取决于：
-\begin{itemize}
-  \item 命中率
-  \item 缓存大小
-  \item 替换策略
-  \item 预取策略
-\end{itemize}
+常见扩展对软件契约的影响包括：
+\begin{description}
+  \item[M] 提供乘除法，但具体延迟、是否早退和实时上界属于微体系结构；
+  \item[A] 提供原子操作，并要求缓存、一致性或 reservation 机制与软件同步匹配；
+  \item[C] 提供 16 bit 压缩编码，影响代码密度、反汇编、EPC 推进与补丁边界；
+  \item[F/D] 提供单/双精度浮点状态，影响 ABI、异常、信号和任务上下文；
+  \item[B 与密码扩展] 提供位操作或算法加速，但具体子扩展需单独探测；
+  \item[V] 提供向量长度无关执行模型，程序不能假定固定 128 或 256 bit 宽度；
+  \item[Zicsr/Zifencei 等] 多字母扩展独立版本化，不能从基础字母组合隐含推出。
+\end{description}
 
-\subsection{内存带宽}
+V 扩展通过 \texttt{vsetvl/vsetvli} 根据剩余元素、SEW、LMUL 和实现 VLEN 选择本轮 VL。可移植算法应 strip-mine 数据并覆盖不同 VLEN。操作系统还必须保存 \texttt{vl}、\texttt{vtype}、\texttt{vstart}、向量寄存器及相关控制状态；惰性保存需要与异常、信号、迁移和虚拟机切换共同验证。
 
-\subsubsection{理论带宽}
+浮点与向量上下文会显著增加 Trap 和任务切换成本。工具链可能在普通 C 代码中自动向量化或使用浮点寄存器，因此“源代码没有显式 intrinsic”不能证明扩展状态未被使用。应检查反汇编，并通过构建 profile 限制硬实时路径可用扩展。
 
-内存的理论带宽：
+\newpage
+\subsection{调试、PMU 与性能证据}
 
-\begin{equation}
-\text{带宽} = \text{每次传输字节数} \times \text{每秒传输次数} \times \text{通道数} \label{eq:memory-bandwidth}
-\end{equation}
+RISC-V Debug Specification 定义 Debug Module、hart halt/resume、abstract command、\mbox{program buffer} 和 trigger 等机制；SoC 还需要 DTM、复位连接和认证策略。调试器暂停单个 hart 时，其他 hart、DMA 与外设可能继续运行，现场一致性不能由“全部寄存器已读出”自动保证。
 
-DDR 存储器应使用有效数据传输率（MT/s），而不是简单使用时钟频率；
-协议开销、读写切换、刷新、Bank 冲突和控制器效率会使持续带宽低于理论值。
+量产生命周期应分别定义开发、制造、返修和现场状态下的调试权限、认证、失败锁定和审计。PMP 不是调试访问控制；若 Debug Module 能绕过系统总线权限，安全边界必须在芯片级关闭或认证。
 
-\subsubsection{实际带宽}
+性能证据可以来自 \texttt{cycle}、\texttt{time}、\texttt{instret} 和实现定义的 HPM counter。事件编码、特权过滤、溢出、多路复用和计数权限均可能不同。比较两个实现时必须固定工作负载、编译器、频率、缓存状态、DDR 与热条件，并同时记录指令数、周期、未命中、带宽和分位延迟。
 
-实际带宽受多种因素影响：
-\begin{itemize}
-  \item 访问模式（顺序 vs 随机）
-  \item 缓存效率
-  \item 内存控制器效率
-  \item 系统负载
-\end{itemize}
+模拟器适合验证 ISA 功能、Trap、页表和启动协议，但不能证明真实分支预测、缓存替换、互连、DDR、PMU 事件和功耗时序。性能与容量验收方法见第~\ref{chap:performance-capacity-engineering}~章。
 
-\section{每个程序员都应该知道的内存知识}
+\subsection{实现验证闭环}
 
-内存是计算机系统中最关键的资源之一，理解内存的工作原理对于编写高效、正确的程序至关重要。本节总结程序员需要了解的关键内存知识。
-
-\subsection{内存的基本概念}
-
-\subsubsection{物理内存 vs 虚拟内存}
-
+一个可复现的 RISC-V 平台验证至少包括：
 \begin{enumerate}
-  \item \textbf{物理内存}
-    \begin{itemize}
-      \item 实际的硬件内存（DRAM）
-      \item 有限的容量
-      \item 直接由硬件访问
-    \end{itemize}
-
-  \item \textbf{虚拟内存}
-    \begin{itemize}
-      \item 程序看到的地址空间
-      \item 可以比物理内存大
-      \item 通过 MMU 映射到物理内存
-    \end{itemize}
+  \item 生成 ISA/ABI/特权/平台 manifest，并核对 ELF attributes 与运行时发现；
+  \item 验证冷启动、次级 hart 启停、复位原因、DTB 与 SBI 扩展；
+  \item 对每类 Trap 检查帧布局、压缩指令、嵌套和不可恢复路径；
+  \item 运行原子与内存序 litmus，覆盖多 hart、DMA 和代码更新；
+  \item 压测页表更新、ASID、TLB shootdown、大页与 hart 离线；
+  \item 验证 PLIC/AIA、timer、IPI、优先级、屏蔽和中断风暴恢复；
+  \item 对 PMP、DMA、调试和固件调用执行越权与故障注入；
+  \item 在目标板记录 PMU、trace、功耗、热稳态和最坏延迟。
 \end{enumerate}
 
-\subsubsection{内存对齐}
+第~\ref{chap:case-rustos}~章给出基于 QEMU \texttt{virt}、OpenSBI 和 Rust 的操作系统实践路径，覆盖 FDT、Sv39、Trap、PLIC、调度、进程、VirtIO 和文件系统。该案例适合验证接口与软件结构，真实产品仍需重新验证目标 SoC 的缓存、一致性、PMP、中断与电源行为。
 
-\paragraph{对齐的重要性}
-
-\begin{itemize}
-  \item 未对齐的访问可能导致性能下降
-  \item 某些架构不支持未对齐访问
-  \item 对齐到自然边界可以提高性能
-\end{itemize}
-
-\paragraph{对齐规则}
+\subsection{RISC-V 系统检查清单}
 
 \begin{itemize}
-  \item 基本类型通常对齐到其大小
-  \item 结构体对齐到最大成员的对齐要求
-  \item 可以使用 \texttt{\_\_attribute\_\_((packed))} 取消对齐（不推荐）
+  \item ISA 扩展及版本、ABI、ELF attributes、工具链与运行时发现是否一致？
+  \item Trap 入口是否覆盖压缩指令、嵌套、per-hart 栈、页错误和异步故障？
+  \item PLIC/AIA、timer、IPI 和 SBI 是否来自平台描述而非固定地址？
+  \item 启动与 hart 状态机是否具有 epoch、超时、幂等和失败恢复？
+  \item PMP、DMA/IOPMP、调试、M-mode 固件和安全启动是否形成完整边界？
+  \item 页表发布、TLB shootdown、代码更新和旧页回收是否有确认协议？
+  \item RVWMO、LR/SC、AMO、FENCE 与 MMIO/DMA 是否分别用于正确观察者？
+  \item 浮点与向量上下文是否与 ABI、任务切换、信号和虚拟化一致？
+  \item PMU 事件、模拟器结果与目标板数据的适用边界是否写入报告？
+  \item 崩溃记录能否关联 hart、CSR、页表、镜像、DTB、SBI 和硬件修订号？
 \end{itemize}
-
-\subsection{缓存友好的编程}
-
-\subsubsection{数据访问模式}
-
-\paragraph{顺序访问}
-
-\begin{itemize}
-  \item 顺序访问内存效率高
-  \item 充分利用空间局部性
-  \item 预取效果好
-\end{itemize}
-
-\paragraph{随机访问}
-
-\begin{itemize}
-  \item 随机访问效率低
-  \item 缓存命中率低
-  \item 应尽量避免
-\end{itemize}
-
-\subsubsection{数据结构设计}
-
-\paragraph{紧凑的数据结构}
-
-\begin{itemize}
-  \item 减少内存占用
-  \item 提高缓存利用率
-  \item 减少缓存未命中
-\end{itemize}
-
-\paragraph{数据布局}
-
-\begin{itemize}
-  \item 将经常一起访问的数据放在一起
-  \item 避免伪共享
-  \item 考虑缓存行大小（通常 64 字节）
-\end{itemize}
-
-\subsubsection{循环优化}
-
-\paragraph{循环顺序}
-
-\begin{itemize}
-  \item 按行访问优于按列访问（对于二维数组）
-  \item 考虑内存布局（行主序 vs 列主序）
-\end{itemize}
-
-\paragraph{循环展开}
-
-\begin{itemize}
-  \item 减少循环开销
-  \item 提高指令级并行
-  \item 但可能增加代码大小
-\end{itemize}
-
-\subsection{多核编程的内存考虑}
-
-\subsubsection{伪共享}
-
-\paragraph{问题}
-
-\begin{itemize}
-  \item 不同线程访问同一缓存行的不同数据
-  \item 导致不必要的缓存一致性开销
-  \item 严重影响性能
-\end{itemize}
-
-\paragraph{解决方法}
-
-\begin{itemize}
-  \item 数据对齐到缓存行边界
-  \item 使用填充（Padding）分离数据
-  \item 将共享数据改为私有数据
-\end{itemize}
-
-\subsubsection{内存屏障}
-
-\begin{itemize}
-  \item 编译器屏障约束编译器重排，处理器内存屏障约束硬件可观察顺序，两者不能混为一谈
-  \item 多线程程序优先使用语言和操作系统提供的原子操作、锁及内存序接口
-  \item 屏障只在与缓存一致性、设备内存属性和通信协议正确配合时才保证预期行为
-\end{itemize}
-
-\subsection{内存分配}
-
-\subsubsection{栈 vs 堆}
-
-\begin{enumerate}
-  \item \textbf{栈}
-    \begin{itemize}
-      \item 自动管理
-      \item 速度快
-      \item 容量有限
-      \item 局部变量
-    \end{itemize}
-
-  \item \textbf{堆}
-    \begin{itemize}
-      \item 手动管理（或垃圾回收）
-      \item 速度较慢
-      \item 容量大
-      \item 动态分配
-    \end{itemize}
-\end{enumerate}
-
-\subsubsection{内存分配器}
-
-\begin{itemize}
-  \item 理解分配器的行为
-  \item 避免频繁分配/释放
-  \item 使用对象池减少分配
-  \item 考虑内存碎片
-\end{itemize}
-
-\subsection{性能分析工具}
-
-\subsubsection{缓存分析}
-
-\begin{itemize}
-  \item perf：Linux 性能分析工具
-  \item Cachegrind：Valgrind 的缓存分析工具
-  \item Intel VTune：Intel 性能分析工具
-\end{itemize}
-
-\subsubsection{内存分析}
-
-\begin{itemize}
-  \item Valgrind：内存错误检测
-  \item AddressSanitizer：快速内存错误检测
-  \item 内存分析器：分析内存使用模式
-\end{itemize}
-
-\subsection{推荐阅读}
-
-第~\ref{chap:case-rustos}~章给出基于 QEMU \texttt{virt}、OpenSBI 和 Rust 的操作系统实践路径，覆盖 FDT、Sv39、Trap、PLIC、调度、进程、VirtIO 和文件系统。
-
-关于内存相关的知识，强烈建议阅读
-\href{https://people.freebsd.org/~lstewart/articles/cpumemory.pdf}{What Every Programmer Should Know About Memory}。
-
-这篇经典文章详细介绍了：
-\begin{itemize}
-  \item 内存硬件的工作原理
-  \item CPU 缓存的组织和性能
-  \item 虚拟内存系统
-  \item NUMA 系统
-  \item 编程实践和优化技巧
-\end{itemize}
-
-理解这些内容对于编写高性能程序至关重要。

@@ -1,4 +1,4 @@
-\chapter{异构多核与 Linux/FreeRTOS 协同}
+\chapter{异构多核与跨核协同}
 \label{chap:heterogeneous-multicore}
 
 现代嵌入式 SoC 常把运行 Linux 的应用处理器与一个或多个实时核、DSP、NPU 或安全岛集成在同一芯片中。异构系统的目标不是简单地“多放一个核”，而是把复杂应用、确定性控制、低功耗常驻和故障隔离分配到最合适的执行域。
@@ -8,6 +8,24 @@
 Linux 适合网络、文件系统、图形界面、复杂协议和动态应用；FreeRTOS 或裸机核适合微秒级控制、持续采样、精确时序和主核休眠期间的常驻任务。划分时应基于截止期、故障影响、内存需求、驱动归属和升级边界，而不是仅按代码语言或团队分工切割。
 
 以下功能通常不宜跨核拆成高频细粒度调用：闭环控制的每个计算步骤、单次寄存器读写和需要共享大量可变状态的算法。跨核接口应尽量是批量、异步、可超时的消息。
+
+\section{执行域契约与分区预算}
+
+每个执行域都应具有可审查契约，而不只是“Linux 核”和“实时核”两个工程目录。契约至少记录：
+\begin{itemize}
+  \item 职责、输入输出、截止期、数据新鲜度和允许降级；
+  \item CPU、SRAM/DDR、共享内存、带宽、功耗和热预算；
+  \item 拥有的外设、IRQ、DMA、时钟、复位与电源域；
+  \item 启动、暂停、停止、崩溃、升级和回滚时的行为；
+  \item 信任级别、可访问地址、密钥和安全输出责任；
+  \item 版本兼容窗口、诊断资产和验证方法。
+\end{itemize}
+
+推荐把控制平面与数据平面分开。控制平面交换能力、配置、状态和故障；数据平面使用有界批量缓冲区传送采样、帧或推理结果。若所有信息都经过一个无优先级队列，大数据突发可能阻塞停机、心跳和故障确认。
+
+跨域调用的成本不仅是一次中断和 memcpy，还包括排队、cache maintenance、调度、唤醒和上下文恢复。分区预算应使用端到端最大值或高置信上界，并包含对端暂时不可调度、队列接近满和 DDR 竞争条件。平均往返时间不足以决定控制环是否适合跨核拆分。
+
+执行域也是故障与信任边界。Linux 被攻陷时不应自动获得任意控制执行器、重映射远端固件或读取安全岛密钥的能力；实时核崩溃时也不应通过失控 DMA 破坏 Linux 内存。IOMMU、总线防火墙、MPU/PMP、权限受限 mailbox 和最小协议共同形成隔离，单靠“两个团队不会写错”不构成边界。
 
 \section{启动与生命周期}
 
@@ -38,25 +56,54 @@ Linux remoteproc 框架负责固件加载、资源声明、启动停止和崩溃
 
 远端核停止并不等于共享资源已经安全释放。主核必须先阻止新请求，等待在途 DMA 和消息结束，再撤销设备、时钟、内存和中断资源。远端核崩溃后也不能盲目重启，否则可能重复执行一次不可幂等的控制命令。
 
+\subsection{启动 epoch 与能力握手}
+
+每次执行域启动都应生成新的 boot epoch。消息、缓冲区所有权、事务和心跳携带 epoch 或 generation；对端观察到 epoch 改变后，丢弃旧响应、释放陈旧租约并重新协商能力。仅清空 ring 的 head/tail 不足以处理在途 mailbox、中断和 DMA completion。
+
+握手至少交换协议版本范围、feature bits、最大消息/对齐、缓冲区数量、端序、时钟能力、启动原因和当前安全状态。能力协商成功后才开放业务 endpoint；如果核心安全功能不兼容，应保持输出安全并给出稳定错误，而不是降级到一个未验证旧协议。
+
+remoteproc resource table 和远端 ELF 属于解析输入。主核应验证条目数量、长度、对齐、地址范围、vring 大小和 carveout 是否落在允许区域；固件真实性还应由启动链或加载服务验证。签名有效只证明来源和完整性，不证明资源声明不会与 Linux、TEE 或其他远端核重叠。
+
+启动状态机应区分 off、loading、booting、handshaking、ready、quiescing、crashed 和 recovering。业务层不能只通过 \texttt{/dev/rpmsg*} 是否存在判断远端可用，因为设备节点可能早于服务初始化出现，也可能在远端已经失去 progress 时仍然保留。
+
 \section{共享内存与缓存一致性}
 
 共享内存区域必须回答四个问题：双方看到的地址、缓存属性、所有权转换和内存顺序。如果两侧不具备硬件缓存一致性，应在发布描述符前清理数据缓存，在消费前失效缓存，并确保描述符与数据操作顺序正确。
+
+共享布局本身也是持久于一次进程生命周期之外的 ABI。建议在区域头部保存 magic、layout version、总长度、双方 epoch、cache-line 大小、各子区 offset/length 和 header 校验。所有地址使用相对 offset 或双方明确转换的 device address，禁止把任一执行域的虚拟指针写入共享区。
+
+\begin{lstlisting}[language=C,caption={共享内存布局头的逻辑字段}]
+struct shared_region_header {
+    uint32_t magic;
+    uint16_t layout_version;
+    uint16_t header_length;
+    uint32_t total_length;
+    uint32_t host_epoch;
+    uint32_t remote_epoch;
+    uint32_t vring_offset[2];
+    uint32_t pool_offset;
+    uint32_t pool_length;
+    uint32_t layout_crc;
+};
+\end{lstlisting}
+
+初始化方先写完整 header 和子区，再执行平台要求的 cache clean/屏障，最后发布 ready generation。\texttt{layout\_crc} 只覆盖不可变布局字段，epoch 通过独立原子更新。连接方只有在验证版本、长度、offset 不重叠、对齐和 epoch 后才能访问子区。共享区来自旧固件或 brownout 后内容未知时，不能因为 magic 恰好匹配就继续使用。
 
 即使硬件一致，编译器和 CPU 仍可能重排普通访问。无锁 ring 需要 release/acquire 语义：生产者先写数据，再以 release 发布写指针；消费者以 acquire 读取写指针后才能访问数据。
 
 \begin{lstlisting}[language=C,caption={共享 ring 的发布与消费语义（伪代码）}]
 void ring_publish(struct ring *r, const struct message *m)
 {
-    unsigned int head = atomic_load_explicit(&r->head, memory_order_relaxed);
+    unsigned int head = platform_shared_load_relaxed(&r->head);
     r->slot[head % RING_SIZE] = *m;
     platform_cache_clean(&r->slot[head % RING_SIZE], sizeof(*m));
-    atomic_store_explicit(&r->head, head + 1, memory_order_release);
+    platform_shared_store_release(&r->head, head + 1);
     platform_notify_peer();
 }
 
 bool ring_consume(struct ring *r, struct message *m)
 {
-    unsigned int head = atomic_load_explicit(&r->head, memory_order_acquire);
+    unsigned int head = platform_shared_load_acquire(&r->head);
     if (r->tail == head)
         return false;
     platform_cache_invalidate(&r->slot[r->tail % RING_SIZE], sizeof(*m));
@@ -65,7 +112,17 @@ bool ring_consume(struct ring *r, struct message *m)
 }
 \end{lstlisting}
 
-缓存维护函数必须按 cache line 对齐并覆盖完整范围。把共享区设为不可缓存可以简化初期 bring-up，但会显著降低吞吐量，也不能消除对内存屏障的需要。
+这里的 \texttt{platform\_shared\_*} 不是普通语言原子的别名：在非一致平台上，它还必须对共享 head 所在 cache line 执行正确 clean/invalidate，并使用双方架构都认可的屏障和原子宽度。只清理 payload 而没有发布 head，或只失效 payload 而使用陈旧 head，都会产生静默丢包。
+
+缓存维护函数必须按 cache line 对齐并覆盖完整范围。描述符、head/tail 和高频统计最好放在不同 cache line，避免双方维护同一 line 时把对方字段覆盖回旧值。把共享区设为不可缓存可以简化初期 bring-up，但会显著降低吞吐量，也不能消除对内存屏障的需要。
+
+\subsection{缓冲区所有权与零拷贝}
+
+零拷贝把 memcpy 成本转化为更严格的生命周期契约。每个 buffer 至少经历 free、producer-owned、published、consumer-owned 和 returned 状态；所有权只由单一原子描述符或队列转移，不能一方按超时直接复用而另一方仍在 DMA。
+
+描述符应包含 buffer ID、generation、有效长度、数据类型、时间戳和完整性字段。消费者返回的是精确的 buffer generation，而不是裸索引；这样生产者可以拒绝远端重启前的陈旧归还。发生超时后，系统可标记 buffer 为 quarantined，直到相关 DMA channel、设备和对端 epoch 已确认重置。
+
+对 cache 非一致设备，所有权交接点同时是 cache maintenance 点。生产者发布前 clean，消费者取得后 invalidate；消费者修改并归还时需要反向操作。若某 buffer 同时被 CPU、DSP 和外设访问，应由平台 DMA API 或集中 allocator 建模，禁止三个参与者各自假定自己拥有最新副本。
 
 \section{跨核协议 ABI}
 
@@ -77,14 +134,23 @@ struct ipc_header {
     uint16_t message_type;
     uint32_t total_length;
     uint32_t transaction_id;
+    uint32_t source_epoch;
     uint32_t flags;
     uint32_t payload_crc;
 };
 
-_Static_assert(sizeof(struct ipc_header) == 20, "IPC ABI drift");
+_Static_assert(sizeof(struct ipc_header) == 24, "IPC ABI drift");
 \end{lstlisting}
 
 请求应具有超时、取消和重复响应处理。对可能重试的命令，应定义幂等键或事务号；对事件流，应定义丢包、乱序、背压和消费者重启后的重新同步策略。
+
+传输 endpoint 名称不应直接等于产品服务 ABI。RPMsg 负责发现和传送消息\cite{linux-rpmsg-doc}，服务层仍需定义 authentication/authorization、请求/响应、单向事件、错误码和生命周期。endpoint 重建后，服务必须重新握手，不能沿用旧连接中的权限、订阅或事务状态。
+
+底层 MTU 可能小于业务对象。分片协议应有总长度上限、分片序号、超时、内存预算和重复处理，且在分配大缓冲前先验证元数据。更稳健的做法通常是让消息只描述共享 buffer ID 和有效范围，大载荷走受控 pool；但这又要求严格的所有权与 IOMMU 边界。
+
+能力演进应采用“理解后启用”。发送方只使用双方协商的 feature，未知 message type 可按协议拒绝或忽略，但危险控制命令不能静默降级。字段删除、单位变化和默认行为改变需要新版本或新 type，不能只复用原编号并依赖两侧同步发布。
+
+\texttt{payload\_crc} 只能发现部分随机传输或内存错误，不提供来源认证和抗恶意篡改。若执行域之间存在不同信任等级，应由受保护通道、消息认证码或高权限代理建立身份与授权，并把密钥留在适合的信任边界内。
 
 \section{资源所有权}
 
@@ -92,17 +158,67 @@ _Static_assert(sizeof(struct ipc_header) == 20, "IPC ABI drift");
 
 设备树中的 \texttt{reserved-memory} 防止 Linux 页分配器使用远端固件、vring 和共享 buffer；IOMMU 或总线防火墙进一步限制各执行域可访问的地址。硬件信号量只能解决互斥，不能自动解决缓存、超时和崩溃后的锁恢复。
 
+动态迁移建议使用 quiesce---drain---snapshot---reset---reconfigure---grant---resume 状态机：
+\begin{enumerate}
+  \item 当前所有者拒绝新请求并等待在途事务/DMA 有界结束；
+  \item 保存双方真正需要的设备状态，而不是复制全部寄存器；
+  \item 屏蔽 IRQ、停止 DMA，并把外设置于无害状态；
+  \item 新所有者重新配置 pinctrl、clock、reset、IOMMU 和驱动状态；
+  \item 发布新的 ownership generation，旧 generation 的访问全部拒绝；
+  \item 完成 loopback/健康检查后恢复业务。
+\end{enumerate}
+
+迁移失败时必须有唯一责任方。不能出现旧所有者认为已经释放、新所有者认为尚未获得而外设保持危险输出，也不能双方都因超时重新初始化。硬件 semaphore 可以作为最后防线，但所有权记录、generation 和恢复策略仍由协议定义。
+
 \section{时间同步与时间戳}
 
 双方独立的 tick 计数不能直接比较。需要关联事件时，应选择公共硬件计数器，或通过周期同步估计偏移与漂移。时间同步消息应同时记录发送、接收和处理时刻，避免把通信延迟误认为时钟偏移。
 
 控制闭环最好完全位于实时核；Linux 下发目标值、约束和配置，实时核返回带硬件时间戳的批量采样与状态。这样 Linux 调度抖动不会进入最关键的控制路径。
 
+公共 counter 也需要定义位宽、频率、复位行为和 wrap 处理。若远端在 suspend 中 counter 停止，恢复后必须产生新 time generation；旧 offset 不能继续使用。时间映射记录应包含估计时刻、offset、频率比、最大残差和有效窗口，使消费者能够判断某个时间戳是否仍可比较。
+
+同步协议要抵抗不对称排队。Linux 侧一次高延迟响应可能把 mailbox/调度抖动误估为时钟漂移；可以保存往返时间、丢弃高延迟样本并用多点拟合，但必须给出误差上界。安全或闭环控制若无法接受该不确定度，应使用硬件 latch、同步脉冲或直接共享计数器。
+
 \section{故障检测与恢复}
 
 跨核健康管理至少包括心跳、请求超时、远端 panic trace、看门狗和启动次数。恢复策略应按故障影响区分：重建 endpoint、重启远端核、复位共享外设、重启 Linux 或进入整机安全状态。
 
 远端核更新必须与 Linux 驱动和 IPC ABI 兼容。若两个固件不能独立回滚，应作为一个原子更新集合签名和部署；若允许独立升级，则必须提供能力协商和至少一个兼容窗口。
+
+心跳必须与 progress 区分。远端调度器可以持续发送心跳，但控制任务已经死锁或采样序列停止。健康消息应报告关键 pipeline 的 generation、最后完成事务、队列水位、错误锁存和本地 watchdog 状态；Linux 只在这些指标满足产品门槛时认为远端 ready。
+
+远端 crash 后，主核先冻结新业务并保存 panic/trace、resource table、epoch、队列和设备状态，再决定恢复层级。若直接清零共享区和重启，可能丢失根因并让旧 DMA 写入新固件内存。恢复前应 reset/隔离能够成为 bus master 的远端核和外设，并使输出进入危害分析规定状态。
+
+请求超时不表示对端没有执行。对执行器、计费或一次性写入，重试必须使用幂等 transaction ID，并允许查询最终状态。远端重启后若无法证明旧命令是否完成，应选择保守业务策略，而不是无条件重放。
+
+\section{低功耗、暂停与唤醒协同}
+
+Linux suspend、远端常驻和 SoC 电源域之间需要独立契约。进入低功耗前应协商哪些任务继续运行、共享 DDR 是否保持、mailbox/IRQ 是否可唤醒、公共时钟是否停止，以及唤醒后由谁恢复外设。
+
+若远端在 Linux suspend 期间写共享 DDR，必须保证该内存、电源和 interconnect 仍可用；否则应切换到 retention SRAM 或本地缓冲。Linux 恢复后先验证远端 epoch 和数据时间戳，再消费期间积累的数据，不能假定 ring 与 suspend 前连续。
+
+唤醒原因需要端到端确认。远端产生 wake request、PMIC/SoC 接受、Linux resume 和业务服务 ready 是不同阶段；每段应有超时和错误码。频繁虚假唤醒会破坏能耗预算，也可能表示线路抖动、未清中断或协议 generation 错误。
+
+远端固件更新、调试或崩溃恢复期间应阻止进入不兼容的低功耗状态。电源管理器不能只看 endpoint 在线，而应消费明确的 lifecycle state 和最坏恢复时间。
+
+\section{安全边界与不可信输入}
+
+跨核共享内存和 mailbox 应按不可信输入解析，即使两个固件属于同一产品。长度、offset、枚举、buffer ID、feature 和事务号都要验证；任何来自对端的地址必须限定在已授权 carveout/IOMMU mapping 内。协议解析错误不应让高权限核任意读写物理内存。
+
+Linux 用户空间若能通过 rpmsg char 访问 endpoint，还需由内核驱动或代理服务实施设备节点权限、消息类型白名单、速率和资源配额。不能因为通信“不经过网络”就忽略认证授权；被攻陷的普通应用可能利用远端高权限控制外设。
+
+远端加载接口应限制允许固件、签名、版本和目标核，阻止非授权用户停止安全岛或替换固件。debug trace 也可能泄漏密钥、传感数据和物理地址，应有生命周期权限、容量限制和清理策略。
+
+故障隔离需要验证 DMA 防火墙，而不只是检查配置寄存器。测试可让远端尝试访问 carveout 边界外地址，确认 IOMMU fault、总线错误、日志和恢复均符合预期，同时保证注入不会破坏其他执行域。
+
+\section{跨域可观测性与更新}
+
+日志应携带执行域 ID、boot epoch、单调 sequence、公共/本地时间戳和 transaction ID。文本时间相同不能证明事件顺序；主核收集远端 trace 时还要记录采集延迟、丢包和时间映射版本。统一事件语义可结合第~\ref{chap:observability-fleet}~章的方法。
+
+发布 manifest 应把 Linux、Device Tree、remote firmware、resource-table/layout ABI 和服务协议版本绑定。若允许独立更新，兼容矩阵至少覆盖新 Linux/旧远端、旧 Linux/新远端、回滚和数据 schema；若不能支持这些组合，就应作为同一更新事务安装和回退。
+
+新远端固件的健康确认不能只看 endpoint 出现。应验证 capability、共享内存压力、外设 loopback、控制输出安全和规定时间内 progress；确认前保留旧固件或整包回滚能力。防回滚计数还需与整组兼容策略一致，避免只升级远端后使整机无法回退到可工作的组合。
 
 \section{Linux/FreeRTOS 协同实现骨架}
 
@@ -166,14 +282,25 @@ ipc-selftest --endpoint control --require-abi 3
 
 测试必须覆盖 Linux 先启动、实时核先启动、endpoint 重建、队列满、消息 CRC 错误、远端 panic、Linux 重启和两侧版本不匹配。共享外设在远端恢复前应保持安全状态，不能仅凭 endpoint 再次出现就恢复输出。
 
+实现还应提供 host-only 协议测试和目标端共享内存自检。host-only 测试可穷举长度、版本、分片、重复事务和状态机；目标端自检则验证实际地址转换、cache line、barrier、mailbox、IOMMU 和 DMA。两者复用同一 schema 与 golden vector，避免模拟器和固件分别解释协议。
+
 \section{验证清单}
 
 \begin{itemize}
+  \item 每个执行域是否具有职责、资源、信任、生命周期和升级契约？
   \item 冷启动、远端晚启动、重复启动和停止是否都具有确定结果？
+  \item 重启 epoch 改变后，陈旧消息、buffer、DMA completion 和事务是否被拒绝？
   \item 共享内存在一致和非一致平台上的 cache 操作是否经过压力验证？
+  \item 共享布局的长度、offset、对齐、cache line 和所有权 generation 是否机器校验？
   \item 消息队列满、远端无响应、重复响应和主核重启是否能够恢复？
   \item 外设、DMA、IRQ 和时钟是否始终只有一个明确所有者？
+  \item 动态所有权迁移是否覆盖 quiesce、在途 DMA、失败回退和安全输出？
   \item 两侧版本不匹配时是否拒绝危险操作并输出可诊断原因？
   \item Linux suspend/resume 与远端常驻任务之间是否有明确契约？
+  \item IOMMU/总线防火墙是否用越界 DMA 故障注入验证，而非只检查配置？
+  \item 心跳是否同时证明关键 pipeline progress，而非仅证明调度器存活？
+  \item Linux、DTB、远端固件、layout 与服务 ABI 是否具有可回滚兼容矩阵？
   \item 远端核崩溃时，执行器是否进入系统危害分析定义的状态？
 \end{itemize}
+
+第~\ref{chap:realtime-language-memory-model}~章进一步解释 release/acquire、barrier、DMA 所有权和实时阻塞边界；第~\ref{chap:system-build-update}~章给出整组镜像兼容与原子更新方法。

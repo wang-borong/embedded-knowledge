@@ -1225,3 +1225,126 @@
   publisher = {ISA -- The Instrumentation, Systems, and Automation Society},
   year      = {2006}
 }
+
+@manual{spdx-spec,
+  title        = {SPDX Specification},
+  organization = {The Linux Foundation},
+  year         = {2026},
+  url          = {https://spdx.github.io/spdx-spec/},
+  urldate      = {2026-07-28},
+  note         = {Pin the specification version and profiles used by each published SBOM}
+}
+
+@manual{rauc-doc,
+  title        = {RAUC Documentation},
+  organization = {RAUC Project},
+  year         = {2026},
+  url          = {https://rauc.readthedocs.io/en/latest/},
+  urldate      = {2026-07-28},
+  note         = {Bundle format, bootloader integration and configuration behavior depend on the selected release}
+}
+
+@manual{linux-dm-verity,
+  title        = {dm-verity: Device-Mapper Verity Target},
+  organization = {Linux Kernel Community},
+  year         = {2026},
+  url          = {https://docs.kernel.org/admin-guide/device-mapper/verity.html},
+  urldate      = {2026-07-28},
+  note         = {Use the documentation and userspace tooling matched to the deployed kernel and image format}
+}
+
+@manual{linux-kunit-doc,
+  title        = {KUnit: Linux Kernel Unit Testing},
+  organization = {Linux Kernel Community},
+  year         = {2026},
+  url          = {https://docs.kernel.org/dev-tools/kunit/index.html},
+  urldate      = {2026-07-28},
+  note         = {Use the documentation generated from the kernel version under test}
+}
+
+@manual{linux-kselftest-doc,
+  title        = {Linux Kernel Selftests},
+  organization = {Linux Kernel Community},
+  year         = {2026},
+  url          = {https://docs.kernel.org/dev-tools/kselftest.html},
+  urldate      = {2026-07-28},
+  note         = {Available tests and harness behavior depend on the selected kernel tree}
+}
+
+@manual{linux-fault-injection-doc,
+  title        = {Linux Kernel Fault Injection Capabilities Infrastructure},
+  organization = {Linux Kernel Community},
+  year         = {2026},
+  url          = {https://docs.kernel.org/fault-injection/index.html},
+  urldate      = {2026-07-28},
+  note         = {Injection points and controls depend on the deployed kernel configuration}
+}
+
+@manual{ieee-1149-1,
+  title        = {IEEE Standard for Test Access Port and Boundary-Scan Architecture},
+  organization = {Institute of Electrical and Electronics Engineers},
+  number       = {IEEE Std 1149.1-2013},
+  year         = {2013},
+  doi          = {10.1109/IEEESTD.2013.6515989}
+}
+
+@manual{ipc-2221,
+  title        = {IPC-2221: Generic Standard on Printed Board Design},
+  organization = {IPC},
+  year         = {2023},
+  note         = {Use the revision required by the product, fabricator and customer contract}
+}
+
+@manual{gdb-manual,
+  title        = {Debugging with GDB},
+  organization = {Free Software Foundation},
+  year         = {2026},
+  url          = {https://sourceware.org/gdb/current/onlinedocs/gdb.html/},
+  urldate      = {2026-07-28},
+  note         = {Commands, remote protocols and target support depend on the selected GDB release}
+}
+
+@manual{linux-kdump-doc,
+  title        = {Using kdump for Linux Kernel Crash Dumping},
+  organization = {Linux Kernel Community},
+  year         = {2026},
+  url          = {https://docs.kernel.org/admin-guide/kdump/kdump.html},
+  urldate      = {2026-07-28},
+  note         = {Reservation, capture-kernel and dump-target requirements depend on the deployed architecture and kernel}
+}
+
+@manual{linux-ftrace-doc,
+  title        = {Ftrace: Linux Kernel Tracing},
+  organization = {Linux Kernel Community},
+  year         = {2026},
+  url          = {https://docs.kernel.org/trace/ftrace.html},
+  urldate      = {2026-07-28},
+  note         = {Tracer availability and event formats depend on the deployed kernel configuration}
+}
+
+@manual{linux-coresight-doc,
+  title        = {CoreSight: ARM Hardware Trace},
+  organization = {Linux Kernel Community},
+  year         = {2026},
+  url          = {https://docs.kernel.org/trace/coresight/coresight.html},
+  urldate      = {2026-07-28},
+  note         = {Trace topology, sinks and supported sources depend on the SoC and deployed kernel}
+}
+
+@manual{linux-rpmsg-doc,
+  title        = {Remote Processor Messaging (RPMsg) Framework},
+  organization = {Linux Kernel Community},
+  year         = {2026},
+  url          = {https://docs.kernel.org/staging/rpmsg.html},
+  urldate      = {2026-07-28},
+  note         = {Bus, endpoint and userspace interfaces depend on the deployed kernel version}
+}
+
+@manual{linux-memory-barriers-doc,
+  title        = {Linux Kernel Memory Barriers},
+  organization = {Linux Kernel Community},
+  year         = {2026},
+  url          = {https://docs.kernel.org/core-api/wrappers/memory-barriers.html},
+  urldate      = {2026-07-28},
+  note         = {Use architecture and driver APIs from the deployed kernel rather than reimplementing barrier primitives}
+}

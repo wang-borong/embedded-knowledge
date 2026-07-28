@@ -75,6 +75,21 @@ __set_PRIMASK(primask);
 
 关中断时间应作为实时预算测量。若临界区包含轮询、日志、Flash 擦写或不确定总线访问，即使代码行数很少，也可能产生不可接受的长尾延迟。
 
+\subsection{原子访问、屏障与外设寄存器}
+
+关中断只约束当前核上的异常抢占，不能自动保护 DMA、调试器或另一处理器访问的内存。共享对象应优先使用语言原子、RTOS 同步原语或经过验证的架构封装，并明确对象大小、对齐和访问上下文。
+
+支持 exclusive access 的内核可使用 LDREX/STREX 类指令实现原子读改写。它们不是一把隐藏的全局锁：异常、上下文切换或其他观察者可能使 store-exclusive 失败，软件必须重试，并评估竞争下的前进保证。RTOS 切换路径还应按架构与移植层要求清理 exclusive monitor，避免把旧监视状态带入新任务。
+
+三类屏障解决不同问题：
+\begin{description}
+  \item[DMB] 约束屏障前后内存访问的观察顺序；
+  \item[DSB] 等待指定访问和维护操作完成，常用于休眠、缓存/MPU 控制或设备状态转换边界；
+  \item[ISB] 重新建立后续指令执行上下文，常用于影响取指、特权或系统控制状态的变更。
+\end{description}
+
+编译器屏障不能替代上述硬件语义，而 DMB 也不保证某个外设已经完成内部动作。MMIO 应通过设备头文件或驱动 accessor 访问；对写 1 清零、读清零、SET/CLEAR 别名或自清零位，普通的 C 读改写可能丢失并发事件。若外设提供原子置位/清零寄存器，应优先使用，而不是把 \texttt{volatile} 当成同步机制。
+
 \subsection{SysTick、PendSV 与 RTOS}
 
 SysTick 提供简单递减定时器，常被用作系统节拍；PendSV 是可软件挂起的异常，通常被设置为最低优先级并执行任务切换；SVC 用于从非特权线程请求内核服务。
@@ -82,6 +97,23 @@ SysTick 提供简单递减定时器，常被用作系统节拍；PendSV 是可�
 典型调度链为：定时器或外设 ISR 只更新有界状态并请求调度，PendSV 保存被切出任务的非自动堆栈寄存器、切换 PSP，再恢复新任务。若启用 FPU、TrustZone 或 MPU，上下文还需要覆盖相应扩展状态。
 
 Tickless 系统不能仅停止 SysTick。软件必须选择低功耗下仍运行的唤醒时钟，处理计数器回绕、睡眠前后竞态、时钟漂移和一次跨越多个定时器截止期的补偿。
+
+\subsection{低功耗进入与唤醒竞态}
+
+WFI 等待中断，WFE 等待事件；二者都是架构提示，最终进入多深的状态由系统控制寄存器、电源控制器和调试状态共同决定。已经 pending 的中断、事件寄存器、被屏蔽中断和芯片级唤醒逻辑会影响指令是否真正停留。
+
+休眠入口最常见的错误是“检查无任务”与“执行 WFI”之间丢失唤醒。下列代码只表达竞态关闭顺序，具体平台还要配置 wake source、时钟和电源域：
+\begin{lstlisting}[language=C,caption={带状态复查的休眠入口示意}]
+uint32_t primask = __get_PRIMASK();
+__disable_irq();
+if (!work_pending()) {
+    prepare_sleep_state();
+    __DSB(); __WFI();
+}
+__set_PRIMASK(primask);
+\end{lstlisting}
+
+中断在复查后到达时应形成 pending 并使 WFI 返回，恢复原屏蔽状态后再进入处理程序。该性质仍需在目标内核和电源控制器上验证；某些深睡眠还要求清除旧 wake flag、等待电源握手或重新初始化时钟。验收应测量从事件到第一条业务指令的最坏延迟，并覆盖 SRAM 保持、外设丢状态、调试器连接和连续唤醒风暴。
 
 \subsection{MPU 与任务隔离}
 
@@ -115,11 +147,21 @@ Armv8-M Security Extension 把地址和执行状态分为 Secure 与 Non-secure�
 
 缓冲区首尾不对齐时，cache maintenance 可能影响同一 cache line 中无关数据。工程上应使用 cache-line 对齐的专用缓冲池，而不是简单扩大维护区间后假设邻接对象不变。
 
-\subsection{故障、调试与追踪}
+\subsection{故障分级、调试与追踪}
 
-可配置 Fault 包括 MemManage、BusFault 和 UsageFault，HardFault 可以作为升级入口。调试时至少解析 CFSR、HFSR、MMFAR、BFAR、SHCSR、异常堆栈和当前任务信息。
+可配置 Fault 包括 MemManage、BusFault 和 UsageFault，HardFault 可以作为升级入口。启动阶段应尽早按项目策略启用可配置 fault，使权限错误、非法状态和总线错误保留更具体的原因，而不是全部收敛成难以定位的 HardFault。
 
-DWT 可提供周期计数器、比较器和数据观察；ITM/SWO 适合低侵入事件输出；ETM 可记录指令流但需要芯片引脚、trace buffer 和工具支持。量产固件应把精简崩溃证据保存到受控持久区，调试认证策略则必须与设备生命周期一致。
+调试时至少快照 CFSR、HFSR、MMFAR、BFAR、SHCSR、异常堆栈、EXC\_RETURN 和当前任务信息。还应区分：
+\begin{itemize}
+  \item 精确错误的堆栈 PC 通常接近触发指令，但仍需检查访问是否来自被展开的库或异常返回；
+  \item 非精确总线错误可能由写缓冲延迟报告，异常 PC 只能表示观察点；
+  \item stacking/unstacking 错误常指向任务栈越界、MPU 属性或故障期间再次访问无效内存；
+  \item fault escalation 需要结合原始可配置 fault 状态与 HFSR 解释，不能只记录“HardFault”。
+\end{itemize}
+
+崩溃记录应使用固定版本格式，至少包含镜像 build ID、复位原因、寄存器帧、fault 状态、活动中断、任务/栈标识和校验。Fault handler 不宜直接执行无界格式化、动态分配、文件系统或依赖同一故障外设的日志输出；更稳妥的做法是先写入预留 RAM/Flash 槽，复位后由正常服务上传并符号化。
+
+DWT 可提供周期计数器、比较器和数据观察；ITM/SWO 适合低侵入事件输出；ETM 可记录指令流但需要芯片引脚、trace buffer 和工具支持。量产固件应把精简崩溃证据保存到受控持久区，调试认证策略则必须与设备生命周期一致。完整的证据保全与根因闭环见第~\ref{chap:debug-reliability}~章。
 
 \subsection{架构检查清单}
 
@@ -128,6 +170,8 @@ DWT 可提供周期计数器、比较器和数据观察；ITM/SWO 适合低侵�
   \item Bootloader 到应用的 MSP、VTOR、中断、时钟、缓存和外设状态契约是否明确？
   \item 优先级位数、分组、RTOS 可调用 API 阈值和关键 IRQ 是否一致？
   \item 最坏嵌套中断、浮点上下文和故障处理所需栈空间是否测量？
+  \item 原子访问、屏障和外设寄存器语义是否分别匹配任务、ISR、DMA 与设备边界？
+  \item WFI/WFE 入口是否关闭丢唤醒窗口，并验证深睡眠后的时钟、SRAM 与外设恢复？
   \item MPU/TrustZone 边界是否同时覆盖 DMA、调试和复位路径？
-  \item Fault handler 是否保存原始现场并具有可离线解析的版本信息？
+  \item Fault handler 是否区分精确、非精确和升级错误，并保存可离线解析的原始现场？
 \end{itemize}
