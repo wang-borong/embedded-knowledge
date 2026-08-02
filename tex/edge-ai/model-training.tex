@@ -55,6 +55,39 @@ for epoch in range(num_epochs):
 
 当目标域与预训练域差异很大，例如近红外、热成像、显微或特殊工业纹理，应通过基线实验决定冻结范围和初始化策略，不能机械沿用自然图像经验。
 
+\section{离线 Teacher 的开发与消费指标}
+
+Teacher 可以比端侧 Student 更大、使用更高输入分辨率、动态 Shape、注意力、TTA 或模型集成，但“只在 GPU/服务器运行”不等于可以省略契约。先声明它服务的消费者，因为不同角色的成功标准不同：
+
+\begin{table}[H]
+  \centering
+  \caption{Teacher 角色与真正的验收指标}
+  \begin{tabular}{p{30mm}p{40mm}p{62mm}}
+    \hline
+    角色 & 主要消费者 & 必须证明的收益 \\
+    \hline
+    预标注 Teacher & 人工审核与标注平台 & 按类 proposal 质量、漏标率、修改率和每人工小时合格字段数 \\
+    蒸馏 Teacher & 固定约束的 Student & 相对无蒸馏基线的独立指标、关键切片、训练成本和回退 \\
+    离线审计模型 & 数据挖掘与多教师融合 & 经人工确认的新错误/覆盖发现、吞吐和重复率 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+Teacher 与 Student 架构可以不同，内部 tensor 也不必相同，但必须共享 canonical label schema、坐标/valid 语义、颜色和几何变换。Teacher 输出通过唯一 adapter 映射到标注 proposal、Student Target 或蒸馏 Loss；不得让 prompt 别名、类别顺序或 NMS 差异静默改变标签。
+
+开发一个 Teacher 时按以下顺序验证：
+
+\begin{enumerate}
+  \item 冻结角色、输入输出、数据版本、消费者指标和成本预算；
+  \item 建立预训练迁移矩阵，逐模块记录成功加载、Shape 不匹配和随机初始化，不能把“文件加载成功”写成完整迁移；
+  \item 用真实小 batch 完成前向、有限 Loss、反向、optimizer step 和 AMP 冒烟，再验证小样本过拟合、checkpoint 与 resume；
+  \item 记录 GPU 型号、显存、吞吐、延迟、模型/配置/权重摘要和运行环境；
+  \item 在独立 reviewed validation/calibration 集上按类评估和选择阈值，最终 test 不参与结构、checkpoint 或自动放行调节；
+  \item 只有消费者指标净提升时才接受更复杂的 Teacher、TTA、集成或蒸馏方案。
+\end{enumerate}
+
+离线缓存 Teacher 输出时，要绑定稳定 sample ID、Teacher/权重/配置哈希、原始几何、输出 schema 和生成时间。Student 的随机 crop、flip 或 mosaic 必须在 Target 侧同步变换，不能直接复用与当前增强错位的 tensor。人工金标优先于 Teacher；未检出区域不能默认成为强负类，Teacher 错误也不能覆盖已审核字段。蒸馏理论见第~\ref{chap:edge-ai-optimization-export-quantization}~章，预标注运营见第~\ref{chap:edge-ai-data-label-engineering}~章。
+
 \section{优化器、学习率与有效 Batch}
 
 SGD with momentum 通常具有稳定、可解释的基线；AdamW 对初始超参数更宽容，并把 weight decay 与梯度更新分离。选择优化器后，比名称更重要的是记录：

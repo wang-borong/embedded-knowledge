@@ -18,6 +18,42 @@
 
 一个来源样本数量很大，不等于覆盖充分。连续视频的十万帧可能只代表一个设备、一个背景和几分钟光照。
 
+\section{公开数据集的发现、获取与组合}
+
+公开数据集应被当作版本化外部依赖，而不是从搜索结果下载后直接合并。搜索时同时检查数据索引、论文/benchmark 页面和维护者的一手下载页；聚合站或镜像可以用于发现和容灾，但不能替代原始 provenance。候选选择至少比较：
+
+\begin{itemize}
+  \item 类别、任务和标签粒度是否真正匹配，还是只能间接推断；
+  \item sensor、分辨率、视角、对象尺度、环境和困难条件是否接近目标域；
+  \item 是否提供 subject/sequence/site/device 等可用于安全分组的身份；
+  \item 标注规范、漏标/噪声、重复、固定 benchmark split 和已知排除规则；
+  \item 当前一手访问地址、版本、注册/鉴权、归档大小、checksum 和下载可恢复性；
+  \item 许可证、用途限制、署名、再分发和隐私条件是否允许计划用途。
+\end{itemize}
+
+为每个版本建立 acquisition manifest，状态从 discovered、verified-page、sampled、downloaded、checksum-verified、extracted 到 audited 单向推进。最小字段可以是：
+
+\begin{lstlisting}[caption={公开数据集 acquisition manifest 字段示意}]
+dataset_id: source-name-v1
+source_page: https://first-party.example/dataset
+version: v1
+checked_at: 2026-08-02
+archives:
+  - {name: images.zip, sha256: "verified-digest"}
+access: {method: https, registration: false}
+roots: {raw: data/public/source-name/v1/raw,
+        derived: data/public/source-name/v1/derived}
+license: {id: source-declared-license, reviewed: true}
+status: checksum-verified
+conversion_revision: git:0123456789ab
+\end{lstlisting}
+
+示例中的地址和摘要只是字段结构，正式清单必须保存当次核验的一手 URL、实际摘要、访问日期和手工步骤，凭据不能写进 manifest 或 shell 历史。原始归档只读保存，解压和格式转换进入派生目录；下载重试不得覆盖已经校验的版本。
+
+混合前为每个来源建立显式映射：\texttt{source class/field} 到 canonical class/field、坐标/单位变换、valid/missing/ignore、审核需求和转换 revision。宽泛类别不能未经证据拆成细分类，图像级标签也不能冒充对象框。数据卡应记录来源、映射、支持量、用途和已知缺口\cite{datasheets-for-datasets}。
+
+跨来源先做完全重复、感知近重复和 group 检查，再分配内部 split。保留官方 benchmark test 的原始用途，不能因为拿到了标签或镜像就把它混入训练。大型预训练模型可能已经见过公开 benchmark，因此产品晋级仍以独立 reviewed 目标域集合为准。最终组合应按来源记录采样权重和指标，防止巨大通用数据淹没稀缺目标域证据或产生不可见的负迁移。
+
 \section{采集覆盖矩阵}
 
 在采集前建立场景维度，并选择需要覆盖的组合：
@@ -276,6 +312,7 @@ CVAT、Label Studio、FiftyOne 或自研平台只是审核和展示适配器，c
 
 \begin{enumerate}
   \item 定义四分类或检测任务的 schema、valid 和 unknown；
+  \item 对至少一个公开数据源建立 acquisition manifest、标签映射和接受/拒绝理由；
   \item 从至少三次独立采集 session 获取数据，保留原始图像和元数据；
   \item 编写 manifest 生成与校验脚本；
   \item 按 session 分组生成 train/validation/test；

@@ -116,6 +116,32 @@ OCR 应分别评估区域检测、识别和端到端结果。识别常用 Charac
 
 深度、视差、光流和 pose 等连续输出需要声明单位、坐标系、有效区域和 scale ambiguity。除均值外报告 percentile、无估计率、边界/运动切片和物理标定误差。模型在“成功输出”上的低误差不能掩盖大量 invalid/no-estimate。
 
+\section{异常检测、域外输入与选择性预测}
+
+异常检测、Out-of-Distribution（OOD）检测和拒绝预测解决的是不同问题：异常检测寻找业务定义的缺陷或偏离，OOD 判断输入是否超出训练/校准分布，选择性预测则允许主模型在证据不足时返回 unknown。一个 softmax 分类器的最大概率很高，并不能证明输入属于训练分布\cite{hendrycks-ood}。
+
+异常检测至少报告 AUROC、AUPRC、指定 Recall 下的 FP、阈值化 Precision/Recall/F1 和支持量；像素/区域异常还可报告 per-region overlap、前景 IoU、边界和每幅正常图的误报区域数。异常通常稀少，AUROC 可能在实际误报仍不可接受时看起来很好，因此产品工作点应优先检查 PR 和长时间正常运行的误报警率。
+
+OOD 集合应按风险分层：
+
+\begin{itemize}
+  \item near-OOD：外观接近但类别、型号、工艺或设备超出已知范围；
+  \item far-OOD：完全不同场景、媒体类型或无关对象；
+  \item corruption：模糊、过曝、遮挡、压缩损坏、颜色/方向错误和传感器故障；
+  \item adversarial/intentional：可能诱导高置信错误的图案、贴纸或重复输入。
+\end{itemize}
+
+近 OOD 往往比明显无关图像更难，也更接近产品风险。应同时报告已知域质量、OOD 检出率、已知样本误拒率和不同设备/条件支持量，不能只用一个容易分开的外部图片目录证明鲁棒性。
+
+对阈值为 $\tau$ 的拒绝系统，可报告覆盖率和选择性风险：
+
+\begin{equation}
+  C(\tau)=\frac{N_{accepted}}{N_{all}},\qquad
+  R_{sel}(\tau)=\frac{N_{wrong,accepted}}{N_{accepted}}.
+\end{equation}
+
+绘制 risk--coverage 曲线，才能看到降低错误率是否只是拒绝了绝大多数输入。阈值在 validation/calibration 集上选择，独立 test 只确认一次；OOD detector、主任务模型和产品状态机分别版本化。拒绝后的动作也属于评估协议，例如复拍、切换传感器、进入安全状态或人工复核，并需要测量覆盖率、等待时间和恢复条件。
+
 \section{困难切片与支持量}
 
 切片用于验证模型在产品关心的条件下是否稳定：
@@ -252,6 +278,7 @@ failure gallery 用于解释，不替代完整固定集指标。
   \item 冻结评估 manifest、预处理和后处理；
   \item 输出总体与每类指标、支持量和混淆/PR；
   \item 定义至少五个部署困难切片；
+  \item 构造 near/far OOD 与 corruption 集，报告误拒、检出和 risk--coverage；
   \item 生成配对 FP/FN 变化和 failure gallery；
   \item 测量 reference runtime 延迟和内存；
   \item 按预注册门槛给出 promote/reject/needs-evidence；
