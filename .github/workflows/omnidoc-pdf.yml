@@ -47,6 +47,7 @@ jobs:
             pandoc \
             poppler-utils \
             texlive-bibtex-extra \
+            texlive-fonts-extra \
             texlive-fonts-recommended \
             texlive-lang-chinese \
             texlive-latex-extra \
@@ -55,6 +56,7 @@ jobs:
             texlive-xetex
 
           rsvg-convert --version
+          kpsewhich bbding.sty >/dev/null
 
       - name: Install OmniDoc
         shell: bash
