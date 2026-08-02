@@ -211,6 +211,14 @@
   \item[XRUN] 音频播放 underrun 或采集 overrun，表示软件和硬件未能在规定时间内交换 PCM 数据。
   \item[caps] GStreamer 中描述媒体类型、格式和相关属性的能力集合；caps feature 还可表达特定内存类型。
   \item[tensor ABI] 独立模型、运行时和应用之间关于 tensor 名称、dtype、layout、shape、量化及输出语义的兼容契约。
+  \item[Model Manifest] 绑定模型输入输出语义、预处理、标签、ABI、来源摘要和参考解码的版本化契约；它不等同于厂商转换配置。
+  \item[Accelerator Profile] 描述特定芯片、converter、runtime、算子、静态 shape、量化、校准和板端验证要求的适配配置。
+  \item[PTQ] Post-Training Quantization，在训练完成后用代表性校准数据估计量化范围并生成低精度产物的方法。
+  \item[QAT] Quantization-Aware Training，在训练图中模拟量化、取整和裁剪，使模型参数适应目标低精度误差的方法。
+  \item[校准集] 用于估计量化范围或校准概率/阈值的独立数据集合；其用途和是否需要 ground truth 取决于校准对象。
+  \item[Teacher/Student] 蒸馏或预标注中，高容量 Teacher 提供软目标或候选，轻量 Student 学习并用于目标部署；二者必须共享明确标签和预处理语义。
+  \item[困难切片] 按设备、光照、尺度、遮挡、类别或其他部署风险划分的评估子集，报告指标时必须同时给出支持量。
+  \item[数据漂移] 现场输入、类别先验、概念、系统版本或观测方式相对训练/验证基线发生变化；发现漂移不自动等于已证明质量下降。
   \item[letterbox] 保持纵横比缩放后，用 padding 填充目标尺寸的预处理方法；坐标还原必须扣除 padding 并应用缩放。
   \item[frame token] 贯穿采集、处理和业务结果的一帧身份记录，通常包含 source、sequence、时间戳、generation 和坐标变换。
 \end{description}

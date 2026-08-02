@@ -1,0 +1,211 @@
+\chapter{模型训练与实验管理}
+\label{chap:edge-ai-model-training}
+
+训练不是“运行脚本直到 loss 下降”，而是在冻结的数据和实验合同下寻找能够通过验证门的参数。可重复训练要求同时管理代码、配置、数据、初始化、随机性、硬件和指标。本章从迁移学习开始，逐步引入优化、正则化、多任务和正式选模。
+
+\section{训练循环的最小结构}
+
+监督学习的基本循环为：读取 batch、前向计算、计算 Loss、反向传播、更新参数、记录指标。框架隐藏了求导细节，但工程代码仍需明确训练和评估状态。
+
+\begin{lstlisting}[language=Python,caption={框架无关的训练循环结构}]
+for epoch in range(num_epochs):
+    model.train()
+    for images, targets, valid in train_loader:
+        optimizer.zero_grad(set_to_none=True)
+        outputs = model(preprocess(images))
+        loss_map = criterion(outputs, targets, valid)
+        loss = weighted_total(loss_map, valid)
+        assert is_finite(loss)
+        loss.backward()
+        optimizer.step()
+
+    model.eval()
+    with no_grad():
+        metrics = evaluate(model, validation_manifest)
+    save_checkpoint_and_resolved_config(epoch, metrics)
+\end{lstlisting}
+
+训练模式会启用 dropout 并更新 BatchNorm 统计，评估模式则使用冻结行为。忘记切换状态、验证时仍做随机增强或训练/验证归一化不同，都可能让指标失真。
+
+\section{先完成数据与实现冒烟}
+
+正式长训练前按成本递增验证：
+
+\begin{enumerate}
+  \item 读取一个样本并可视化增强后的标签；
+  \item 一个 batch 前向，检查输出 Shape、dtype 和有限值；
+  \item 一个 batch 反向，检查主要参数存在非零有限梯度；
+  \item 用 8--32 个样本训练到近乎完全拟合；
+  \item 跑 1--3 个 epoch 的小规模训练，验证日志、checkpoint 和 resume；
+  \item 再提交完整训练任务。
+\end{enumerate}
+
+小样本过拟合是最有价值的管线测试之一。若做不到，优先检查标签映射、Loss、学习率、冻结参数、数据增强和输出激活，而不是直接扩充数据或更换大模型。
+
+\section{迁移学习与预训练权重}
+
+通用预训练模型已学习边缘、纹理、形状和部分语义特征。目标域数据有限时，常用两阶段策略：
+
+\begin{enumerate}
+  \item 替换任务 head，冻结 backbone，训练新 head；
+  \item 解冻后部或全部 backbone，以更低学习率联合微调。
+\end{enumerate}
+
+预训练输入规范必须与当前实现核对，包括 RGB/BGR、均值方差、输入尺寸和类别 head。加载权重时应报告 missing/unexpected keys；只因程序未报错就认为迁移成功，可能留下大范围随机初始化。
+
+当目标域与预训练域差异很大，例如近红外、热成像、显微或特殊工业纹理，应通过基线实验决定冻结范围和初始化策略，不能机械沿用自然图像经验。
+
+\section{优化器、学习率与有效 Batch}
+
+SGD with momentum 通常具有稳定、可解释的基线；AdamW 对初始超参数更宽容，并把 weight decay 与梯度更新分离。选择优化器后，比名称更重要的是记录：
+
+\begin{itemize}
+  \item 初始与分组学习率、warmup、scheduler 和最小学习率；
+  \item batch size、梯度累积和多卡数量形成的有效 Batch；
+  \item momentum/beta、weight decay、gradient clipping；
+  \item FP32、FP16/BF16、loss scaling 和溢出处理；
+  \item epoch/step 总数，以及数据采样器每轮实际看到的样本。
+\end{itemize}
+
+有效 Batch 改变梯度噪声、BatchNorm 统计和学习率需求。显存不足时用梯度累积近似更大 Batch，但它不完全等价于多卡同步，尤其是 BatchNorm 和随机增强的统计不同。
+
+\section{学习率诊断}
+
+学习率过大常表现为 Loss 振荡、NaN、验证指标突然崩溃；过小则训练缓慢、长时间停留在初始化附近。建议先保留成熟配方，再做单因素调整：
+
+\begin{itemize}
+  \item warmup 保护随机 head 或大 Batch 的初始阶段；
+  \item cosine、step 或 one-cycle 只是调度形状，必须与总 step 和 resume 状态一起记录；
+  \item 不同层可使用不同学习率，例如预训练 backbone 小于新 head；
+  \item 只看训练 Loss 不能选择学习率，应关联验证指标、梯度和收敛速度。
+\end{itemize}
+
+若恢复训练时 scheduler、optimizer、scaler 或 EMA 未恢复，新的轨迹不是原训练的连续段，应记录为新的 run 或明确边界。
+
+\section{过拟合、欠拟合与正则化}
+
+训练和验证都差，可能是欠拟合、标签错误、输入信息不足或优化失败；训练很好而验证变差，才是典型过拟合。常见正则化包括：
+
+\begin{itemize}
+  \item 更多且更有代表性的目标域数据；
+  \item 合理的数据增强；
+  \item weight decay、dropout、label smoothing；
+  \item 更小模型、冻结更多层或提前停止；
+  \item 蒸馏和预训练，而不是盲目增加训练轮数。
+\end{itemize}
+
+label smoothing 会改变概率校准和决策 margin；强增强可能降低干净验证集指标却提升真实域泛化。每项策略都要在困难切片和产品阈值下判断。
+
+\section{类别不平衡与困难样本}
+
+类别不平衡可通过采集、采样、Loss 权重和困难样本挖掘处理。Focal Loss 降低容易样本的贡献，常用于密集检测，但不能修复漏标或极弱支持。
+
+训练采样器应避免一个长视频贡献大量近重复 batch。可以按 group 先采 session/对象，再采帧；这通常比单纯按图片类别均衡更接近独立支持。
+
+在线困难样本挖掘要防止队列被脏标签和无法判断样本主导。高 Loss 样本应进入人工复核或错误分类，而不是自动提高权重。
+
+\section{检测、分割与关键点的 Target}
+
+不同任务的训练正确性常取决于 Target 构造：
+
+\begin{description}
+  \item[检测] 正负样本匹配、中心区域、尺度分配、框参数化和 ignore 区域；
+  \item[分割] background/void、类别权重、边界、空 mask 和 resize 插值；
+  \item[关键点] 可见性、heatmap 半径、坐标归一化、镜像点顺序和缺失点；
+  \item[Embedding] 正负 pair/triplet 采样、身份泄漏和距离 margin。
+\end{description}
+
+Target 应有独立单元测试：已知框经过 crop/flip/resize 后应得到精确坐标；不可见关键点不产生位置 Loss；没有某任务标签的样本对该 head 产生零梯度。
+
+\section{多任务 Loss 与梯度竞争}
+
+多任务总 Loss 常写为
+
+\begin{equation}
+  L=\sum_t \alpha_t L_t.
+\end{equation}
+
+但不同 Loss 的数值尺度、有效样本数和梯度方向可能差异很大。建立基线时：
+
+\begin{enumerate}
+  \item 每个任务先能独立训练和评估；
+  \item 使用 valid mask，按有效权重归一化；
+  \item 固定一组可解释权重，记录各任务 Loss 和关键层梯度；
+  \item 只有在证据显示某任务被压制时，再评估动态权重或梯度平衡；
+  \item 综合分只能排序已通过所有任务硬门槛的候选。
+\end{enumerate}
+
+共享 backbone 并不保证任务互利。一个任务的数据量巨大或标签噪声高，可能破坏关键少数任务。
+
+\section{冻结实验合同}
+
+正式 run 前保存解析后的有效配置，而不是只保存命令行。实验合同至少包含：
+
+\begin{table}[H]
+  \centering
+  \caption{正式训练实验合同}
+  \begin{tabular}{p{25mm}p{109mm}}
+    \hline
+    项目 & 必须冻结的事实 \\
+    \hline
+    Source & repository、revision、dirty patch、依赖 lock/container \\
+    Data & 数据版本、schema、split manifest、group key、许可和统计 \\
+    Model & family、scale/profile、初始化、结构与配置摘要 \\
+    Input & 尺寸、颜色、layout、resize/pad、归一化和增强 \\
+    Optimization & optimizer、schedule、batch/累积、精度、epoch/step、seed \\
+    Evaluation & split、推理设置、指标实现、切片和支持量 \\
+    Selection & 主指标、guardrail、容差、平局规则和 incumbent \\
+    Export/Target & 图格式、opset、静态 Shape、ABI、目标 Accelerator Profile \\
+    \hline
+  \end{tabular}
+\end{table}
+
+随机种子有助于复现，但 GPU kernel、数据加载和多卡执行可能仍非完全确定。报告应区分“配置可重建”和“bitwise 完全一致”。接近门槛的微小提升需用多 seed、支持量或置信区间判断是否超过训练方差。
+
+\section{日志、Checkpoint 与 Run 身份}
+
+每次训练使用唯一、不可复用的 run ID。至少监控：
+
+\begin{itemize}
+  \item 完成 epoch/step、有效 Batch、学习率和耗时；
+  \item 每任务 train/validation Loss 与指标；
+  \item NaN、overflow、梯度范数和数据异常；
+  \item GPU/CPU 利用率、显存和 I/O 是否成为瓶颈；
+  \item last、best 和周期 checkpoint 的时间与摘要；
+  \item best 的选择依据来自哪个 split 和哪项指标。
+\end{itemize}
+
+\texttt{best.pt} 只是某个规则下的候选名，不是可发布结论。正式晋级还需导出、量化、目标任务和板端门槛。
+
+Checkpoint 至少包含模型参数；若要可靠 resume，还应包含 optimizer、scheduler、scaler、EMA、epoch/step 和必要的数据采样状态。只加载模型权重属于重新开始微调，不应宣称无缝恢复。
+
+\section{从分类升级到检测}
+
+建议在分类基线稳定后扩展到检测：
+
+\begin{enumerate}
+  \item 保留同一目标域和 group-safe split，增加对象框 schema；
+  \item 从有成熟预训练和导出路径的轻量 detector 开始；
+  \item 先在少量图上过拟合，检查框可视化和类别映射；
+  \item 冻结一套推理阈值与 NMS 设置用于候选公平比较；
+  \item 分别报告小目标、遮挡、边缘对象和空场景；
+  \item 不在模型训练阶段混入产品级“选择一个主对象”规则。
+\end{enumerate}
+
+若分类已满足固定 ROI 的业务需求，不必为了学习潮流强行升级检测。工程任务选择以最小充分证据为准。
+
+\section{实践：一次可恢复、可比较的正式训练}
+
+完成以下实验：
+
+\begin{enumerate}
+  \item 选择分类或检测 incumbent，记录其数据、配置和指标；
+  \item 预注册一个单因素改进，例如输入尺寸、增强或 backbone；
+  \item 运行样本读取、单 batch、反向和小样本过拟合测试；
+  \item 启动唯一 run，模拟中断并验证 resume 状态；
+  \item 使用同一验证 harness 比较 incumbent 与 candidate；
+  \item 保存 run manifest、resolved config、checkpoint 摘要和选择结论；
+  \item 若候选真实回退，删除只服务该失败路径的长期配置开关，保留最小决策记录。
+\end{enumerate}
+
+通过标准是第三方可以重建 run 条件，解释训练是否完整，并在不查看最终测试集的前提下复现候选选择规则。

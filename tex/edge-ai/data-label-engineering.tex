@@ -1,0 +1,203 @@
+\chapter{数据、标签与标注工程}
+\label{chap:edge-ai-data-label-engineering}
+
+视觉项目最昂贵的错误通常不是少训练几个 epoch，而是数据无法代表目标现场、标签语义含糊或切分泄漏。模型会忠实学习数据中最容易利用的相关性，包括背景、设备水印、拍摄 session 和人工标注习惯。本章把数据视为可版本化的产品输入，而不是一个不断覆盖的图片目录。
+
+\section{从目标域而不是公开榜单出发}
+
+数据设计首先描述部署分布：相机、镜头、安装角度、工作距离、分辨率、ISP、曝光、光照、温度、运动、背景、对象版本和操作者行为。公开数据可提供通用预训练和任务启动，但不能代替目标域证据。ImageNet 与 COCO 等数据集推动了通用分类和检测研究\cite{imagenet,coco}，产品仍需验证它们的类别、视角和许可是否适合当前目标。
+
+推荐把数据来源分为四层：
+
+\begin{enumerate}
+  \item \textbf{通用预训练数据}：学习纹理、形状和通用对象特征；
+  \item \textbf{领域公开数据}：接近目标行业、视角或任务；
+  \item \textbf{真实目标域数据}：来自计划部署的设备、位置和流程；
+  \item \textbf{固定金标回归集}：独立审核、永不混入训练，用于发布比较。
+\end{enumerate}
+
+一个来源样本数量很大，不等于覆盖充分。连续视频的十万帧可能只代表一个设备、一个背景和几分钟光照。
+
+\section{采集覆盖矩阵}
+
+在采集前建立场景维度，并选择需要覆盖的组合：
+
+\begin{table}[H]
+  \centering
+  \caption{视觉数据采集覆盖矩阵示例}
+  \begin{tabular}{p{24mm}p{45mm}p{43mm}p{25mm}}
+    \hline
+    维度 & 典型取值 & 高风险缺口 & 记录字段 \\
+    \hline
+    设备与光学 & sensor、镜头、焦距、ISP 版本 & 只用一台样机 & \texttt{device\_id}、校准版本 \\
+    环境 & 白天、夜间、逆光、频闪、温湿度 & 实验室均匀照明 & site、照度、曝光 \\
+    对象 & 型号、颜色、磨损、批次、尺寸 & 训练与量产批次不同 & object/batch ID \\
+    姿态与尺度 & 距离、旋转、遮挡、边缘位置 & 只采中心正面 & ROI、姿态、可见比例 \\
+    负样本 & 相似件、手、工具、反光、空场景 & 只有容易正样本 & negative reason \\
+    时间 & 班次、季节、设备老化和维护后 & 一次性短采集 & session、timestamp \\
+    \hline
+  \end{tabular}
+\end{table}
+
+覆盖矩阵不是要求枚举所有笛卡尔积，而是让风险显式化。对失败代价高的切片应主动采集，对低风险组合可以抽样。采集应用应保存原始媒体和元数据，避免只留下已经 resize、压缩或裁剪后的训练输入。
+
+\section{不可变原始数据与 Manifest}
+
+原始数据区只追加，不覆盖、不原地重编码。清洗、裁剪、标注和增强都通过 manifest 指向来源。每个样本至少包含：
+
+\begin{itemize}
+  \item 稳定 sample ID、相对路径、内容摘要、宽高和编码；
+  \item device/site/subject/session/video/frame 等分组键；
+  \item 标签、逐字段 valid、审核状态和标签来源；
+  \item 原始采集条件、转换链和父样本 ID；
+  \item 数据许可、访问级别、保留期限和敏感性分类。
+\end{itemize}
+
+JSONL 适合教学项目，因为每行可独立解析和 diff：
+
+\begin{lstlisting}[caption={多任务视觉样本的简化 JSONL 结构}]
+{"sample_id":"site01-s03-f00142",
+ "image":"raw/site01/session03/frame00142.jpg",
+ "width":1920,"height":1080,
+ "group":{"site":"site01","session":"s03","device":"cam02"},
+ "labels":{"scene":"wrong_pose","scene_valid":true,
+           "objects":[{"class":"connector","bbox_xywh":[412,280,330,210],
+                       "bbox_valid":true,"pose":"reversed","pose_valid":true}]},
+ "label_source":"human_reviewed","review_state":"accepted"}
+\end{lstlisting}
+
+正式数据版本应包含样本清单摘要、schema 版本、split 规则、生成代码 revision 和统计报告。复制一个目录并命名为 \texttt{final2} 无法重建实验。
+
+\section{标签 Schema 先于标注界面}
+
+标签定义要回答对象、属性、坐标、单位、互斥关系和无效状态。以检测框为例，需要明确：
+
+\begin{itemize}
+  \item 坐标是像素、归一化还是物理单位；
+  \item 使用 \texttt{xyxy}、\texttt{xywh} 或中心点格式；
+  \item 边界是闭区间还是半开区间，是否允许超出图像；
+  \item 遮挡对象标可见框还是完整估计框；
+  \item 截断、模糊、太小和无法判断如何表示；
+  \item 属性属于对象、图像、轨迹还是采集 session。
+\end{itemize}
+
+同义词必须映射到唯一类别 ID。类别顺序一旦进入模型 ABI，就不能仅修改显示名称而不提升 schema/ABI 版本。
+
+\section{缺失、不可判断与真实负类}
+
+以下三种状态必须分开：
+
+\begin{description}
+  \item[真实负类] 标注者已检查该字段，并确认目标不存在或属性为否；
+  \item[不可判断] 图像证据不足，例如严重遮挡、过曝或分辨率不够；
+  \item[尚未标注] 当前任务没有审核该字段，不能用于正负监督。
+\end{description}
+
+把“尚未标注”默认为负类，会让扩展新任务时已有数据持续产生错误梯度。把“不可判断”强行分到某一类别，则会把人为猜测固化为模型边界。
+
+\section{标注规范与一致性}
+
+标注规范应包含正例、反例、边界案例和优先级规则。对难以文字描述的类别，建立代表性图册。标注流程至少包括：
+
+\begin{enumerate}
+  \item 小规模试标，收集分歧并修订 schema；
+  \item 两人独立标注一部分重叠样本；
+  \item 统计分类一致率、框 IoU、关键点距离或 mask 一致性；
+  \item 由裁决者解决系统性歧义，并把决定写回规范；
+  \item 正式标注过程中持续抽检，而不是结束时一次验收。
+\end{enumerate}
+
+高一致率也可能来自两位标注者共同误解。抽检应包含原始场景上下文和产品专家审核，尤其是高风险类别。
+
+\section{分组切分与泄漏}
+
+训练、验证、测试必须按与泛化声明一致的 group 切分。若产品要泛化到新设备，就按设备隔离；要泛化到新用户，就按用户隔离；视频任务通常至少按视频或 session 隔离。
+
+随机帧切分会让相邻帧、相同背景和同一对象同时出现在训练与测试，得到虚高指标。重复与近重复检查可组合：
+
+\begin{itemize}
+  \item 文件摘要发现完全重复；
+  \item 感知哈希发现缩放、压缩和轻微裁剪副本；
+  \item 图像 Embedding 发现语义近重复；
+  \item 元数据检查同一 subject/session/device 是否跨 split；
+  \item 人工检查最高相似对，确认阈值不会误删真正困难样本。
+\end{itemize}
+
+测试集在项目早期冻结。反复根据测试结果选择模型、阈值和数据方向，会把测试集逐渐变成验证集；此时需要新的独立 holdout。
+
+\section{类别不平衡与支持量}
+
+长尾数据需要同时报告样本数、对象数、主体数和 session 数。某类别有一万张相邻帧但只来自两个对象，其独立支持仍然很弱。
+
+常见处理路径按优先级为：
+
+\begin{enumerate}
+  \item 重新采集关键少数类和强负样本；
+  \item 以 group 和类别控制采样，避免同一 session 支配 batch；
+  \item 使用适当的数据增强；
+  \item 再考虑 class weight、focal loss 或重采样；
+  \item 用每类指标和校准结果确认处理是否真的改善，而非只降低训练 Loss。
+\end{enumerate}
+
+损失权重不能创造不存在的视觉变化，也不能补偿错误标签。
+
+\section{数据增强必须保持标签语义}
+
+增强用于模拟部署中合理变化。每项增强都要回答“现场是否可能发生”和“标签如何同步变化”。
+
+\begin{itemize}
+  \item 水平翻转会改变左右关键点顺序、文字方向和某些不对称产品姿态；
+  \item 随机 crop 可能截断目标，需要更新框、mask、关键点和 truncation；
+  \item 旋转会改变角度符号、坐标和 padding；
+  \item 颜色增强应尊重目标 ISP、曝光和照明范围，不能制造物理上不可能的颜色；
+  \item mosaic/mixup 等强增强可能改善检测泛化，也可能破坏细小缺陷和图像级状态语义。
+\end{itemize}
+
+训练、验证和部署的确定性预处理必须来自同一契约；随机增强只存在于训练分支。
+
+\section{预标注、教师模型与主动学习}
+
+当数据量增大时，人工应从“从零绘制”转向“审核模型候选”。不同教师可以负责不同任务：开放词汇检测发现新类别，领域检测器提供主要框，分割/跟踪模型传播视频标签，视觉语言模型提供保守的图像级候选。
+
+教师输出必须记录模型版本、原始分数、支持任务和人工修改。人工删除的错误候选要留下 rejection，避免下一轮重复添加。
+
+主动学习队列不应只选择最低置信样本，否则会被大量相似模糊帧淹没。可组合：
+
+\begin{equation}
+  P=U+D+R+N+E-\lambda C,
+\end{equation}
+
+其中 $U$ 为不确定性，$D$ 为教师分歧，$R$ 为稀有性，$N$ 为域新颖度，$E$ 为当前模型错误或高损失，$C$ 为重复惩罚。权重应在固定金标集上验证，不把公式当作通用常数。
+
+自动接受伪标签前，需在独立 reviewed 集上按类别校准阈值，并保留固定比例抽检。伪标签始终标记为伪标签，不能改名为人工金标，也不能进入验证集。
+
+\section{数据质量报告}
+
+每个数据版本至少输出：
+
+\begin{itemize}
+  \item split、类别、任务 valid、group、设备、站点和困难切片统计；
+  \item 缺图、损坏、越界框、非法类别、空标注和重复检查；
+  \item 标签来源、审核状态、修改率和抽检错误率；
+  \item 数据转换、压缩、resize 和坐标往返测试；
+  \item 已知覆盖缺口、许可证和访问限制。
+\end{itemize}
+
+统计脚本应在 CI 或数据发布流程中重复执行。只在 notebook 中展示一次图表，无法阻止后续数据版本重新引入泄漏或非法标签。
+
+\section{实践：构建第一个可审计数据版本}
+
+围绕贯穿项目完成以下步骤：
+
+\begin{enumerate}
+  \item 定义四分类或检测任务的 schema、valid 和 unknown；
+  \item 从至少三次独立采集 session 获取数据，保留原始图像和元数据；
+  \item 编写 manifest 生成与校验脚本；
+  \item 按 session 分组生成 train/validation/test；
+  \item 运行完全重复、感知哈希和 group 泄漏检查；
+  \item 双人复核一小部分样本并记录分歧；
+  \item 输出数据卡：用途、来源、覆盖、限制、许可和不建议用途；
+  \item 冻结 \texttt{v001}，后续修正通过新版本完成。
+\end{enumerate}
+
+通过标准是任何成员都能从 manifest 重建相同 split，并解释每个样本为什么属于该集合、标签由谁确认、哪些目标域仍未覆盖。

@@ -271,6 +271,8 @@ for (;;) {
 
 端侧 AI 部署契约不能只记录模型文件名。输入至少包括 dtype、layout、shape、颜色空间、crop/resize、letterbox、归一化、量化 scale/zero point 和对齐；输出至少包括 tensor 名称、shape、量化、坐标系、类别 schema、阈值、NMS 和无结果语义。ONNX IR 是常见的可移植图表示之一，但产品仍需独立保存运行时和业务契约\cite{onnx-ir}。
 
+本章聚焦媒体缓冲到加速器的系统管线；从业务任务、数据标签、模型训练、评估选型到导出量化的完整路线见第~\ref{chap:edge-ai-learning-roadmap}--\ref{chap:edge-ai-optimization-export-quantization}~章，运行时的模型语义分层见第~\ref{chap:edge-ai-runtime-deployment}~章。两处共用同一输入几何和 tensor ABI，不应分别维护近似配置。
+
 \begin{table}[H]
   \centering
   \caption{端侧模型 manifest 的关键字段}

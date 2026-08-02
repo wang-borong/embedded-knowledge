@@ -1,0 +1,231 @@
+\chapter{评估、选型与误差分析}
+\label{chap:edge-ai-evaluation-error-analysis}
+
+评估的目标不是产生一个尽可能好看的单值，而是回答“在声明的目标域和风险条件下，候选是否比当前版本更适合发布”。总体准确率、mAP 或一次演示都可能掩盖关键类别、设备域和错误代价。本章建立从任务指标、困难切片到模型晋级的证据链。
+
+\section{先冻结评估协议}
+
+公平比较要求 incumbent 和 candidate 使用同一：
+
+\begin{itemize}
+  \item 样本 manifest、标签 schema 和 group-safe split；
+  \item 输入预处理、推理尺寸、Batch、精度和运行时；
+  \item score 阈值、Top-K、NMS、mask/关键点解释和逆几何；
+  \item 指标实现、类别映射、ignore/void 规则；
+  \item warmup、计时边界、硬件频率和热条件。
+\end{itemize}
+
+如果比较的就是某一项，例如量化或输入分辨率，那么其他条件必须冻结。模型不同、阈值不同、测试集不同和后处理不同的结果不能归因到单一模型改动。
+
+\section{分类指标与混淆矩阵}
+
+二分类中，Precision 和 Recall 为
+
+\begin{equation}
+  \operatorname{Precision}=\frac{TP}{TP+FP},\qquad
+  \operatorname{Recall}=\frac{TP}{TP+FN}.
+\end{equation}
+
+F1 为二者调和平均：
+
+\begin{equation}
+  F_1=\frac{2PR}{P+R}.
+\end{equation}
+
+多分类需要报告混淆矩阵和每类指标。macro average 给每类相同权重，micro average 按样本汇总，weighted average 按支持量加权。长尾场景只看 weighted 指标，常会让多数类掩盖少数关键类。
+
+混淆矩阵不仅展示错误数量，还能发现标签边界。例如 \texttt{wrong\_part} 经常被误判为 \texttt{wrong\_pose}，可能说明两类定义重叠、图像证据不足或模型只学到共同背景。
+
+\section{阈值、PR 曲线与拒绝状态}
+
+固定模型在不同阈值下具有不同 Precision/Recall。阈值不是训练常数，应在验证集和产品错误代价下选择。对于高风险自动决策，可以增加 \texttt{unknown/reject}：低置信样本不自动处理，而是复拍、切换传感器或人工确认。
+
+报告拒绝机制时至少给出：
+
+\begin{itemize}
+  \item 自动覆盖率；
+  \item 已接受样本的错误率；
+  \item 各类别被拒绝比例；
+  \item 域外和困难切片是否集中被拒绝；
+  \item 拒绝后的产品动作和最大等待时间。
+\end{itemize}
+
+只报告“拒绝后准确率”会隐藏系统可能拒绝大多数输入。
+
+\section{概率校准}
+
+概率 0.9 不自动表示在长期运行中有 90\% 正确率。可使用 reliability diagram、Expected Calibration Error 或 Brier Score 检查预测概率与经验正确率。温度缩放等方法在不改变排序的情况下校准 logits，但必须只在验证集拟合，再在独立测试集确认。
+
+量化、域漂移和类别先验变化都可能破坏校准。产品阈值应绑定模型和校准版本，不能沿用旧模型的概率阈值而不验证。
+
+\section{检测指标}
+
+框的交并比为
+
+\begin{equation}
+  \operatorname{IoU}=\frac{|B_p\cap B_g|}{|B_p\cup B_g|}.
+\end{equation}
+
+检测评估通常在给定 IoU 条件下匹配预测与 ground truth，再计算 PR 和 AP。AP50 容忍较宽几何误差，AP50--95 更强调定位质量。必须同时报告：
+
+\begin{itemize}
+  \item 每类 AP、Precision、Recall 和支持对象数；
+  \item 不同尺寸、遮挡、边缘和设备切片；
+  \item 空场景 FP、每图预测数和候选密度；
+  \item score/NMS 设置与最大候选数；
+  \item 关键漏检与误检的配对样例。
+\end{itemize}
+
+总体 mAP 相同的两个模型可能具有完全不同的产品行为：一个漏掉小型关键对象，另一个在背景产生更多低风险 FP。
+
+\section{分割、关键点与 Embedding 指标}
+
+分割常用每类 IoU、mean IoU、Dice、像素准确率和边界指标。背景占比很大时，像素准确率可能在前景完全消失时仍然很高，因此要报告 foreground IoU、lost-foreground rate、空 mask 和细边界切片。
+
+关键点可使用归一化点误差、PCK、OKS 或任务定义的毫米误差。归一化基准、不可见点和标定误差必须明确。Embedding 评估使用 ROC/PR、Top-K retrieval、mAP、FAR/FRR 或距离分布，并按设备和主体隔离，防止同一身份图像跨 split。
+
+指标应匹配任务语义，不能把分类准确率套到检测，也不能用单一 cosine 平均值证明所有 Embedding 阈值可靠。
+
+\section{困难切片与支持量}
+
+切片用于验证模型在产品关心的条件下是否稳定：
+
+\begin{itemize}
+  \item 相机/设备/站点/固件/ISP；
+  \item 光照、模糊、遮挡、尺度、边缘位置和背景；
+  \item 对象版本、颜色、批次和磨损；
+  \item 正常、关键异常、相似负样本和域外输入；
+  \item 冷启动、首帧、连续视频和跨 session。
+\end{itemize}
+
+每个切片必须同时报告支持量。只有 3 个样本的 100\% Recall 不能作为稳定结论；支持太少时应报告不确定性并触发采集，而不是隐藏该切片。
+
+切片定义应在查看候选结果前冻结或由明确风险驱动，避免事后不断寻找对某候选有利的分组。
+
+\section{错误分类树}
+
+对 FP/FN 建立可操作的错误类别：
+
+\begin{enumerate}
+  \item \textbf{数据/标签}：漏标、错标、类别歧义、切分泄漏；
+  \item \textbf{可观测性}：目标像素不足、过曝、遮挡、运动模糊；
+  \item \textbf{预处理}：颜色、crop、letterbox、取整、归一化；
+  \item \textbf{模型}：容量、尺度、特征或任务定义不足；
+  \item \textbf{后处理}：激活、阈值、NMS、坐标与 mask 解释；
+  \item \textbf{量化/运行时}：scale、饱和、输出顺序、stride、cache；
+  \item \textbf{产品逻辑}：对象关联、时序、迟滞或旧结果污染。
+\end{enumerate}
+
+错误分类的价值是决定下一步实验。光学不可观测问题继续调 Loss 无效；后处理阈值问题不应重训模型；标签歧义需要先修 schema。
+
+\section{失败样例集与可重复诊断}
+
+保存稳定 failure gallery，包括输入、ground truth、预测、模型/数据版本、切片、原始 tensor 摘要和错误分类。每次候选评估自动重新运行该集合，观察旧错误是否修复、新错误是否引入。
+
+不要只保存最戏剧性的图片。样例集应覆盖：
+
+\begin{itemize}
+  \item 最常见错误；
+  \item 业务代价最高错误；
+  \item 接近阈值的边界样本；
+  \item 正确但低置信样本；
+  \item 各设备和主要域的代表样本。
+\end{itemize}
+
+failure gallery 用于解释，不替代完整固定集指标。
+
+\section{数值一致性的 L0--L4 分层}
+
+端侧模型需要把误差定位到第一个分歧边界：
+
+\begin{table}[H]
+  \centering
+  \caption{视觉模型数值与产品验证层级}
+  \begin{tabular}{p{15mm}p{47mm}p{67mm}}
+    \hline
+    层级 & 比较 & 主要回答 \\
+    \hline
+    L0 & Framework FP32 $\rightarrow$ Portable FP32 & 导出、算子或参考语义是否改变 \\
+    L1 & Portable FP32 $\rightarrow$ Converter FP32 & lowering、图优化或替换算子是否分歧 \\
+    L2 & Converter FP32 $\rightarrow$ Quantized raw tensor & 校准、scale、饱和、归零和范围竞争 \\
+    L3 & FP32/量化产物 $\rightarrow$ Ground truth & 每类、每任务与关键切片质量损失 \\
+    L4 & 目标设备端到端产品输出 & 输入链、cache、冷启动、时序、性能与稳定性 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+若后端不提供 L1，应标为 unavailable，并加强 L0/L2；不能用“转换成功”填补证据。只有同 checkpoint、同输入、同后处理的比较才能称为直接量化损失。
+
+\section{逐 Tensor 诊断}
+
+比较 raw tensor 时，不只计算平均误差。按输出、尺度、通道和前景位置统计：
+
+\begin{itemize}
+  \item mean/p99/max absolute error、relative L2、cosine；
+  \item 零值率、最小/最大饱和率、符号翻转和非有限值；
+  \item Top-K 重合、排序相关、关键类别 margin；
+  \item 检测候选匹配率、框 IoU 与 score 误差；
+  \item 分割前景丢失、边界和每类像素一致率。
+\end{itemize}
+
+总体 cosine 很高仍可能有关键类别通道全部归零。任务指标和 tensor 指标需要同时存在。
+
+\section{质量与系统性能联合评估}
+
+边缘 AI 的候选必须同时满足质量和系统预算。性能报告至少声明：
+
+\begin{itemize}
+  \item 计时起止边界，是否包含预处理、排队、后处理和 copy；
+  \item warmup、样本数、P50/P90/P99/最大值和持续时间；
+  \item CPU/NPU/GPU 频率、温度、DVFS、线程和并发模型；
+  \item 峰值/稳态 RAM、模型、tensor、scratch 和 DMA pool；
+  \item FPS、新鲜度、丢帧原因、功率和能量/有效结果；
+  \item 冷启动、模型加载/切换、错误恢复和长稳。
+\end{itemize}
+
+短时单模型 benchmark 不能代表摄像头、显示、编解码和多模型并发下的持续表现。系统方法见第~\ref{chap:performance-capacity-engineering}~章。
+
+\section{预注册晋级规则}
+
+在读取最终测试结果前定义硬门槛。例如：
+
+\begin{table}[H]
+  \centering
+  \caption{候选模型晋级规则示例}
+  \begin{tabular}{p{29mm}p{45mm}p{56mm}}
+    \hline
+    门槛 & 示例规则 & 失败动作 \\
+    \hline
+    关键类质量 & 每类 Recall 不低于 incumbent 减容差 & 拒绝，不用总体指标豁免 \\
+    强负样本 & 每千帧 FP 不超过批准上限 & 增加错误分析或拒绝 \\
+    量化回归 & L2/L3 在逐输出和任务容差内 & 定位首个分歧，不盲调 converter \\
+    延迟与内存 & 热稳态 P99、峰值内存满足预算 & 优化或降级 profile \\
+    稳定性 & 冷启动、复位、长稳无未处理错误 & 不进入发布 \\
+    兼容性 & Manifest/ABI/硬件 profile 匹配 & 拒绝加载或并行版本化 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+综合分只用于排序已经通过全部硬门槛的候选。若 candidate 提升总体 AP 却降低关键类 Recall，默认保留 incumbent。
+
+\section{统计不确定性与多 Seed}
+
+接近门槛的差异可能来自测试支持不足或训练方差。可使用 bootstrap 置信区间、配对样本分析和多 seed 评估。视频数据应按 group 重采样，而不是把相关帧当独立样本。
+
+多 seed 的目标不是追求某一次最好结果，而是确认改动在合理波动内具有稳定收益。若成本无法支持完整多 seed，至少报告限制，并对关键切片增加样本或做配对错误分析。
+
+\section{实践：发布评估报告}
+
+为 incumbent 和一个 candidate 生成统一报告：
+
+\begin{enumerate}
+  \item 冻结评估 manifest、预处理和后处理；
+  \item 输出总体与每类指标、支持量和混淆/PR；
+  \item 定义至少五个部署困难切片；
+  \item 生成配对 FP/FN 变化和 failure gallery；
+  \item 测量 reference runtime 延迟和内存；
+  \item 按预注册门槛给出 promote/reject/needs-evidence；
+  \item 明确未执行的量化、板端、功耗和长稳层级。
+\end{enumerate}
+
+通过标准是评审者不需要相信“效果看起来不错”，只需检查协议、支持量、配对错误、资源预算和晋级规则，就能理解该决定。

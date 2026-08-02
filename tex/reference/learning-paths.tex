@@ -67,7 +67,23 @@
   \item 在镜像写入、rename 和数据库事务期间执行真实掉电测试。
 \end{itemize}
 
-\section{复杂 SoC 与端侧 AI 路线}
+\section{嵌入式边缘 AI 路线}
+
+推荐顺序：
+\begin{enumerate}
+  \item 完成第~\ref{chap:edge-ai-learning-roadmap}~章的四分类闭环；
+  \item 学习视觉张量、卷积、任务分解和模型 ABI；
+  \item 建立数据 manifest、标签 schema、分组切分和标注质量；
+  \item 完成迁移学习、检测/分割训练和冻结实验合同；
+  \item 使用总体、每类、困难切片和配对错误选择候选；
+  \item 导出静态图，完成 PTQ/QAT、L0--L3 对齐和模型打包；
+  \item 接入 Camera-to-runtime 管线，验证 tensor、cache、P99 和故障恢复；
+  \item 建立模型灰度、回滚、漂移监控和主动学习闭环。
+\end{enumerate}
+
+建议按第~\ref{chap:edge-ai-product-lifecycle-projects}~章的四个综合项目逐级验收。入门阶段应交付可重建数据、baseline、portable graph 和参考推理；精通阶段应能够在陌生后端上冻结 ABI、定位首个数值分歧，并给出发布或拒绝证据。
+
+\section{复杂 SoC 与多媒体路线}
 
 推荐顺序：
 \begin{enumerate}
@@ -75,7 +91,7 @@
   \item 异构多核、remoteproc、RPMsg 和共享内存；
   \item 实时 Linux、虚拟化和混合关键性；
   \item FPGA/SoC、AXI、DMA 和 bitstream 生命周期；
-  \item V4L2、DRM、DMA-BUF、多媒体和端侧 AI；
+  \item V4L2、DRM、DMA-BUF、多媒体和加速器运行时；
   \item TrustZone/TEE、设备身份和远程证明；
   \item 带宽、热、低功耗和系统级验证。
 \end{enumerate}

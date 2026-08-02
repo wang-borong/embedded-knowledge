@@ -1,0 +1,280 @@
+\chapter{压缩、导出与整数量化}
+\label{chap:edge-ai-optimization-export-quantization}
+
+桌面模型通过测试后，仍可能因算子、内存、带宽、功耗或数值范围无法进入目标设备。优化的正确顺序是先冻结质量与语义基线，再减少不必要计算和数据移动，最后才使用更激进的压缩或近似。转换器生成文件不等于模型已经可部署。
+
+\section{先写资源预算}
+
+目标 profile 至少给出：
+
+\begin{itemize}
+  \item 输入分辨率、目标帧率和端到端 P99；
+  \item 模型权重、峰值激活、tensor pool、scratch 和应用内存；
+  \item CPU 前后处理预算、NPU/GPU/DSP 能力和 DDR 带宽；
+  \item 可用算子、静态 Shape、Batch、layout 和量化模式；
+  \item 功率、热稳态、首帧、模型切换和多模型并发要求；
+  \item 质量硬门槛、关键类别和允许的降级策略。
+\end{itemize}
+
+没有预算就无法判断 10\% latency 改善是否有价值，也无法知道质量回退换来的资源是否真正关闭产品缺口。
+
+\section{优化优先级}
+
+按下列顺序寻找收益：
+
+\begin{enumerate}
+  \item 改善问题定义、ROI、相机和输入，使模型不必处理无关信息；
+  \item 选择目标运行时高效支持的成熟轻量架构；
+  \item 消除重复预处理、layout 转换、copy 和无消费者输出；
+  \item 调整输入尺寸、模型宽深和任务 profile；
+  \item 使用蒸馏、结构化剪枝、低秩或稀疏等压缩；
+  \item 执行 PTQ，必要时使用 QAT；
+  \item 最后基于实测热点优化 CPU/SIMD 和多模型调度。
+\end{enumerate}
+
+模型 FLOPs 优化若增加不支持算子或 layout conversion，端到端可能更慢。每一步都用相同输入、运行时和计时边界对比。
+
+\section{模型缩放与输入尺寸}
+
+降低输入尺寸、通道宽度和层数是最稳定的压缩手段，但会影响小目标、细边界和长距离依赖。建立一组离散 Model Scale，例如 tiny/small/medium，而不是让每个项目随意组合宽度。
+
+对每个 scale 记录：
+
+\begin{itemize}
+  \item 参数、MAC、峰值激活和可移植图大小；
+  \item 每类/每任务和困难切片质量；
+  \item reference 与目标 backend latency；
+  \item 不支持算子、图切分和 CPU fallback；
+  \item 校准和量化后的回归。
+\end{itemize}
+
+最终选择位于质量--资源 Pareto 前沿且通过硬门槛的 profile，不因某模型在公开榜单略高就默认使用。
+
+\section{知识蒸馏}
+
+蒸馏让高容量 Teacher 为轻量 Student 提供软目标或中间特征。经典温度蒸馏使用 Teacher 和 Student 的软分布\cite{knowledge-distillation}：
+
+\begin{equation}
+  L=\alpha L_{hard}+(1-\alpha)T^2
+  \operatorname{KL}\left(p_T^{(T)}\parallel p_S^{(T)}\right).
+\end{equation}
+
+$T$ 提高后，非最大类别之间的相对关系更明显。检测、分割和多任务蒸馏还可对 logits、特征、候选、mask 或关系进行约束。
+
+Teacher 必须与 Student 共享标签语义和预处理，且只能在独立金标集上证明价值。Teacher 在某类上系统偏差时，蒸馏会传播错误。用于预标注的 Teacher 和用于蒸馏的 Teacher 可以相同，也可以按任务组合，但其来源和置信度要记录。
+
+\section{剪枝、稀疏与低秩}
+
+非结构化剪枝将单个权重置零，只有运行时和硬件支持相应稀疏格式时才带来 latency 收益；否则只是压缩存储。结构化剪枝删除通道、block 或层，更易被通用加速器利用，但会改变后续 Shape 和 checkpoint 兼容性。
+
+剪枝流程应包含：
+
+\begin{enumerate}
+  \item 冻结未剪枝 baseline；
+  \item 按敏感性逐步剪枝；
+  \item 每步微调并评估关键切片；
+  \item 实际导出和目标 runtime 测量；
+  \item 若延迟无收益或质量回退，删除该实验路径。
+\end{enumerate}
+
+低秩分解和矩阵近似同样需要目标算子支持。理论乘加下降不能替代目标板证据。
+
+\section{整数仿射量化基础}
+
+常见 affine quantization 用 scale $s$ 和 zero point $z$ 在实数 $x$ 与整数 $q$ 间映射：
+
+\begin{equation}
+  q=\operatorname{clip}\left(\operatorname{round}\left(\frac{x}{s}\right)+z,
+  q_{min},q_{max}\right),
+\end{equation}
+
+\begin{equation}
+  \hat{x}=s(q-z).
+\end{equation}
+
+对称量化通常令 $z=0$，非对称量化可更好利用不对称范围。权重可按 tensor 或按输出通道量化；激活通常按 tensor 或 backend 支持的粒度量化。整数推理的具体 rounding、accumulator 和 requantization 由 backend profile 定义\cite{integer-quantization}。
+
+量化误差来自有限步长、clipping、outlier、通道范围竞争和算子实现。INT8 文件较小，不保证关键 logits、细分割前景或 Embedding 排序被保留。
+
+\section{PTQ 与校准集}
+
+Post-Training Quantization 在训练完成后使用代表性数据估计激活范围。校准集不需要 ground truth，但必须覆盖：
+
+\begin{itemize}
+  \item 目标设备、光照、颜色、尺度和背景；
+  \item 每个关键类别、任务和输出 head；
+  \item 强负样本、空场景、低照和极值；
+  \item 与部署完全一致的颜色、resize、padding 和归一化；
+  \item 多输入模型的合法组合。
+\end{itemize}
+
+校准集不是随机从训练目录拿若干图片。若关键小目标或暗光未覆盖，相关通道可能量化范围不合适。保存校准 manifest、顺序、预处理 owner 和摘要。
+
+\section{QAT 的使用边界}
+
+Quantization-Aware Training 在训练中模拟量化和 clipping，使模型适应误差。使用 QAT 前应先确认 PTQ 损失确实来自量化，而不是导出、预处理或后处理。
+
+QAT 需要冻结：
+
+\begin{itemize}
+  \item fake quant 插入位置、bit width、对称/非对称和通道粒度；
+  \item observer、范围更新和冻结时机；
+  \item BatchNorm folding、激活和 backend 的对应关系；
+  \item 从 FP32 checkpoint 迁移的阶段与学习率；
+  \item QAT graph 到目标 converter 的一致性。
+\end{itemize}
+
+QAT 可能恢复任务质量，也可能过拟合某个量化模拟器。最终仍需真实 converter/runtime 的 L2--L4 证据。
+
+\section{量化风险矩阵}
+
+在转换前逐输出声明风险：
+
+\begin{table}[H]
+  \centering
+  \caption{量化风险矩阵示例}
+  \begin{tabular}{p{26mm}p{35mm}p{36mm}p{34mm}}
+    \hline
+    输出/边界 & 风险 & 必测统计 & 失败门 \\
+    \hline
+    分类概率 & 接近 0 的概率大量归零 & zero rate、Top-K、margin & 有支持类别零输出 \\
+    检测多尺度 head & 通道/尺度范围竞争 & 每尺度误差、候选匹配 & 关键小目标 Recall 回退 \\
+    分割 logits & 稀疏前景和细边界丢失 & foreground/boundary IoU & 前景整类消失 \\
+    Embedding & 角度与排序改变 & cosine、Top-K overlap & 阈值 FAR/FRR 超限 \\
+    激活后 Split & 两组动态范围不平衡 & 分组 min/max、饱和 & 任务指标无稳定收益 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+风险矩阵决定校准覆盖、tensor dump 和关键 Gate。不能因为两个模型共享 backbone 就复用同一量化结论。
+
+\section{激活边界与阈值 Domain}
+
+Model Manifest 必须声明每个输出是 raw logits、sigmoid/softmax probability、归一化向量还是解码值，以及阈值应用在哪个 domain。
+
+当概率输出量化后大量归零，而 raw logits 保留排序时，可以评估把 sigmoid 移到 CPU。概率阈值 $p$ 对应 logit 阈值：
+
+\begin{equation}
+  l=\log\frac{p}{1-p}.
+\end{equation}
+
+这属于 ABI 变化：需要提升版本、更新 Manifest、参考解码和 legacy 测试。不能只修改 exporter，让部署端猜测输出是否已经激活。
+
+该方法不是通用优化。logit 动态范围过大、后端不支持有符号量化或 CPU 成本过高时可能更差，必须通过同输入 L2 和完整 L3 评估决定。
+
+\section{可移植静态导出}
+
+推荐边界为：
+
+\begin{center}
+\texttt{Checkpoint $\rightarrow$ Export Wrapper $\rightarrow$ Portable Graph}
+\\
+\texttt{$\rightarrow$ Graph Check $\rightarrow$ Model Manifest $\rightarrow$ Runtime Parity}
+\end{center}
+
+Exporter 只返回稳定 ABI tensor，不返回训练字典、动态长度容器或依赖 Python 控制流的对象。目标要求静态图时固定 Batch、输入尺寸、输出数量和控制流。记录图格式、opset、exporter 和 framework 版本。
+
+ONNX 描述计算图和 tensor，不自动描述产品类别、颜色、letterbox 或阈值\cite{onnx-ir}。这些语义进入独立 Model Manifest。
+
+\section{Model Manifest 示例}
+
+\begin{lstlisting}[caption={简化的可移植模型 Manifest}]
+schema_version: 1
+model:
+  family: workstation-detector
+  profile: small
+  abi_version: 2
+input:
+  name: images
+  shape: [1, 3, 320, 320]
+  dtype: float32
+  color: RGB
+  layout: NCHW
+  resize: letterbox
+  pad_value: 114
+  normalization: {scale: 0.0039215686, mean: [0, 0, 0]}
+outputs:
+  - {name: boxes, shape: [1, 8400, 4], domain: model_xyxy}
+  - {name: class_logits, shape: [1, 8400, 4], activation: none}
+labels: [correct_part, wrong_part, wrong_pose, foreign_object]
+reference_decoder: {name: detector_reference, version: 2}
+\end{lstlisting}
+
+Manifest 还应绑定 checkpoint、图、配置、代码和数据摘要。厂商 artifact 的 scale、zero-point、runtime 和芯片兼容性进入 Artifact/Accelerator Manifest，不污染通用模型语义。
+
+\section{框架到可移植运行时对齐}
+
+使用真实代表输入和边界输入逐输出比较：
+
+\begin{itemize}
+  \item 名称/稳定 ID、Shape、dtype 和有限值；
+  \item max absolute、relative、cosine 和容差比；
+  \item Top-K、候选、mask、关键点或 Embedding 任务语义；
+  \item 空输入、最大候选、边缘坐标和奇数尺寸；
+  \item 预处理和参考后处理是否恰好执行一次。
+\end{itemize}
+
+全零或随机 tensor 只做冒烟。真实输入才能触发插值、归一化、激活饱和和分支行为。
+
+\section{Accelerator Profile}
+
+每种芯片/SDK 用独立 profile 描述：
+
+\begin{itemize}
+  \item converter、runtime、driver/firmware 和测试版本；
+  \item 接受的图格式/opset、算子、静态 Shape、Batch 和 layout；
+  \item 预处理由应用、converter、运行时或硬件单元负责；
+  \item 量化模式、校准格式、mixed precision 和排除规则；
+  \item 转换命令、日志、产物、tensor metadata 和失败判据；
+  \item simulator/board 验证命令、容差、性能和打包要求。
+\end{itemize}
+
+NNIE、RKNN、TensorRT、OpenVINO、TFLite/LiteRT 等后端的 artifact、量化和缓存规则不能互相推断。新增 backend 先用最小已知图验证工具链，再接入完整模型。
+
+\section{定位第一个分歧}
+
+当量化质量下降时，按顺序检查：
+
+\begin{enumerate}
+  \item Framework 与 portable 是否已分歧；
+  \item converter FP32 中间物是否改变；
+  \item quantized raw tensor 的零值、饱和、符号和排序；
+  \item 参考后处理的激活、阈值、NMS、mask 与坐标；
+  \item 目标 runtime 的输入 bytes、stride、cache 和首帧状态。
+\end{enumerate}
+
+只有找到第一个分歧点，修复才可归因。一次同时改校准集、QAT、图结构和阈值，会让任何结果都无法解释。
+
+\section{模型包与发布候选}
+
+一个可交付候选包至少包含：
+
+\begin{itemize}
+  \item selected checkpoint、portable graph、target artifact；
+  \item Model Manifest、Accelerator/Artifact Manifest；
+  \item resolved training/export/conversion config；
+  \item calibration manifest、converter log 和 tensor metadata；
+  \item framework/portable/quantized golden outputs；
+  \item 质量、量化、性能和兼容报告；
+  \item 所有文件 SHA-256、签名策略和 rollback artifact。
+\end{itemize}
+
+生成 target artifact 是转换阶段的输出，不自动把它设为产品默认模型。晋级是独立、可审计的动作。
+
+\section{实践：从 FP32 到 INT8 的证据链}
+
+选择上一章的候选模型：
+
+\begin{enumerate}
+  \item 冻结 checkpoint、测试集、预处理和参考后处理；
+  \item 导出固定 Shape 的 portable graph，并通过 L0；
+  \item 生成 Model Manifest 和固定 golden inputs；
+  \item 建立目标 Accelerator Profile 与校准 manifest；
+  \item 执行 PTQ，保存 converter 日志与 tensor metadata；
+  \item 比较 L2 raw tensor 的误差、零值、饱和和 Top-K；
+  \item 在完整测试集执行 L3 每类/每任务回归；
+  \item 只有 PTQ 失败且定位到量化时，再设计 QAT 或其他单因素候选；
+  \item 给出接受、拒绝或仍缺板端 L4 的明确结论。
+\end{enumerate}
+
+通过标准不是得到一个 INT8 文件，而是能够指出每一级语义是否保持、关键类是否退化、节省了多少真实资源，以及失败时可以回到哪个已知良好产物。

@@ -2,7 +2,7 @@
 
 # 嵌入式知识体系总结
 
-### 从电路基础、处理器架构，到 Linux 系统工程与产品交付
+### 从电路基础、处理器架构，到 Linux、嵌入式边缘 AI 与产品交付
 
 一部面向真实工程闭环、持续维护的中文嵌入式系统技术书。
 把分散在芯片手册、体系结构规范、Linux 文档、电路教材与项目实践中的知识，
@@ -22,9 +22,9 @@
 | 项目 | 当前情况 |
 | --- | --- |
 | 文档形态 | 中文 LaTeX `book`，面向 A4 PDF 阅读与归档 |
-| 当前规模 | 约 870 页；最近一次主线构建为 871 页，页数会随内容持续变化 |
+| 当前规模 | 约 920 页；最近一次 OmniDoc 1.9.1 严格构建为 920 页，页数会随内容持续变化 |
 | 内容入口 | [`main.tex`](main.tex) |
-| 章节组织 | [`tex/`](tex/) 下按软件、硬件、工具、案例与参考资料分层 |
+| 章节组织 | [`tex/`](tex/) 下按软件、硬件、边缘 AI、工具、案例与参考资料分层 |
 | 构建系统 | OmniDoc → `latexmk` → XeLaTeX |
 | 项目配置 | [`.omnidoc.toml`](.omnidoc.toml) |
 | 构建快照 | [`omnidoc.lock`](omnidoc.lock) |
@@ -43,6 +43,7 @@
 - 从 ISA、异常、中断、缓存、MMU 和内存序理解程序执行；
 - 从 Boot ROM、Bootloader、内核到 PID 1 理解系统启动与责任交接；
 - 从 RTOS、实时 Linux、异构多核和控制算法理解时序与资源边界；
+- 从任务定义、数据、训练、评估、量化和运行时理解视觉模型的完整工程闭环；
 - 从构建、存储、OTA、安全、测试、制造和质量理解产品全生命周期；
 - 用规范引用、公式、状态机、代码示例、检查清单和验收矩阵沉淀可复用知识。
 
@@ -72,7 +73,8 @@
 | 接口、网络与时间 | API/ABI、数据协议、Ethernet、TCP/UDP、CAN FD、TSN、NTP/NTS、PTP/PHC |
 | 无线与 IoT | Wi-Fi、BLE、Thread、Matter、MQTT、CoAP、LwM2M、弱网恢复与无线量产测试 |
 | 异构与虚拟化 | remoteproc/RPMsg、跨核 ABI、Arm EL2、RISC-V H、KVM/Xen、virtio 与设备直通 |
-| 多媒体与端侧 AI | V4L2、DRM/KMS、DMA-BUF、编解码、ALSA、端侧 AI 契约与多模型调度 |
+| 多媒体系统 | V4L2、DRM/KMS、DMA-BUF、编解码、ALSA 与摄像头到加速器的数据通路 |
+| 嵌入式边缘 AI | 视觉任务、数据与标注、训练评估、压缩导出、INT8 量化、加速器运行时与模型产品生命周期 |
 | 构建、存储与更新 | Buildroot/Yocto、可复现构建、MTD/UBI/UBIFS、eMMC、掉电一致性与 A/B OTA |
 | 安全与可信计算 | 威胁建模、可信启动、密钥生命周期、TrustZone、OP-TEE、TPM、DICE 与证明 |
 | 功能安全与质量 | HARA、FTTI、FMEDA、免受干扰、Safety Case、环境可靠性与认证 |
@@ -119,6 +121,17 @@
 → 制造与 DFT
 → 产品认证、质量和可靠性章节。
 
+### 嵌入式边缘 AI / 视觉模型工程师
+
+[`学习路线与首个闭环`](tex/edge-ai/learning-roadmap.tex)
+→ [`视觉张量、神经网络与任务建模`](tex/edge-ai/vision-foundations.tex)
+→ [`数据、标签与标注工程`](tex/edge-ai/data-label-engineering.tex)
+→ [`模型训练与实验管理`](tex/edge-ai/model-training.tex)
+→ [`评估、选型与误差分析`](tex/edge-ai/evaluation-error-analysis.tex)
+→ [`压缩、导出与整数量化`](tex/edge-ai/optimization-export-quantization.tex)
+→ [`端侧加速器运行时集成`](tex/edge-ai/runtime-deployment.tex)
+→ [`产品化、迭代与实战`](tex/edge-ai/product-lifecycle-projects.tex)。
+
 ### 系统、安全与交付工程师
 
 [`系统工程方法`](tex/software/system-engineering-method.tex)
@@ -138,11 +151,13 @@
 ├── tex/
 │   ├── part-software.tex    # 软件部分目录
 │   ├── part-hardware.tex    # 硬件部分目录
+│   ├── part-edge-ai.tex     # 嵌入式边缘 AI 部分目录
 │   ├── part-tool.tex        # 工具部分目录
 │   ├── part-case-study.tex  # 工程案例目录
 │   ├── part-reference.tex   # 学习与参考目录
 │   ├── software/            # 系统软件、实时、网络、安全等正文
 │   ├── hardware/            # 电路、器件、PCB、制造和质量正文
+│   ├── edge-ai/             # 视觉模型、训练评估、量化部署与产品闭环
 │   ├── case-study/          # 可落地的工程案例
 │   └── reference/           # 学习路线、模板和术语
 ├── biblio/                  # BibLaTeX 参考文献数据库
@@ -194,13 +209,13 @@ main.tex
 
 | 组件 | 仓库 lock 快照 | 2026 年 8 月验证环境 |
 | --- | --- | --- |
-| OmniDoc / lock format | 1.6.1 / 4 | OmniDoc CLI 1.9.0 |
-| omnidoc-libs | 1.6.1 | 1.9.0 |
+| OmniDoc / lock format | 1.6.1 / 4 | OmniDoc CLI 1.9.1 |
+| omnidoc-libs | 1.6.1 | 1.9.1 |
 | LaTeX engine | XeTeX / TeX Live 2026 | XeTeX / TeX Live 2026 |
 | Pandoc | 3.10 | 3.10.1 |
 | pandoc-crossref | 0.3.24 | 0.3.24 |
 
-这组 1.9.0 环境已通过 `omnidoc doctor --strict` 和全量严格构建，生成 871 页 PDF，报告中的
+这组 1.9.1 环境已通过全量严格构建，生成 920 页 PDF，报告中的
 `issues` 为空。较新的兼容 CLI/库可以完成构建，但升级库、工具链或 lock 格式仍应作为显式维护动作审查，
 不应在普通内容修改中顺手写回 lock。
 

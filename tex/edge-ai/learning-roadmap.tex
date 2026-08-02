@@ -1,0 +1,197 @@
+\chapter{学习路线与首个闭环}
+\label{chap:edge-ai-learning-roadmap}
+
+嵌入式边缘 AI 不是把一个神经网络文件复制到开发板上。一个可交付的视觉系统至少要同时回答：业务真正需要什么视觉证据，数据和标签是否表达了这一目标，模型是否在独立数据上有效，导出与量化是否保持语义，运行时是否正确处理图像、张量和缓存，以及产品如何更新、回退和监控模型。
+
+本部分以视觉模型为主线，建立如下闭环：
+
+\begin{center}
+\begin{tikzpicture}[node distance=5mm]
+  \tikzset{airoad/.style={draw=bookline,fill=bookpaper,rounded corners=1mm,
+    minimum width=22mm,minimum height=9mm,align=center,font=\small}}
+  \node[airoad] (need) {场景与证据};
+  \node[airoad,right=of need] (data) {数据与标签};
+  \node[airoad,right=of data] (model) {模型与训练};
+  \node[airoad,right=of model] (artifact) {导出与量化};
+  \node[airoad,right=of artifact] (runtime) {运行时与产品};
+  \draw[->,bookteal] (need)--(data);
+  \draw[->,bookteal] (data)--(model);
+  \draw[->,bookteal] (model)--(artifact);
+  \draw[->,bookteal] (artifact)--(runtime);
+  \draw[->,bookorange,bend left=24] (runtime) to node[above,font=\scriptsize]{现场误差与新数据} (need);
+\end{tikzpicture}
+\end{center}
+
+学习顺序遵循“先得到可观察结果，再解释其机制；先完成小闭环，再扩大任务和系统复杂度”。因此第一项实践不是从反向传播公式开始，而是在桌面环境完成一个小型分类器的训练、评估、导出和参考推理。公式会在遇到分类置信度、训练不收敛、量化误差等具体问题时逐步引入。
+
+\section{为什么独立成篇}
+
+本书已有的第~\ref{chap:multimedia-edge-architecture}~章负责摄像头、V4L2、DMA-BUF、显示、NPU 调度和端到端媒体管线；本部分则负责从业务语义到模型产物的全生命周期。二者的边界为：
+
+\begin{itemize}
+  \item 媒体章节回答“一帧图像如何正确、及时、可恢复地到达加速器并返回结果”；
+  \item 本部分回答“应训练什么、如何证明有效、如何形成可移植模型契约，并怎样把它安全地演进为产品能力”；
+  \item 两部分共享输入几何、tensor ABI、性能预算、缓存所有权和发布证据，不各自定义一套近似语义。
+\end{itemize}
+
+边缘 AI 同时依赖软件、硬件、数据和产品工程。若只插入“软件”部分，训练与数据会被误解为普通应用代码；若只放入“工程实践”，读者又缺少从张量、损失函数到量化与部署的连续理论。因此将其置于硬件部分之后、工程实践之前，使读者能够先获得处理器、Linux、摄像头、存储和硬件基础，再进入跨层模型系统。
+
+\section{一条贯穿全篇的实践主线}
+
+建议使用“固定工位上的物料与装配状态识别”作为贯穿项目。它不要求特定行业设备，也能逐步覆盖主要视觉任务：
+
+\begin{enumerate}
+  \item 单个物料居中拍摄，完成“正确物料、错误物料、方向错误、空工位”分类；
+  \item 一个画面出现多个对象，升级为物体检测；
+  \item 对细小缺陷或禁入区域生成分割 mask；
+  \item 使用关键点或几何约束判断插接、对齐和姿态；
+  \item 把单帧证据组合为具有迟滞、超时和恢复规则的产品事件；
+  \item 在 CPU、通用可移植运行时和至少一种目标加速器上验证一致性、延迟和资源。
+\end{enumerate}
+
+读者也可以替换为门禁、机器人、农业、车载或消费电子场景，但应保持相同的工程资产：需求、标签 schema、数据 manifest、训练配置、模型 manifest、参考解码、目标产物和验证报告。
+
+\section{从入门到精通的八个阶段}
+
+\begin{table}[H]
+  \centering
+  \caption{嵌入式边缘 AI 学习阶段与能力门}
+  \begin{tabular}{p{17mm}p{31mm}p{43mm}p{43mm}}
+    \hline
+    阶段 & 核心问题 & 实践任务 & 通过证据 \\
+    \hline
+    1 入门 & 模型如何把图像变成类别 & 迁移学习一个小型分类器 & 独立测试集、混淆矩阵、可重复推理 \\
+    2 基础 & 张量、卷积、损失为何这样工作 & 检查中间特征、手算尺寸与参数量 & Shape 追踪表和最小过拟合实验 \\
+    3 数据 & 什么样的数据能够代表目标现场 & 定义 schema、分组切分和标注规范 & 无主体泄漏的数据 manifest 与抽检报告 \\
+    4 训练 & 如何稳定训练并公平比较模型 & 分类升级为检测或分割 & 冻结实验合同、可恢复训练和候选对比 \\
+    5 评估 & 总体指标为何会掩盖产品失败 & 建立困难切片和错误分类 & 每类/每切片指标、失败样例与晋级规则 \\
+    6 优化 & 如何在资源受限时保持质量 & 导出静态图并执行 PTQ/QAT 对比 & 逐 tensor 对齐、量化回归与资源报告 \\
+    7 部署 & 如何把模型接入真实图像管线 & Camera-to-runtime 纵向切片 & 输入 gold tensor、ABI 测试、板端延迟与恢复 \\
+    8 精通 & 如何持续迭代而不破坏现场系统 & 模型更新、主动学习、多模型调度 & 版本化发布、回滚演练、漂移与长期稳定证据 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+阶段门不是学习时长。读完全部概念但没有可复现资产，仍未完成入门；能够在陌生芯片上重建输入输出契约、定位首个数值分歧并给出发布或拒绝证据，才接近精通。
+
+\section{开始前需要的最小基础}
+
+初学者不需要先完成高等数学全套课程，但应能使用以下知识：
+
+\begin{itemize}
+  \item Python 基础、数组操作、文件路径和命令行；
+  \item 向量、矩阵、均值、方差、概率和函数导数的直观含义；
+  \item 训练集、验证集、测试集的职责差异；
+  \item Linux 进程、文件、虚拟环境和版本控制；
+  \item C/C++ 数组、结构体、内存布局和错误处理，用于后续端侧集成。
+\end{itemize}
+
+处理器缓存、DMA、IOMMU、实时调度和低功耗等知识可随部署实践回看第~\ref{chap:micro-architecture}、\ref{chap:linux-bsp}、\ref{chap:performance-capacity-engineering}、\ref{chap:low-power-system}~章。不要因为尚未掌握所有底层机制而推迟第一个模型实验，也不要在进入产品部署后继续把这些机制当成黑盒。
+
+\section{第一个闭环：四分类视觉基线}
+
+第一个项目应小到可以在普通计算机上数小时内完成，又必须包含正式工程边界。推荐使用四个互斥类别，每类至少来自多个独立采集 session，而不是从同一段视频随机抽帧后切分。
+
+\subsection{步骤一：写出问题和失败语义}
+
+先定义模型输出，而不是先选网络：
+
+\begin{itemize}
+  \item 输入是一张已经裁剪到工位 ROI 的 RGB 图像；
+  \item 输出类别顺序固定为 \texttt{correct}、\texttt{wrong\_part}、\texttt{wrong\_pose}、\texttt{empty}；
+  \item 低于接受阈值时输出 \texttt{unknown}，由上层请求复拍或人工确认；
+  \item 模型只提供单帧证据，不直接控制执行器，也不把连续三帧策略写入网络。
+\end{itemize}
+
+这一步已经确定了标签顺序、拒绝状态和模型/产品边界。若现场实际上允许多个状态同时成立，就不应强行使用互斥 softmax 分类，而应改为多标签 sigmoid 或重新分解任务。
+
+\subsection{步骤二：建立可重建的数据快照}
+
+每张图像至少记录 \texttt{sample\_id}、类别、采集 session、设备、时间、原始尺寸和来源。以 session 为组划分训练、验证和测试，防止同一背景、物料或相邻帧同时出现在不同集合。
+
+一个最小目录可以是：
+
+\begin{lstlisting}[caption={第一个视觉项目的建议资产结构}]
+edge_ai_demo/
+  data/raw/                 # 不覆盖的原始采集
+  data/manifests/v001.jsonl # 样本、标签、group 和摘要
+  configs/baseline.yaml     # 已解析训练配置
+  runs/<run_id>/            # 日志、指标、checkpoint
+  export/model.onnx         # 可移植静态图
+  export/model-manifest.yaml
+  reference/                # 预处理与输出解释
+  reports/                  # 评估、差分和性能证据
+\end{lstlisting}
+
+原始数据、manifest 和 split 一经用于正式对比就不再原地修改。修正标签时生成新版本，并保留变更原因。
+
+\subsection{步骤三：先迁移学习，不从零训练}
+
+选择具有成熟预训练权重、静态导出稳定且目标运行时支持的轻量分类 backbone。冻结大部分特征层，只训练新的分类 head；确认训练和验证指标能够改善后，再以更低学习率解冻部分层。迁移学习利用通用视觉特征，通常比小数据从随机初始化更稳定\cite{resnet,mobilenetv2}。
+
+第一轮训练只需证明管线正确：
+
+\begin{enumerate}
+  \item 取 8--32 张样本，确认模型能够近乎完全过拟合；
+  \item 检查标签顺序、颜色通道、归一化和 loss 是否一致；
+  \item 再运行完整训练，保存有效配置、seed、代码 revision 和 checkpoint 摘要；
+  \item 不在看到测试集结果后反复调参，测试集用于最终确认泛化声明。
+\end{enumerate}
+
+少量样本无法过拟合，优先说明实现、标签、优化器或输出语义存在错误，而不是模型容量不足。
+
+\subsection{步骤四：评估的不只是准确率}
+
+至少输出混淆矩阵、每类 Precision/Recall、样本支持量和低置信样例。若 \texttt{wrong\_part} 是安全关键类别，则它的 Recall 可以成为硬门槛，即使总体准确率略高，也不能接受遗漏更多关键错误的候选。
+
+阈值应在验证集上选择。分类器最大概率低于阈值时进入 \texttt{unknown}，可以用较低自动覆盖率换取更高错误拒绝能力。测试报告必须同时给出被拒绝比例，不能只报告剩余样本的准确率。
+
+\subsection{步骤五：导出并比较同一输入}
+
+将选定 checkpoint 导出为固定 Batch 和固定输入尺寸的可移植图，保存输入 layout、颜色、resize、归一化、类别顺序、输出激活状态和文件摘要。使用真实测试图像比较框架与可移植运行时的 logits 或概率，而不是只看最终 Top-1 是否相同。
+
+若两个运行时输出已在这一层分歧，问题位于预处理、导出或算子语义；此时不应继续把模型交给 NPU 转换器。第~\ref{chap:edge-ai-optimization-export-quantization}~章将给出完整的分段对齐方法。
+
+\subsection{步骤六：形成可以交给端侧的包}
+
+第一个模型包至少包含：
+
+\begin{itemize}
+  \item checkpoint、可移植图和 SHA-256；
+  \item 数据与 split manifest 的版本；
+  \item 输入输出 Model Manifest；
+  \item 参考预处理与推理脚本；
+  \item 10--30 个固定输入及期望输出；
+  \item 已知限制、拒绝阈值和未覆盖场景。
+\end{itemize}
+
+端侧程序只接收这个经过选择的包，不从训练目录猜测 \texttt{best.pt}、类别文件或归一化参数。
+
+\section{学习时如何选择工具}
+
+框架、标注平台和芯片 SDK 会变化，本部分强调稳定契约而不是唯一工具：
+
+\begin{itemize}
+  \item 训练框架可以使用 PyTorch、TensorFlow/JAX 或其他方案，但必须保存解析后的配置和可移植输出；
+  \item 标注工具可以使用 CVAT、Label Studio 或自研界面，但内部 schema 要区分缺失、不可判断和真实负类；
+  \item 可移植图可以是 ONNX 或目标生态支持的其他静态表示，输出语义仍由独立 Manifest 冻结\cite{onnx-ir}；
+  \item 运行时可以是 CPU、GPU、DSP 或 NPU，厂商转换命令属于 Accelerator Profile，不写进通用模型 ABI；
+  \item 教学阶段先保留一个易运行的 CPU/reference path，板端路径用于增加证据，而不是替代参考语义。
+\end{itemize}
+
+\section{本部分的共同实验纪律}
+
+后续每个实验都应保留以下交付物：
+
+\begin{enumerate}
+  \item 一条可验证的问题陈述和关键失败代价；
+  \item 数据版本、分组键、标签 schema 与许可证/来源；
+  \item 完整训练配置、环境、seed、日志和 checkpoint 摘要；
+  \item 总体、每类、困难切片和支持量；
+  \item 模型输入输出 ABI、参考实现和固定样例；
+  \item 框架、可移植运行时、量化产物和目标板之间已执行的对齐层级；
+  \item 延迟、内存、功耗/热条件、错误恢复和未执行验证；
+  \item 接受、拒绝或继续实验的明确决定。
+\end{enumerate}
+
+完成第一个闭环后，读者已经拥有一条可工作的纵向路径。接下来再深入张量、卷积、视觉任务和模型结构，可以把每个理论概念放回真实工程问题中理解。

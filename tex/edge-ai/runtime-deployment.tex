@@ -1,0 +1,277 @@
+\chapter{端侧加速器运行时集成}
+\label{chap:edge-ai-runtime-deployment}
+
+模型包进入产品后，需要跨越媒体缓冲、硬件预处理、加速器 SDK、量化 tensor、CPU 后处理和业务 API。正确集成的目标是建立一个可验证纵向切片，而不是让样例程序“显示出几个框”。摄像头、DMA-BUF、fence 与媒体管线的系统机制见第~\ref{chap:multimedia-edge-architecture}~章；本章聚焦模型语义如何穿过这些机制而不漂移。
+
+\section{五层部署架构}
+
+建议把实现分为：
+
+\begin{center}
+\begin{tikzpicture}[node distance=3mm]
+  \tikzset{deploylayer/.style={draw=bookline,fill=bookpaper,rounded corners=1mm,
+    minimum width=24mm,minimum height=9mm,align=center,font=\small}}
+  \node[deploylayer] (artifact) {模型/Artifact\\Manifest};
+  \node[deploylayer,right=of artifact] (backend) {Backend Adapter\\SDK、内存、同步};
+  \node[deploylayer,right=of backend] (tensor) {Generic Tensor View\\Shape、stride、量化};
+  \node[deploylayer,right=of tensor] (task) {Task Adapter\\语义解码};
+  \node[deploylayer,right=of task] (product) {产品策略与 API};
+  \draw[->,bookteal] (artifact)--(backend);
+  \draw[->,bookteal] (backend)--(tensor);
+  \draw[->,bookteal] (tensor)--(task);
+  \draw[->,bookteal] (task)--(product);
+\end{tikzpicture}
+\end{center}
+
+Backend Adapter 负责厂商句柄、artifact 加载、buffer、同步、cache 和错误；Task Adapter 负责分类、检测、分割、关键点或 Embedding 语义；产品层负责对象选择、跨帧状态、报警和外部接口。新芯片后端通常不应重写任务解码，模型 ABI 变化通常不应侵入产品数据库或设备驱动。
+
+\section{部署合同表}
+
+开始编码前，把文档、模型代码和 tensor dump 汇总为一张合同：
+
+\begin{table}[H]
+  \centering
+  \caption{端侧视觉部署合同}
+  \begin{tabular}{p{23mm}p{107mm}}
+    \hline
+    区域 & 必须确认的事实 \\
+    \hline
+    Artifact & 格式、摘要、model/profile/ABI、converter/runtime/芯片兼容 \\
+    Input & NCHW/NHWC、尺寸、dtype、颜色、range、均值方差、Batch \\
+    Geometry & resize/letterbox、padding、对齐、ROI、旋转和逆映射 \\
+    Output & 数量、身份、Shape、dtype、stride、scale/zero-point、所有权 \\
+    Semantics & label/head、激活、decode、normalization、invalid/empty \\
+    Selection & 阈值、Top-K、NMS/匹配、mask 和 tie 规则 \\
+    Pipeline & 阶段依赖、frame identity、队列、超时、取消和 reset \\
+    Target & SDK、driver/firmware、CPU ISA、cache、内存和动态库 \\
+    Acceptance & golden output、数值容差、P99、内存、功率和长稳 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+每一项标记为文档事实、代码推断或实测验证。颜色顺序、输出通道和量化 scale 等数值契约不明确时必须停止猜测。
+
+\section{选择 CPU、GPU、DSP 或 NPU}
+
+运行时选择由完整工作负载决定：
+
+\begin{description}
+  \item[CPU] 易调试、控制流灵活、参考路径重要，但高算力密集模型能效有限；
+  \item[GPU] 并行和生态成熟，适合可编程图与图像处理，但共享显存/DDR、上下文和功耗需管理；
+  \item[DSP] 适合信号、向量和固定管线，工具链与数据搬运是关键；
+  \item[NPU] INT8/混合精度吞吐和能效高，但算子、静态 Shape、量化和 SDK 约束强；
+  \item[异构组合] ISP/RGA/GPU 做预处理，NPU 推理，CPU 解码与产品逻辑，常见但契约边界最多。
+\end{description}
+
+同一模型可由多个 Accelerator Profile 消费。应用不应根据文件扩展名猜 backend，而应从 Manifest 和能力探测选择已验证组合。
+
+\section{Backend Adapter 的生命周期}
+
+一个可复用 adapter 至少覆盖：
+
+\begin{itemize}
+  \item runtime/device/context/session 初始化和版本检查；
+  \item artifact 与 Manifest 兼容验证；
+  \item 输入分配、导入、映射、同步和释放；
+  \item inference submit、fence/等待、timeout、cancel；
+  \item 输出 tensor metadata、地址有效性、cache invalidate；
+  \item 部分初始化失败、重复调用、reload 和 teardown；
+  \item 线程安全、多 stream 和错误码翻译。
+\end{itemize}
+
+资源获取与释放集中管理。初始化到一半失败时，已创建资源必须按合法逆序清理；加速器超时后，不能直接复用可能仍在执行的 buffer。
+
+\section{输入预处理的一致性}
+
+预处理每一步都指定 owner：
+
+\begin{enumerate}
+  \item sensor/ISP 输出格式与 crop；
+  \item YUV 到 RGB 的矩阵和 range；
+  \item resize、letterbox、rotation 和对齐；
+  \item layout 转换和 dtype；
+  \item normalize、quantize 和 cache flush。
+\end{enumerate}
+
+若硬件 resize 的整数取整与训练参考不同，坐标逆变换必须使用实际尺寸。假设源 ROI 为 $(x_0,y_0,W_s,H_s)$，实际缩放后有效尺寸为 $(W_r,H_r)$，padding 为 $(p_x,p_y)$，则
+
+\begin{equation}
+  x_m=(x_s-x_0)\frac{W_r}{W_s}+p_x,
+\end{equation}
+
+逆变换为
+
+\begin{equation}
+  x_s=(x_m-p_x)\frac{W_s}{W_r}+x_0.
+\end{equation}
+
+不要从理想浮点 gain 重新推算已经被硬件对齐的 $W_r$。框、mask、关键点、光流和 crop 都要使用同一变换记录。
+
+\section{Gold Tensor 测试}
+
+固定若干原始图像和预期输入 tensor。CPU reference 与硬件预处理分别输出 bytes/float，检查：
+
+\begin{itemize}
+  \item Shape、layout、stride、颜色和 padding；
+  \item 每通道 min/max/mean、首尾像素和摘要；
+  \item 逐元素 max/mean error；
+  \item 奇数尺寸、边界 ROI、旋转和不同颜色范围；
+  \item 输入量化 rounding、saturation、scale 和 zero-point。
+\end{itemize}
+
+只有最终类别相同不足以证明预处理一致，因为不同错误可能偶然抵消。
+
+\section{Tensor View、stride 与量化}
+
+读取输出前验证 count/identity、Shape、dtype、stride、量化、地址/handle 和生命周期。行跨度单位由 SDK 定义，不能假定总是 bytes 或 elements。通道占用应基于实际 stride 和 height 计算。
+
+Generic Tensor View 可表达：
+
+\begin{lstlisting}[language=C++,caption={通用 tensor 视图的逻辑结构}]
+struct TensorView {
+    TensorId id;
+    DataType dtype;
+    int64_t shape[8];
+    size_t rank;
+    size_t row_stride_bytes;
+    Quantization affine;   // scale, zero_point, axis if applicable
+    const void* data;
+    size_t bytes;
+    BufferLifetime lifetime;
+};
+\end{lstlisting}
+
+不要为了方便把带 padding 的 tensor 直接 reinterpret 为紧密连续数组。若输出 order 不稳定，只能在 Shape/type/语义能唯一识别时重新匹配，否则拒绝加载。
+
+量化 tensor 的反量化使用 Artifact Manifest 的 scale/zero-point；固定点 Q 格式只是某些后端的实现，不能跨后端硬编码。
+
+\section{Cache、DMA 与所有权}
+
+非一致性内存需要在 CPU/设备所有权切换时执行 backend 规定的 clean/invalidate。普通内存屏障不能替代 cache maintenance。DMA-BUF fd 只表示共享对象，不自动授予读写所有权，也不保证所有设备地址相同。
+
+一次 inference 的 buffer 状态可以是：
+
+\begin{center}
+\texttt{free $\rightarrow$ preprocess-write $\rightarrow$ device-read}
+\\
+\texttt{$\rightarrow$ device-write-output $\rightarrow$ CPU-read $\rightarrow$ retired}
+\end{center}
+
+取消、timeout、加速器 reset 和进程退出都要把在途 buffer 归入确定状态。Generation ID 可防止旧异步完成写入已经复用的新帧对象。
+
+\section{任务解码模式}
+
+Task Adapter 根据 Model Manifest 选择适用分支：
+
+\subsection{分类与多标签}
+
+确认 logits、softmax、sigmoid 或已归一化概率；固定 label order、Top-K、unknown、阈值和 tie。输出长度不匹配必须报 ABI 错误，不能截断。
+
+\subsection{检测}
+
+确认 box convention、anchor/anchor-free decode、score 组合、候选上限、类别策略、NMS 和逆几何。测试空输出、密集输出、边界框、相同/不同类别重叠和 padded row。
+
+\subsection{分割}
+
+确认通道、background/void、argmax/threshold、上采样、crop/padding reversal 和 mask 表示。内存预算包含 logits、mask、resize 和 contour 临时缓冲。
+
+\subsection{关键点与姿态}
+
+确认 heatmap/坐标/分布式 decode、点顺序、可见性、置信度和镜像规则。使用合成坐标验证 crop、rotation、affine 和 subpixel。
+
+\subsection{Embedding}
+
+确认维度、归一化、距离方向、零向量和阈值。持久化向量绑定模型、预处理和解释版本，升级时定义重建或双版本策略。
+
+\section{标量参考路径与契约测试}
+
+生产优化前先写容易审查的 scalar/reference decoder，并用自造 tensor fixture 测试：
+
+\begin{itemize}
+  \item 刻意设置 row padding、输出乱序和边界数值；
+  \item 空、最大、非法 Shape/type/stride 和无效地址；
+  \item 阈值两侧、并列 score、NMS/匹配边界；
+  \item 坐标和 value 逆变换；
+  \item 输出 copy/borrow 生命周期与重复调用。
+\end{itemize}
+
+目标运行时输出与 reference 使用任务适当的比较：类别、score error、IoU、像素一致率、关键点距离、Embedding cosine 或事件序列。只看 UI 叠加图不构成契约测试。
+
+\section{有界队列与结果新鲜度}
+
+Camera-to-AI 管线通常包含 capture、preprocess、inference、postprocess 和 publish 阶段。每个队列定义容量、背压和 drop policy。实时控制优先新鲜帧，证据采集可能要求不丢帧；策略由产品场景决定。
+
+结果携带 source、sequence、capture timestamp、crop/rotation、calibration/model generation 和有效期。消费者必须知道结果对应哪一帧，不能把“最近一次结果”无条件应用到当前图像或控制周期。
+
+多模型并发时，为每类 job 记录周期、deadline、最大执行时间、优先级、可丢弃性和内存。如果 NPU 无抢占，长模型可能阻塞短时关键任务，需要通过准入、分区、帧率或模型 profile 处理。
+
+\section{公共 API 与产品边界}
+
+公共 API 应返回类型化、调用者可拥有的语义结果，不暴露 vendor tensor handle：
+
+\begin{lstlisting}[language=C,caption={模型语义结果 API 示例}]
+struct edge_ai_result {
+    uint64_t source_id;
+    uint64_t frame_sequence;
+    uint64_t capture_timestamp_ns;
+    uint32_t model_abi_version;
+    uint32_t result_count;
+    struct edge_ai_object *objects; /* caller-owned output buffer */
+};
+
+int edge_ai_process(struct edge_ai_handle *handle,
+                    const struct media_frame *frame,
+                    struct edge_ai_result *result);
+\end{lstlisting}
+
+产品层再决定主对象、区域、持续时间、迟滞和报警。模型 decoder 不应读取数据库、设备安装位置或 UI 状态。
+
+\section{板端验证阶梯}
+
+按层级关闭风险：
+
+\begin{enumerate}
+  \item 格式与 diff 检查；
+  \item 目标交叉构建和 SDK/runtime 版本；
+  \item host reference/contract tests；
+  \item simulator 或 target tensor metadata；
+  \item 板端 deterministic contract binary；
+  \item 真实 artifact/input 与框架 parity；
+  \item 重复 isolated 和 end-to-end benchmark；
+  \item 边界、timeout、reset、reload 和长稳；
+  \item 动态库、firmware、driver、模型和配置打包检查。
+\end{enumerate}
+
+交叉构建通过只证明编译覆盖，不证明 backend、芯片和真实板端支持。报告实际运行的硬件、runtime、频率、温度和样本数。
+
+\section{性能优化的证据顺序}
+
+CPU 后处理优化优先：
+
+\begin{enumerate}
+  \item 消除不必要候选、完整扫描和 copy；
+  \item 缩小工作集并改善访问顺序；
+  \item 使用单调阈值在 raw domain 提前过滤；
+  \item 让编译器自动向量化；
+  \item 最后为实测热点引入 NEON/RISC-V Vector 等 SIMD。
+\end{enumerate}
+
+SIMD 需要 scalar fallback、数值误差、反汇编确认、isolated 与 end-to-end benchmark。优化一个微内核但增加 layout packing，可能使整条管线变慢。
+
+\section{实践：Camera-to-runtime 纵向切片}
+
+在目标板或可用 simulator 上完成：
+
+\begin{enumerate}
+  \item 加载模型包并验证 Manifest/backend/profile；
+  \item 从固定文件输入建立 CPU reference path；
+  \item 接入真实摄像头或捕获的 NV12/RGB bytes；
+  \item 用 gold tensor 验证硬件预处理；
+  \item 验证输出 tensor metadata 和参考解码 parity；
+  \item 发布带 frame identity 的类型化结果；
+  \item 测量预处理、排队、推理、后处理和端到端 P50/P99；
+  \item 注入模型加载失败、队列满、timeout、加速器 reset 和摄像头断流；
+  \item 运行冷启动、重复创建销毁和长稳泄漏检查。
+\end{enumerate}
+
+通过标准是纵向切片在正常和故障路径都具有可追踪身份、确定所有权、语义一致性和可测资源，而不是只在一次演示中得到合理画面。

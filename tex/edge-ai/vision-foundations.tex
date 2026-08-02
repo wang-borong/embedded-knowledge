@@ -1,0 +1,235 @@
+\chapter{视觉张量、神经网络与任务建模}
+\label{chap:edge-ai-vision-foundations}
+
+完成第一个分类闭环后，需要解释模型为什么能学习、图像在不同组件中如何表示，以及一个业务问题应转换成哪种视觉任务。本章只引入后续工程必需的数学和网络结构；推导服务于尺寸计算、训练诊断、量化和部署，不追求脱离实践的公式覆盖。
+
+\section{图像首先是一份内存契约}
+
+在训练框架中，彩色图像常表示为 $H\times W\times C$ 或 $C\times H\times W$ 张量；在摄像头和媒体硬件中，它也可能是带 stride 的 RGB、BGR、NV12/NV21 或 Bayer 多平面缓冲。相同像素若颜色矩阵、量化范围、通道顺序或 crop 不同，进入模型后就是不同输入。
+
+一个输入样本至少需要确定：
+
+\begin{itemize}
+  \item 有效宽高、存储宽高、plane、stride、offset 和 dtype；
+  \item RGB/BGR/YUV 及 YUV 到 RGB 的矩阵和 full/limited range；
+  \item resize、center crop、letterbox、旋转与 padding 的顺序；
+  \item 数值范围是 $[0,255]$、$[0,1]$ 还是标准化后的实数；
+  \item layout 是 NHWC 还是 NCHW，Batch 是否固定；
+  \item 几何变换由应用、硬件预处理、运行时还是模型图负责。
+\end{itemize}
+
+训练前可以保存一张原图和最终输入 tensor；部署时从摄像头链路捕获同一场景的最终 tensor，逐元素比较。颜色和几何错误若等到最终检测框阶段才发现，常会与模型误差混在一起。
+
+\section{够用的线性代数与概率}
+
+神经网络的基本操作可以理解为带参数的函数复合。线性层为
+
+\begin{equation}
+  \mathbf{y}=\mathbf{W}\mathbf{x}+\mathbf{b},
+\end{equation}
+
+其中输入特征为 $\mathbf{x}$，参数为权重 $\mathbf{W}$ 和偏置 $\mathbf{b}$。非线性激活使多层网络不再等价于一个线性变换。常见 ReLU 为
+
+\begin{equation}
+  \operatorname{ReLU}(x)=\max(0,x).
+\end{equation}
+
+互斥多分类通常把 logits $z_i$ 通过 softmax 转为概率：
+
+\begin{equation}
+  p_i=\frac{\exp(z_i)}{\sum_j \exp(z_j)}.
+\end{equation}
+
+多标签任务的每个类别相互独立，通常使用 sigmoid：
+
+\begin{equation}
+  p_i=\frac{1}{1+\exp(-z_i)}.
+\end{equation}
+
+softmax 表达“只能属于其中一个类别”，sigmoid 表达“多个属性可以同时成立”。二者的选择来自标签语义，而不是模型库默认值。
+
+对单个互斥类别，交叉熵可写为
+
+\begin{equation}
+  L=-\log p_y,
+\end{equation}
+
+即真实类别概率越小，惩罚越大。训练通过梯度下降更新参数：
+
+\begin{equation}
+  \theta_{t+1}=\theta_t-\eta\nabla_\theta L,
+\end{equation}
+
+其中 $\eta$ 为学习率。反向传播只是链式法则在计算图上的高效实现\cite{deep-learning-book,lecun-deep-learning}。工程上更重要的是判断梯度是否有限、Loss 是否与标签语义一致、无效标签是否真的产生零梯度。
+
+\section{卷积如何提取局部视觉特征}
+
+二维卷积在局部窗口上共享一组权重。忽略 dilation 时，输入尺寸 $H\times W$、kernel $K$、padding $P$、stride $S$ 的输出高度为
+
+\begin{equation}
+  H_{out}=\left\lfloor\frac{H+2P-K}{S}\right\rfloor+1,
+\end{equation}
+
+宽度同理。若输入通道为 $C_{in}$、输出通道为 $C_{out}$，普通卷积参数量近似为
+
+\begin{equation}
+  K^2 C_{in}C_{out}+C_{out}.
+\end{equation}
+
+输出元素的乘加次数随空间尺寸、kernel 和通道数共同增长。增加输入分辨率通常对小目标有益，却会同时放大特征图、带宽和计算；只比较模型参数量不能代表端侧延迟。
+
+深度可分离卷积把逐通道空间卷积和 $1\times1$ 通道混合拆开，使理论计算量从 $K^2C_{in}C_{out}$ 降为 $K^2C_{in}+C_{in}C_{out}$。MobileNet 等轻量网络广泛使用这一结构\cite{mobilenetv2,mobilenetv3}。但目标加速器对 depthwise、group convolution 和特定激活的实现效率可能不同，FLOPs 较低不保证真实 latency 更低。
+
+\section{Backbone、Neck 与 Head}
+
+视觉网络可以按职责拆为三层：
+
+\begin{description}
+  \item[Backbone] 从图像提取由低级纹理到高级语义的多尺度特征，例如 ResNet、MobileNet；
+  \item[Neck] 融合不同分辨率特征，使小目标和大目标能够共享上下文；
+  \item[Head] 把特征转换为类别、框、mask、关键点、Embedding 或其他任务输出。
+\end{description}
+
+残差连接让更深网络更易优化\cite{resnet}。端侧选型时还要检查静态导出、算子支持、峰值激活内存和中间特征分辨率。一个参数较少但长时间保留高分辨率特征的网络，可能比参数更多的网络消耗更大 DDR 带宽。
+
+\begin{center}
+\begin{tikzpicture}[node distance=7mm]
+  \tikzset{modelblock/.style={draw=bookline,fill=bookpaper,rounded corners=1mm,
+    minimum width=31mm,minimum height=10mm,align=center,font=\small}}
+  \node[modelblock] (input) {图像 tensor};
+  \node[modelblock,right=of input] (backbone) {Backbone\\多尺度特征};
+  \node[modelblock,right=of backbone] (neck) {Neck\\融合与聚合};
+  \node[modelblock,right=of neck] (head) {Head\\任务输出};
+  \draw[->,bookteal] (input)--(backbone);
+  \draw[->,bookteal] (backbone)--(neck);
+  \draw[->,bookteal] (neck)--(head);
+\end{tikzpicture}
+\end{center}
+
+\section{从业务结果选择视觉任务}
+
+不要看到相机就默认使用目标检测。先问产品真正需要的证据，再选择最简单足够的任务。
+
+\subsection{分类与多标签属性}
+
+分类适用于整幅图或稳定 ROI 只需要一个状态的场景。多标签属性用于多个状态可同时存在的场景，例如“佩戴手套”和“手部进入区域”。需要对象位置时，单纯分类无法说明证据来自哪里，也容易学习背景捷径。
+
+\subsection{目标检测}
+
+检测输出对象类别和几何框，适合对象数量和位置变化的场景。设计时需明确框格式、坐标系、类别是否多标签、score 如何组合、候选数量和抑制策略。Anchor-based、anchor-free、one-stage 和 two-stage 是不同实现路径，不改变“框加类别证据”的基本任务语义\cite{faster-rcnn,yolov1,fcos}。
+
+\subsection{语义与实例分割}
+
+语义分割为每个像素分配类别，适合占用区域、缺陷边界、可行驶区域和背景分离；实例分割还要区分同类个体。U-Net 的编码器--解码器和跳接结构说明了如何结合语义与精细边界\cite{unet}。分割的代价通常是更高标注成本、输出带宽和后处理内存。
+
+\subsection{关键点、姿态与几何回归}
+
+关键点比框更适合表达关节、插针、孔位和机构对齐。标签必须定义点顺序、不可见状态、镜像规则和坐标系。对于物理测量，还需要相机标定和不确定度，不能把像素误差直接当毫米误差。
+
+\subsection{Embedding、检索与异常检测}
+
+Embedding 把样本映射为向量，通过 cosine 或欧氏距离比较相似度，适合检索、聚类、身份或少样本匹配。模型和预处理变化会改变向量空间，因此已持久化的 Embedding 必须绑定 producer 版本。异常检测适合正样本充足、异常类型开放的场景，但阈值和域漂移比封闭分类更难管理。
+
+\subsection{跟踪与时序任务}
+
+单帧检测回答“这一帧看到了什么”，跟踪和时序逻辑回答“同一实体如何跨帧演化”。跟踪可以来自模型输出，也可以是后处理关联。产品事件通常还需要持续时间、迟滞、冷却和复位，这些应放在算法/产品层，而不是把每个业务状态都塞进一个模型类别。
+
+\section{三层语义：模型证据、帧级观察与业务事件}
+
+建议把复杂需求分为：
+
+\begin{enumerate}
+  \item \textbf{模型证据}：类别 logits、框、mask、关键点、质量分数和 Embedding；
+  \item \textbf{帧级观察}：对象关联、主目标选择、几何关系和证据融合；
+  \item \textbf{业务事件}：连续帧投票、持续时间、迟滞、超时、恢复和 API 状态。
+\end{enumerate}
+
+例如“装配完成”可能需要“连接器存在、方向正确、锁扣区域处于闭合位置”三个模型证据，再由确定性几何规则形成一帧观察，最后连续若干帧满足条件才发布事件。若直接训练一个“完成/未完成”分类器，模型可能学到操作员手部、背景灯光或时间顺序等偶然相关特征。
+
+\section{标签 Valid 与多任务模型}
+
+现实数据很少每张图都拥有全部标签。多任务模型必须为每个任务定义 \texttt{valid}，区分：
+
+\begin{itemize}
+  \item 字段已标注且为正；
+  \item 字段已确认且为负；
+  \item 字段不可判断；
+  \item 字段尚未标注。
+\end{itemize}
+
+总 Loss 可写为
+
+\begin{equation}
+  L=\frac{\sum_t w_t v_t c_t L_t}{\sum_t w_t v_t c_t+\epsilon},
+\end{equation}
+
+其中 $v_t$ 表示任务是否有效，$c_t$ 可表示伪标签置信度，$w_t$ 为任务权重。缺失标签若被当成负类，会持续给模型错误梯度；只在数据读取阶段“跳过字段”但 Loss 仍参与归一化，也会改变任务权重。
+
+多任务共享 backbone 可以减少重复计算，但会带来梯度竞争、标签覆盖不一致和输出 ABI 复杂度。只有共享特征和调度收益明确时才合并；不同帧率、不同 ROI 或不同安全等级的任务，多个独立模型可能更易验证。
+
+\section{感受野、尺度与小目标}
+
+高层特征拥有更大感受野和更强语义，但空间分辨率更低。一个在输入中只有数个像素的小对象，经过多次 stride 后可能不足一个特征单元。改进小目标不能只“换更大模型”，还可以：
+
+\begin{itemize}
+  \item 提高输入分辨率或缩小无关视野；
+  \item 使用稳定 ROI 或多阶段 crop；
+  \item 保留更高分辨率特征层；
+  \item 改善相机焦距、照明、曝光和安装位置；
+  \item 增加真正覆盖小目标和干扰背景的数据；
+  \item 重新评估任务是否可以用几何传感器或规则更可靠地解决。
+\end{itemize}
+
+视觉模型与光学、传感器和工位设计共同决定可观测性。输入中不存在的细节无法由网络稳定恢复。
+
+\section{参数量、计算量和真实资源}
+
+模型选型至少同时记录：
+
+\begin{itemize}
+  \item 参数量和权重存储；
+  \item 理论 MAC/FLOPs 及输入尺寸；
+  \item 最大中间激活和峰值内存；
+  \item 算子集合、layout 转换和图切分；
+  \item CPU 前后处理、DDR 流量和加速器 scratch；
+  \item 冷启动、模型切换、稳态 latency 和能量/帧。
+\end{itemize}
+
+TOPS 只描述特定精度和理想利用率下的峰值运算能力。算子不支持导致的 CPU fallback、频繁 layout 转换、片上 SRAM 不足和 DDR 争用，都可能使小模型比预期更慢。
+
+\section{模型设计追踪矩阵}
+
+在写模型前，为每项能力建立追踪关系：
+
+\begin{table}[H]
+  \centering
+  \caption{视觉能力到部署证据的追踪矩阵示例}
+  \begin{tabular}{p{21mm}p{26mm}p{29mm}p{31mm}p{28mm}}
+    \hline
+    业务能力 & 模型证据 & 标签与 Valid & 输出 ABI & 指标与消费者 \\
+    \hline
+    判断空工位 & 图像级 logit & 四分类标签 & \texttt{class\_logits[4]} & 每类 Recall；工位状态机 \\
+    定位物料 & 类别、框、score & box、class、valid & 多尺度检测 tensor & AP/Recall；ROI 选择器 \\
+    判断锁扣 & 两个关键点与质量 & point、visible & \texttt{keypoints[N,3]} & 点误差；几何规则 \\
+    发布装配事件 & 帧级观察 & 不直接训练 & 不属于模型 ABI & 事件 F1；产品服务 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+矩阵能够暴露“有业务需求但无标签”“有 head 但无消费者”“有输出但无指标”等断点。模型输出名称、顺序、Shape、激活和值域一旦进入部署，应视为版本化 ABI。
+
+\section{实践：把一个需求拆成可训练任务}
+
+选择一个真实或假设场景，完成以下资产：
+
+\begin{enumerate}
+  \item 写出业务结果、不可接受错误和人工/规则回退；
+  \item 列出模型能够直接观察的证据，区分单帧与时序；
+  \item 比较分类、检测、分割、关键点和多阶段方案；
+  \item 画出输入尺寸、backbone 特征尺度和 head 输出 Shape；
+  \item 计算主要卷积层的参数量和输出张量大小；
+  \item 填写追踪矩阵，删除没有消费者或无法标注的输出；
+  \item 定义最小 Model ABI 和至少一个拒绝/无结果状态。
+\end{enumerate}
+
+通过标准不是画出一个流行网络，而是业务证据、标签、输出和指标能够闭合，并且至少一个目标加速器有机会执行完整静态图。
