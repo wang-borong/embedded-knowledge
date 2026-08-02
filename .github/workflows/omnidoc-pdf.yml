@@ -42,6 +42,7 @@ jobs:
             fonts-noto-cjk \
             jq \
             latexmk \
+            librsvg2-bin \
             lmodern \
             pandoc \
             poppler-utils \
@@ -52,6 +53,8 @@ jobs:
             texlive-pictures \
             texlive-science \
             texlive-xetex
+
+          rsvg-convert --version
 
       - name: Install OmniDoc
         shell: bash
