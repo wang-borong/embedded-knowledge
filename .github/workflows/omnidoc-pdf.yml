@@ -1,0 +1,314 @@
+name: omnidoc-pdf
+
+on:
+  pull_request:
+  push:
+    branches:
+      - "**"
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+concurrency:
+  group: omnidoc-pdf-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  OMNIDOC_VERSION: "1.9.1"
+  OMNIDOC_LINUX_SHA256: "dd9f3479d391c4aa6b47a169b6c7317b0dbffbc37424a84e1a42a4fa6254214d"
+  PDF_PATH: build/embedded-knowledge.pdf
+  PDF_NAME: embedded-knowledge.pdf
+
+jobs:
+  build:
+    name: Validate and build PDF
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Install LaTeX build environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            biber \
+            ca-certificates \
+            curl \
+            fontconfig \
+            fonts-arphic-gkai00mp \
+            fonts-noto-cjk \
+            jq \
+            latexmk \
+            lmodern \
+            pandoc \
+            poppler-utils \
+            texlive-bibtex-extra \
+            texlive-fonts-recommended \
+            texlive-lang-chinese \
+            texlive-latex-extra \
+            texlive-pictures \
+            texlive-science \
+            texlive-xetex
+
+      - name: Install OmniDoc
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          archive_name="omnidoc-v${OMNIDOC_VERSION}-x86_64-unknown-linux-gnu.tar.gz"
+          archive_path="${RUNNER_TEMP}/${archive_name}"
+          install_dir="${RUNNER_TEMP}/omnidoc-v${OMNIDOC_VERSION}"
+          download_url="https://github.com/wang-borong/omnidoc/releases/download/v${OMNIDOC_VERSION}/${archive_name}"
+
+          curl --fail --location --retry 3 --output "${archive_path}" "${download_url}"
+          printf '%s  %s\n' "${OMNIDOC_LINUX_SHA256}" "${archive_path}" | sha256sum --check --strict
+
+          mkdir -p "${install_dir}"
+          tar -xzf "${archive_path}" --strip-components=1 -C "${install_dir}"
+          test -x "${install_dir}/omnidoc"
+          echo "${install_dir}" >> "${GITHUB_PATH}"
+
+          "${install_dir}/omnidoc" --version
+          "${install_dir}/omnidoc" lib install
+
+      - name: Configure redistributable CJK fonts
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # GitHub-hosted Linux runners cannot redistribute the Microsoft CJK
+          # fonts selected by ctbook's default fontset. Use the compatible,
+          # open Source Han/Noto fontset for the CI build only.
+          [[ "$(sed -n '1p' main.tex)" == '\documentclass[oneside]{ctbook}' ]]
+          sed --in-place '1c\\\\documentclass[oneside,fontset=siyuan]{ctbook}' main.tex
+          [[ "$(sed -n '1p' main.tex)" == '\documentclass[oneside,fontset=siyuan]{ctbook}' ]]
+
+          [[ "$(fc-match --format '%{family}\n' 'Noto Serif CJK SC')" == *"Noto Serif CJK SC"* ]]
+          [[ "$(fc-match --format '%{family}\n' 'Noto Sans CJK SC')" == *"Noto Sans CJK SC"* ]]
+          [[ "$(fc-match --format '%{family}\n' 'AR PL KaitiM GB')" == *"AR PL KaitiM GB"* ]]
+
+      - name: Validate sources
+        run: |
+          omnidoc check config .
+          omnidoc check lint --strict .
+
+      - name: Build PDF
+        run: omnidoc build . --strict --force --report
+
+      - name: Verify build artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -s "${PDF_PATH}"
+          test -s build/omnidoc-report.json
+          jq --exit-status --arg version "${OMNIDOC_VERSION}" '
+            .omnidoc_version == $version and
+            (.reports | length == 1) and
+            all(.reports[];
+              .output == "pdf" and
+              .target == "embedded-knowledge" and
+              .skipped == false and
+              (.issues | length == 0)
+            )
+          ' build/omnidoc-report.json >/dev/null
+
+          pdfinfo "${PDF_PATH}" > build/pdfinfo.txt
+          grep -Eq '^Pages:[[:space:]]+[1-9][0-9]*$' build/pdfinfo.txt
+          pdffonts "${PDF_PATH}" > build/pdffonts.txt
+          sha256sum "${PDF_PATH}" \
+            | awk -v name="${PDF_NAME}" '{print $1 "  " name}' \
+            > "build/${PDF_NAME}.sha256"
+
+      - name: Upload PDF artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: embedded-knowledge
+          path: |
+            build/embedded-knowledge.pdf
+            build/embedded-knowledge.pdf.sha256
+            build/omnidoc-report.json
+            build/pdfinfo.txt
+            build/pdffonts.txt
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Publish PDF release
+    if: >-
+      github.event_name == 'push' &&
+      (github.ref_name == github.event.repository.default_branch ||
+      startsWith(github.ref, 'refs/tags/v'))
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 0
+
+      - name: Download PDF artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: embedded-knowledge
+          path: release
+
+      - name: Select release metadata
+        id: metadata
+        shell: bash
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+
+          commit_sha="$(git rev-parse HEAD)"
+          short_sha="${commit_sha:0:12}"
+          commit_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${commit_sha}"
+
+          if [[ "${GITHUB_REF_TYPE}" == "branch" && "${GITHUB_REF_NAME}" == "${DEFAULT_BRANCH}" ]]; then
+            release_tag="latest"
+            release_title="Latest Embedded Knowledge PDF"
+            rolling_release="true"
+            release_notes="Automated OmniDoc build from commit [${short_sha}](${commit_url}). This rolling release is updated in place after every successful push to ${DEFAULT_BRANCH}."
+
+            git tag --force "${release_tag}" "${commit_sha}"
+            git push origin "refs/tags/${release_tag}" --force
+          else
+            release_tag="${GITHUB_REF_NAME}"
+            release_title="Embedded Knowledge ${release_tag}"
+            rolling_release="false"
+            release_notes="Automated OmniDoc build for ${release_tag} from commit [${short_sha}](${commit_url})."
+          fi
+
+          {
+            echo "tag=${release_tag}"
+            echo "title=${release_title}"
+            echo "rolling=${rolling_release}"
+            echo "notes=${release_notes}"
+            echo "commit=${commit_sha}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Publish GitHub Release
+        id: publish
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.metadata.outputs.tag }}
+          RELEASE_TITLE: ${{ steps.metadata.outputs.title }}
+          RELEASE_NOTES: ${{ steps.metadata.outputs.notes }}
+          ROLLING_RELEASE: ${{ steps.metadata.outputs.rolling }}
+        run: |
+          set -euo pipefail
+
+          pdf_asset="release/${PDF_NAME}"
+          checksum_asset="release/${PDF_NAME}.sha256"
+          test -s "${pdf_asset}"
+          test -s "${checksum_asset}"
+
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            if [[ "${ROLLING_RELEASE}" == "true" ]]; then
+              gh release upload "${RELEASE_TAG}" \
+                "${pdf_asset}" "${checksum_asset}" --clobber
+              gh release edit "${RELEASE_TAG}" \
+                --title "${RELEASE_TITLE}" \
+                --notes "${RELEASE_NOTES}" \
+                --latest
+              assets_updated="true"
+            else
+              echo "Versioned release ${RELEASE_TAG} already exists; leaving it unchanged."
+              assets_updated="false"
+            fi
+          else
+            gh release create "${RELEASE_TAG}" \
+              "${pdf_asset}" "${checksum_asset}" \
+              --verify-tag \
+              --title "${RELEASE_TITLE}" \
+              --notes "${RELEASE_NOTES}" \
+              --latest
+            assets_updated="true"
+          fi
+
+          echo "assets_updated=${assets_updated}" >> "${GITHUB_OUTPUT}"
+
+      - name: Verify published release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.metadata.outputs.tag }}
+          ROLLING_RELEASE: ${{ steps.metadata.outputs.rolling }}
+          EXPECTED_COMMIT_SHA: ${{ steps.metadata.outputs.commit }}
+          ASSETS_UPDATED: ${{ steps.publish.outputs.assets_updated }}
+        run: |
+          set -euo pipefail
+
+          tag_object_type="$(
+            gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${RELEASE_TAG}" \
+              --jq '.object.type'
+          )"
+          tag_object_sha="$(
+            gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${RELEASE_TAG}" \
+              --jq '.object.sha'
+          )"
+
+          while [[ "${tag_object_type}" == "tag" ]]; do
+            tag_object_type="$(
+              gh api "repos/${GITHUB_REPOSITORY}/git/tags/${tag_object_sha}" \
+                --jq '.object.type'
+            )"
+            tag_object_sha="$(
+              gh api "repos/${GITHUB_REPOSITORY}/git/tags/${tag_object_sha}" \
+                --jq '.object.sha'
+            )"
+          done
+
+          [[ "${tag_object_type}" == "commit" ]]
+          [[ "${tag_object_sha}" == "${EXPECTED_COMMIT_SHA}" ]]
+
+          release_json="$(
+            gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}"
+          )"
+          release_url="$(jq -r '.html_url' <<< "${release_json}")"
+          release_is_draft="$(jq -r '.draft' <<< "${release_json}")"
+          [[ "${release_is_draft}" == "false" ]]
+
+          pdf_asset="release/${PDF_NAME}"
+          checksum_asset="release/${PDF_NAME}.sha256"
+          pdf_digest="sha256:$(sha256sum "${pdf_asset}" | awk '{print $1}')"
+          checksum_digest="sha256:$(sha256sum "${checksum_asset}" | awk '{print $1}')"
+          remote_pdf_digest="$(
+            jq -r --arg name "${PDF_NAME}" \
+              '.assets[] | select(.name == $name) | .digest' \
+              <<< "${release_json}"
+          )"
+          remote_checksum_digest="$(
+            jq -r --arg name "${PDF_NAME}.sha256" \
+              '.assets[] | select(.name == $name) | .digest' \
+              <<< "${release_json}"
+          )"
+
+          [[ -n "${remote_pdf_digest}" && "${remote_pdf_digest}" != "null" ]]
+          [[ -n "${remote_checksum_digest}" && "${remote_checksum_digest}" != "null" ]]
+
+          if [[ "${ASSETS_UPDATED}" == "true" ]]; then
+            [[ "${remote_pdf_digest}" == "${pdf_digest}" ]]
+            [[ "${remote_checksum_digest}" == "${checksum_digest}" ]]
+          fi
+
+          {
+            echo "### PDF release verified"
+            echo
+            echo "- Release: [${RELEASE_TAG}](${release_url})"
+            echo "- Commit: \`${EXPECTED_COMMIT_SHA}\`"
+            echo "- PDF digest: \`${remote_pdf_digest}\`"
+            if [[ "${ROLLING_RELEASE}" == "true" ]]; then
+              echo "- Publication mode: rolling release (the existing \`latest\` release is updated in place)"
+            else
+              echo "- Publication mode: versioned release"
+            fi
+          } >> "${GITHUB_STEP_SUMMARY}"
