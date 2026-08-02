@@ -41,6 +41,34 @@
 
 覆盖矩阵不是要求枚举所有笛卡尔积，而是让风险显式化。对失败代价高的切片应主动采集，对低风险组合可以抽样。采集应用应保存原始媒体和元数据，避免只留下已经 resize、压缩或裁剪后的训练输入。
 
+\section{采集合同与小规模试点}
+
+大规模采集前先冻结 capture/sensor contract。对于图像或视频，至少记录：
+
+\begin{itemize}
+  \item sensor、镜头、安装和硬件 revision，固件、驱动、ISP 与采集程序版本；
+  \item 原始分辨率、像素格式、bit depth、颜色空间/range、编码和帧率；
+  \item 曝光、gain、白平衡、焦点是固定还是自动，以及自动策略状态；
+  \item 单调时钟/墙上时钟来源、时间精度、丢帧和重启后的 sequence 规则；
+  \item 相机内参、畸变、标定残差和适用分辨率；多传感器还要记录外参与同步误差；
+  \item site/device/session/object/lot 等稳定 ID，不能只依赖可变文件名；
+  \item 隐私、授权、操作安全、停止条件和数据保留策略。
+\end{itemize}
+
+改变镜头、焦点、分辨率、crop/binning 或关键 ISP 变换后，旧标定不能默认继续有效。产品声明要泛化到新设备、站点或批次时，这些对象同时也是覆盖统计和 group split 的独立单位。
+
+正式扩量前，用少量 session 完成一次端到端 pilot：采集、断点恢复、传输、checksum、解码、元数据 join、标注平台导入、样本读取、一次训练冒烟和归档。Pilot 需要证明：
+
+\begin{enumerate}
+  \item 标签在目标图像中确实可观察，而不是依赖采集人员的场外知识；
+  \item 媒体颜色、方向、时间戳和标定与合同一致；
+  \item 采集应用能在掉电、存储满或网络中断后安全恢复；
+  \item 单 session 的时间、容量、人工成本和失败率可估算；
+  \item 计划覆盖与实际覆盖能够在采集过程中反馈给操作员。
+\end{enumerate}
+
+无法通过小规模 pilot 的缺口，扩大到十万张图后只会更昂贵。后处理无法恢复没有记录的曝光、设备身份或同步信息，也不能让不可观察的标签重新出现。
+
 \section{不可变原始数据与 Manifest}
 
 原始数据区只追加，不覆盖、不原地重编码。清洗、裁剪、标注和增强都通过 manifest 指向来源。每个样本至少包含：
@@ -67,6 +95,30 @@ JSONL 适合教学项目，因为每行可独立解析和 diff：
 \end{lstlisting}
 
 正式数据版本应包含样本清单摘要、schema 版本、split 规则、生成代码 revision 和统计报告。复制一个目录并命名为 \texttt{final2} 无法重建实验。
+
+\section{入库、隔离与质量门}
+
+采集完成不等于数据已经可发布。推荐的数据流为：
+
+\begin{center}
+\texttt{capture $\rightarrow$ staging $\rightarrow$ integrity/quality audit}
+\\
+\texttt{$\rightarrow$ immutable raw version $\rightarrow$ derived/annotation views}
+\end{center}
+
+Staging 阶段检查预期文件、大小、checksum、媒体解码、分辨率/格式、帧数、时间戳单调性、元数据 join 和 session 完整性。损坏、缺元数据、配置错误、标定不匹配或策略不允许的数据进入 quarantine，并保留原因；不能静默删除后仍把采集成功率报告为 100\%。
+
+原始数据版本发布前还应完成：
+
+\begin{itemize}
+  \item 随机样本、最低质量尾部、稀有场景和覆盖缺口的 contact sheet/视频抽查；
+  \item 完全重复、近重复和重复场景聚类，保存代表样本映射；
+  \item blur、过暗、饱和、遮挡、压缩损坏等质量统计，但不把统一阈值当作所有设备真理；
+  \item 标定残差、同步误差和设备/对象/session 分组完整性；
+  \item 原始媒体、抽帧、裁剪、脱敏和训练输入使用不同目录，并由 parent sample ID 关联。
+\end{itemize}
+
+先去重和确定 group，再分配 split。若先随机切分后去重，相似副本可能已经泄漏到测试集，而且后续删除会改变各集合分布。
 
 \section{标签 Schema 先于标注界面}
 
@@ -155,11 +207,42 @@ JSONL 适合教学项目，因为每行可独立解析和 diff：
 
 训练、验证和部署的确定性预处理必须来自同一契约；随机增强只存在于训练分支。
 
+\section{真实、公开与合成数据如何混合}
+
+合成数据适合补充稀有、危险、昂贵或需要精确几何标签的场景，但它是待验证的数据源，不是“免费金标”。根据任务选择最简单且能保持证据的方法：
+
+\begin{itemize}
+  \item 2D compositing 控制对象、背景、尺度和遮挡；
+  \item 3D/物理仿真生成 pose、depth、mask、flow、track 和多传感器真值；
+  \item 参数化渲染生成 OCR、屏幕、仪表和版面；
+  \item 带 edit mask 的生成式编辑扩展外观或缺陷，但几何关键标签需独立验证；
+  \item domain randomization 在有边界的真实范围和压力尾部内改变光照、材质、相机和环境\cite{domain-randomization}。
+\end{itemize}
+
+生成器必须版本化资产、场景、sensor profile、随机分布、相关约束、seed、后端和标签映射。防止渲染边框、水印、固定背景、资产 ID 或不可能组合成为捷径。标签经过 crop、畸变、resize 和遮挡后要与图像执行完全相同的几何变换。
+
+合成数据的晋级实验至少比较：
+
+\begin{enumerate}
+  \item real-only baseline；
+  \item synthetic-only 诊断，判断模型学到何种模拟特征；
+  \item real + synthetic，在相同训练预算或明确额外计算下比较；
+  \item 不同混合比例、先合成预训练再真实微调、source-balanced batch 等策略。
+\end{enumerate}
+
+最终判断只看独立 reviewed 真实目标域集合。合成样本不能进入真实 test，也不能因为视觉效果逼真就宣称提升。若某种生成模式没有改善目标门槛，或增加关键切片 FP，应停止使用并保留最小决策记录。
+
 \section{预标注、教师模型与主动学习}
 
 当数据量增大时，人工应从“从零绘制”转向“审核模型候选”。不同教师可以负责不同任务：开放词汇检测发现新类别，领域检测器提供主要框，分割/跟踪模型传播视频标签，视觉语言模型提供保守的图像级候选。
 
+启用自动化前先建立一个小型 reviewed gold seed，覆盖关键类别、空场景、歧义、困难条件和主要设备域。每个预标注 provider 使用稳定接口返回 sample/object identity、任务、几何/文本/属性、原始分数、校准置信度、模型/配置版本、prompt/ROI 和失败原因。未检出必须与“确认负类”分开。
+
+CVAT、Label Studio、FiftyOne 或自研平台只是审核和展示适配器，canonical schema/manifest 才是事实源。平台导入导出必须按稳定 sample ID 和 schema version 合并，支持幂等重试、原子保存、冲突处理、审核状态和人工修改历史。不能按文件名猜身份，也不能让下一次 provider 导入覆盖已经 reviewed 的字段。
+
 教师输出必须记录模型版本、原始分数、支持任务和人工修改。人工删除的错误候选要留下 rejection，避免下一轮重复添加。
+
+视频标注先对相邻帧去重或聚类，选择多样 anchor frame，审核 anchor 后使用 tracker、光流或分割传播。身份切换、突变、低置信区间和片段边界进入人工队列，不能把传播结果无条件扩展到整段视频。
 
 主动学习队列不应只选择最低置信样本，否则会被大量相似模糊帧淹没。可组合：
 
@@ -170,6 +253,8 @@ JSONL 适合教学项目，因为每行可独立解析和 diff：
 其中 $U$ 为不确定性，$D$ 为教师分歧，$R$ 为稀有性，$N$ 为域新颖度，$E$ 为当前模型错误或高损失，$C$ 为重复惩罚。权重应在固定金标集上验证，不把公式当作通用常数。
 
 自动接受伪标签前，需在独立 reviewed 集上按类别校准阈值，并保留固定比例抽检。伪标签始终标记为伪标签，不能改名为人工金标，也不能进入验证集。
+
+标注自动化是否有效，需要与纯人工基线在相同质量门下比较：每人工小时审核的样本/对象/字段数、accept/edit/reject、漏标率、随机抽检错误、类别/域覆盖和固定回归集的增益。高置信 proposal 很多但人工修改率没有下降，不能宣称节省了标注成本。
 
 \section{数据质量报告}
 
@@ -201,3 +286,16 @@ JSONL 适合教学项目，因为每行可独立解析和 diff：
 \end{enumerate}
 
 通过标准是任何成员都能从 manifest 重建相同 split，并解释每个样本为什么属于该集合、标签由谁确认、哪些目标域仍未覆盖。
+
+实践至少保留以下可审计产物，而不是只留下一个训练目录：
+
+\begin{itemize}
+  \item 版本化的 capture contract、label schema 与字段迁移说明；
+  \item 原始数据 checksum 清单、采集 session 索引和 quarantine 记录；
+  \item 逐样本 manifest、确定性 split 配置与生成命令；
+  \item 机器可读质量报告、人工抽检记录和已知覆盖缺口；
+  \item 数据卡、许可证/授权边界，以及从原始版本到派生视图的 provenance；
+  \item 能在干净环境中重放的校验入口及其预期退出码。
+\end{itemize}
+
+最后主动做一次数据流水线故障演练：把同一 group 放入训练集和测试集、篡改一个媒体文件、注入未知类别、删除必填元数据，并确认 Gate 分别报告泄漏、checksum 失败、schema 失败和完整性失败。每个失败都应阻止数据版本晋级，同时把样本送入可追踪的修复或隔离路径。只有正常数据可通过、异常数据会稳定失败，才算完成这个实践。

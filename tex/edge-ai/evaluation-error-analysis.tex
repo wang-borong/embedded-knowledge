@@ -58,6 +58,28 @@ F1 为二者调和平均：
 
 量化、域漂移和类别先验变化都可能破坏校准。产品阈值应绑定模型和校准版本，不能沿用旧模型的概率阈值而不验证。
 
+\section{连续序列与事件级阈值校准}
+
+单帧分数阈值与最终产品事件是两套协议。EMA、连续帧确认、迟滞、debounce、release 和冷却可以过滤孤立误报，也可能延迟真实事件或让事件在分数下降后持续。阈值校准必须同时保存模型分数和状态机输出。
+
+使用与训练/test 分组隔离的 calibration sequence，保留真实时间间隔、丢帧和 reset 规则。至少测量：
+
+\begin{itemize}
+  \item 负序列的 false event episodes/hour 和误报持续时间，而不只是逐帧 FP；
+  \item 正事件的 onset/confirmation delay、漏事件率和最短可检持续时间；
+  \item release/clear delay、重复触发和迟滞区间；
+  \item 不同帧率、队列丢帧、摄像头重连和 stream reset 后的状态；
+  \item 每类阈值附近的 Precision/Recall、覆盖率和业务硬约束。
+\end{itemize}
+
+误事件率可写为
+
+\begin{equation}
+  R_{false}=\frac{N_{false\ events}}{T_{negative\ hours}}.
+\end{equation}
+
+先声明目标，例如“在关键事件 Recall 不低于门槛时，使误报警不超过每小时上限，并限制确认延迟”。选择宽而稳定的阈值平台，不追逐只在一个点上最高的 F1。独立 test 只用于一次确认；量化、backend、相机、ROI 或时序策略变化后都要重新校准。
+
 \section{检测指标}
 
 框的交并比为
@@ -85,6 +107,14 @@ F1 为二者调和平均：
 关键点可使用归一化点误差、PCK、OKS 或任务定义的毫米误差。归一化基准、不可见点和标定误差必须明确。Embedding 评估使用 ROC/PR、Top-K retrieval、mAP、FAR/FRR 或距离分布，并按设备和主体隔离，防止同一身份图像跨 split。
 
 指标应匹配任务语义，不能把分类准确率套到检测，也不能用单一 cosine 平均值证明所有 Embedding 阈值可靠。
+
+\section{OCR、跟踪与稠密几何指标}
+
+OCR 应分别评估区域检测、识别和端到端结果。识别常用 Character Error Rate、Word Error Rate、exact match 和归一化编辑距离，并按语言/字符集、文字长度、方向、模糊、反光和版面切片。固定格式字段还要报告格式校验失败与拒绝率，不能把业务规则修正后的字符串当作模型原始准确率。
+
+跟踪需要分开检测和关联：使用明确实现的 HOTA、IDF1、MOTA/MOTP 或任务指标，同时报告 identity switch、fragmentation、启动/终止延迟和漏跟踪时长。视频中的大量相关帧不能当作独立支持；统计与 bootstrap 以 sequence、主体或 session 为单位。
+
+深度、视差、光流和 pose 等连续输出需要声明单位、坐标系、有效区域和 scale ambiguity。除均值外报告 percentile、无估计率、边界/运动切片和物理标定误差。模型在“成功输出”上的低误差不能掩盖大量 invalid/no-estimate。
 
 \section{困难切片与支持量}
 

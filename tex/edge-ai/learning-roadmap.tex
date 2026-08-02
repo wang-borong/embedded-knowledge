@@ -88,6 +88,69 @@
 
 处理器缓存、DMA、IOMMU、实时调度和低功耗等知识可随部署实践回看第~\ref{chap:micro-architecture}、\ref{chap:linux-bsp}、\ref{chap:performance-capacity-engineering}、\ref{chap:low-power-system}~章。不要因为尚未掌握所有底层机制而推迟第一个模型实验，也不要在进入产品部署后继续把这些机制当成黑盒。
 
+\section{教学参考栈与环境证据}
+
+概念应保持框架无关，但初学阶段必须固定一条参考路径，避免同时学习多个框架、导出器和运行时。推荐的教学栈为：
+
+\begin{table}[H]
+  \centering
+  \caption{边缘视觉教学参考栈}
+  \begin{tabular}{p{27mm}p{43mm}p{62mm}}
+    \hline
+    层级 & 参考选择 & 必须保留的证据 \\
+    \hline
+    数据与数值 & Python、NumPy、Pillow/OpenCV & 解码版本、颜色、resize、dtype 和输入摘要 \\
+    训练 & 一个主流训练框架及官方模型库 & 依赖 lock、有效配置、seed、设备和 checkpoint \\
+    可移植推理 & ONNX 或等价静态图、CPU reference runtime & opset、输入输出 ABI、逐 tensor 差分 \\
+    质量检查 & pytest/等价测试、JSONL/YAML 报告 & schema、增强、group split、golden input 和失败样例 \\
+    目标部署 & 一个 Accelerator Profile 与板端 adapter & converter/runtime/driver、artifact 和板端报告 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+版本号由课程仓库的 lock 或容器固定，不在书中把某个短生命周期版本写成永久答案。每次正式 run 都保存 Python、框架、数值库、图像解码库、GPU driver/CUDA、操作系统和硬件信息。只保存 \texttt{pip freeze} 仍不够，因为系统库、驱动和厂商运行时也会改变结果。
+
+教学时先让 CPU/reference path 可运行，再增加 GPU 和 NPU。这样出现差异时可以逐层比较，而不是把数据、训练和硬件问题同时混入第一个实验。
+
+\section{第零个实验：先冻结输入 tensor}
+
+训练任何网络前，选定一张原始图像，把最终模型输入保存为 \texttt{.npy}，并记录 Shape、范围、均值和摘要。下面代码只演示输入契约，均值方差必须替换为所选预训练权重的正式配置。
+
+\begin{lstlisting}[language=Python,caption={生成可重复检查的分类输入 tensor}]
+from hashlib import sha256
+from pathlib import Path
+
+import numpy as np
+from PIL import Image
+
+src = Path("data/raw/session01/correct/0001.jpg")
+image = Image.open(src).convert("RGB")
+image = image.resize((224, 224), Image.Resampling.BILINEAR)
+
+x = np.asarray(image, dtype=np.float32) / 255.0
+mean = np.asarray([0.485, 0.456, 0.406], dtype=np.float32)
+std = np.asarray([0.229, 0.224, 0.225], dtype=np.float32)
+x = (x - mean) / std
+x = np.transpose(x, (2, 0, 1))[None, ...]
+
+np.save("reports/golden_input.npy", x)
+print("shape:", x.shape)
+print("range:", float(x.min()), float(x.max()))
+print("mean:", x.mean(axis=(0, 2, 3)))
+print("sha256:", sha256(x.tobytes()).hexdigest())
+\end{lstlisting}
+
+完成后执行三个故障实验：交换 RGB/BGR、把 bilinear 改成 nearest、故意重复一次归一化。观察 tensor 摘要和后续分类输出如何变化。摘要只在原图、解码/resize 实现和依赖版本固定时可复现，因此它既是 golden input，也是环境漂移探针。
+
+该实验的通过标准为：
+
+\begin{enumerate}
+  \item 同一锁定环境重复运行得到相同 Shape、dtype 和摘要；
+  \item 能从配置解释每一步由谁执行，确认没有重复 resize 或 normalize；
+  \item 后续框架、portable runtime 和板端预处理都能与该 tensor 对齐；
+  \item 能根据摘要快速识别颜色交换、范围错误和 padding 差异。
+\end{enumerate}
+
 \section{第一个闭环：四分类视觉基线}
 
 第一个项目应小到可以在普通计算机上数小时内完成，又必须包含正式工程边界。推荐使用四个互斥类别，每类至少来自多个独立采集 session，而不是从同一段视频随机抽帧后切分。

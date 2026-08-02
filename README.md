@@ -22,7 +22,7 @@
 | 项目 | 当前情况 |
 | --- | --- |
 | 文档形态 | 中文 LaTeX `book`，面向 A4 PDF 阅读与归档 |
-| 当前规模 | 约 920 页；最近一次 OmniDoc 1.9.1 严格构建为 920 页，页数会随内容持续变化 |
+| 当前规模 | 约 926 页；最近一次 OmniDoc 1.9.1 严格构建为 926 页，页数会随内容持续变化 |
 | 内容入口 | [`main.tex`](main.tex) |
 | 章节组织 | [`tex/`](tex/) 下按软件、硬件、边缘 AI、工具、案例与参考资料分层 |
 | 构建系统 | OmniDoc → `latexmk` → XeLaTeX |
@@ -74,7 +74,7 @@
 | 无线与 IoT | Wi-Fi、BLE、Thread、Matter、MQTT、CoAP、LwM2M、弱网恢复与无线量产测试 |
 | 异构与虚拟化 | remoteproc/RPMsg、跨核 ABI、Arm EL2、RISC-V H、KVM/Xen、virtio 与设备直通 |
 | 多媒体系统 | V4L2、DRM/KMS、DMA-BUF、编解码、ALSA 与摄像头到加速器的数据通路 |
-| 嵌入式边缘 AI | 视觉任务、数据与标注、训练评估、压缩导出、INT8 量化、加速器运行时与模型产品生命周期 |
+| 嵌入式边缘 AI | 视觉任务、采集与标注、真实/合成数据、训练与事件级评估、压缩导出、INT8 量化、加速器运行时、模型 CI/CD 与产品生命周期 |
 | 构建、存储与更新 | Buildroot/Yocto、可复现构建、MTD/UBI/UBIFS、eMMC、掉电一致性与 A/B OTA |
 | 安全与可信计算 | 威胁建模、可信启动、密钥生命周期、TrustZone、OP-TEE、TPM、DICE 与证明 |
 | 功能安全与质量 | HARA、FTTI、FMEDA、免受干扰、Safety Case、环境可靠性与认证 |
@@ -215,7 +215,7 @@ main.tex
 | Pandoc | 3.10 | 3.10.1 |
 | pandoc-crossref | 0.3.24 | 0.3.24 |
 
-这组 1.9.1 环境已通过全量严格构建，生成 920 页 PDF，报告中的
+这组 1.9.1 环境已通过全量严格构建，生成 926 页 PDF，报告中的
 `issues` 为空。较新的兼容 CLI/库可以完成构建，但升级库、工具链或 lock 格式仍应作为显式维护动作审查，
 不应在普通内容修改中顺手写回 lock。
 

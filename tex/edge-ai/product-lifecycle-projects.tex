@@ -40,6 +40,34 @@
 
 训练成功、转换成功和产品晋级是三个不同动作。
 
+\section{模型 CI/CD 与硬件在环流水线}
+
+模型流水线不应把所有工作塞进一次超长 CI。快速、确定的检查在每次变更运行；GPU 训练、厂商转换、板端长稳和灰度发布由版本化输入触发，并保留人工批准边界。
+
+\begin{table}[H]
+  \centering
+  \caption{边缘 AI 发布流水线的分层 Gate}
+  \begin{tabular}{p{26mm}p{55mm}p{51mm}}
+    \hline
+    层级 & 自动化检查 & 失败处理 \\
+    \hline
+    Source/Data & schema、manifest、重复/group 泄漏、许可证与格式 & 阻止产生新数据版本 \\
+    Model unit & Target/Loss、valid 零梯度、增强往返、单 batch 与小样本过拟合 & 修复实现，不启动正式训练 \\
+    Training & 冻结配置、唯一 run、完成 step、指标与 checkpoint 摘要 & 标记 run 失败或不完整 \\
+    Export & graph check、静态 Shape、Manifest、L0 parity & 不进入 converter \\
+    Conversion & profile/version、日志、artifact metadata、L2/L3 & 不进入板端默认路径 \\
+    Board/HIL & gold tensor、ABI、P99/内存/功耗、故障注入和长稳 & 保留 incumbent \\
+    Release & 签名、兼容矩阵、灰度 guardrail 与 rollback rehearsal & 停止或自动回退 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+一次流水线运行需要把以下身份绑定在 promotion record 中：source revision、数据/schema/split、run/checkpoint、portable graph、converter/profile、target artifact、runtime/driver/firmware、评估报告和设备结果。Artifact registry 或对象存储只保存文件还不够，必须能够从任一产物反查完整依赖和批准状态。
+
+GPU 与板端资源通常稀缺，队列应支持互斥、超时、取消、重试和结果去重。重试不能覆盖原 run；同一输入摘要已成功产生的确定性 artifact 可以复用，但训练或硬件结果必须保留实际执行身份。板卡农场还要记录板型/序列号、电源、温度、频率、SDK/runtime 和复位状态，避免把环境差异误判为模型回归。
+
+推荐把发布权限与训练权限分开。训练系统可以产生 candidate，但只有通过独立评估、板端 Gate 和审批的不可变包才能进入 staged/active。流水线任何未执行层级都标为 unavailable，不能用绿色的上游任务替代缺失的目标板证据。
+
 \section{安全更新与回滚}
 
 模型更新沿用系统 OTA 的完整性、原子性和防回滚机制，参见第~\ref{chap:system-build-update}~章。模型特有检查包括：

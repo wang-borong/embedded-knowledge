@@ -71,14 +71,14 @@
 
 推荐顺序：
 \begin{enumerate}
-  \item 完成第~\ref{chap:edge-ai-learning-roadmap}~章的四分类闭环；
-  \item 学习视觉张量、卷积、任务分解和模型 ABI；
-  \item 建立数据 manifest、标签 schema、分组切分和标注质量；
+  \item 完成第~\ref{chap:edge-ai-learning-roadmap}~章的输入 tensor 第零实验和四分类闭环；
+  \item 学习传统视觉基线、视觉张量、CNN/Transformer、任务分解和模型 ABI；
+  \item 建立采集 pilot、数据 manifest、标签 schema、分组切分、合成数据实验和标注质量；
   \item 完成迁移学习、检测/分割训练和冻结实验合同；
-  \item 使用总体、每类、困难切片和配对错误选择候选；
+  \item 使用总体、每类、困难切片、连续事件指标和配对错误选择候选；
   \item 导出静态图，完成 PTQ/QAT、L0--L3 对齐和模型打包；
   \item 接入 Camera-to-runtime 管线，验证 tensor、cache、P99 和故障恢复；
-  \item 建立模型灰度、回滚、漂移监控和主动学习闭环。
+  \item 建立模型 CI/CD、灰度、回滚、漂移监控和主动学习闭环。
 \end{enumerate}
 
 建议按第~\ref{chap:edge-ai-product-lifecycle-projects}~章的四个综合项目逐级验收。入门阶段应交付可重建数据、baseline、portable graph 和参考推理；精通阶段应能够在陌生后端上冻结 ABI、定位首个数值分歧，并给出发布或拒绝证据。
