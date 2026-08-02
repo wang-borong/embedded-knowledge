@@ -34,6 +34,24 @@
 
 模型 FLOPs 优化若增加不支持算子或 layout conversion，端到端可能更慢。每一步都用相同输入、运行时和计时边界对比。
 
+\section{先判断算力、带宽还是调度瓶颈}
+
+模型的理论计算量只有与数据移动共同分析才有意义。可用算术强度粗略描述每搬运一个 byte 完成多少运算：
+
+\begin{equation}
+  I=\frac{N_{operations}}{N_{bytes}}.
+\end{equation}
+
+若峰值计算吞吐为 $P_{peak}$、有效内存带宽为 $B_{mem}$，可达到的吞吐上限可近似写为
+
+\begin{equation}
+  P\leq\min(P_{peak},B_{mem}I),
+\end{equation}
+
+这就是 Roofline 模型的核心直觉\cite{roofline-model}。低算术强度工作负载通常受 DDR、片上 SRAM、layout 转换或 copy 限制；高算术强度且算子利用充分时才更可能接近计算上限。实际芯片还有算子切分、并发、cache、频率和 runtime 调度影响，因此公式用于形成假设，不替代 profile。
+
+一次端侧优化应把时间和 bytes 分解到 preprocess、每个 graph partition、CPU fallback、tensor copy/layout、postprocess 和排队。计算受限时再减少 MAC、使用高效 kernel 或降低精度；带宽受限时优先缩小激活、融合算子、减少往返和复用 buffer；调度受限时检查小算子启动、同步、队列和多模型争用。只看到 NPU utilization 低，不能直接推断模型太小或需要增加 Batch。
+
 \section{模型缩放与输入尺寸}
 
 降低输入尺寸、通道宽度和层数是最稳定的压缩手段，但会影响小目标、细边界和长距离依赖。建立一组离散 Model Scale，例如 tiny/small/medium，而不是让每个项目随意组合宽度。
@@ -49,6 +67,22 @@
 \end{itemize}
 
 最终选择位于质量--资源 Pareto 前沿且通过硬门槛的 profile，不因某模型在公开榜单略高就默认使用。
+
+\section{精度阶梯与混合精度}
+
+端侧精度选择不是“FP32 或 INT8”二选一。应把可用模式看成由 backend profile 约束的阶梯：
+
+\begin{description}
+  \item[FP32] 作为参考语义和诊断基线，兼容性最好但存储、带宽和能耗通常最高；
+  \item[FP16] 减少权重与激活流量，但指数范围较窄，极大/极小值、归一化和累加可能溢出或下溢；
+  \item[BF16] 保留接近 FP32 的指数范围但尾数更短，是否高效取决于目标硬件和 runtime；
+  \item[INT8] 通过显式 scale/zero-point 获得较高能效，需要代表性校准、逐输出诊断和任务回归；
+  \item[INT4/weight-only] 在 backend 支持时可能主要减少权重存储；若激活、反量化或不支持算子仍占主导，端到端 latency 未必改善。
+\end{description}
+
+混合精度允许敏感输出、归一化、累加或边界算子保持较高精度，其余部分使用较低精度。Profile 必须记录每个输入输出、权重、激活和 accumulator 的 dtype，以及 cast/requantize 边界、fallback 和校准规则；“转换器自动选择”不能替代可审计的实际结果。训练阶段的 FP16/BF16 与 loss scaling 方法可提高吞吐\cite{mixed-precision-training}，但训练稳定不证明同名精度在目标推理 runtime 中具有相同算子和舍入语义。
+
+选择精度时固定 checkpoint、输入和后处理，分别比较 artifact 大小、峰值内存、数据移动、延迟/功耗、逐 tensor 误差和关键任务指标。只有真实资源收益超过新增转换、兼容和验证成本时，混合或低位宽 profile 才应进入长期维护矩阵。
 
 \section{知识蒸馏}
 
@@ -266,7 +300,7 @@ NNIE、RKNN、TensorRT、OpenVINO、TFLite/LiteRT 等后端的 artifact、量化
 选择上一章的候选模型：
 
 \begin{enumerate}
-  \item 冻结 checkpoint、测试集、预处理和参考后处理；
+  \item 冻结 checkpoint、测试集、预处理和参考后处理，并判断当前 profile 主要受算力、带宽还是调度限制；
   \item 导出固定 Shape 的 portable graph，并通过 L0；
   \item 生成 Model Manifest 和固定 golden inputs；
   \item 建立目标 Accelerator Profile 与校准 manifest；

@@ -278,6 +278,10 @@ CVAT、Label Studio、FiftyOne 或自研平台只是审核和展示适配器，c
 
 教师输出必须记录模型版本、原始分数、支持任务和人工修改。人工删除的错误候选要留下 rejection，避免下一轮重复添加。
 
+多 provider 融合必须是可审计的 proposal 生成过程，而不是把多个分数简单平均后写回金标。先按任务适用的类别、几何、对象身份和时间约束匹配候选；只把真正支持该任务的 provider 计入共识分母，同一 provider 的类别别名、TTA 或重复框要先去重。不同 provider 的原始 score 不在同一概率空间，必须分别按类别和目标域校准，不能直接比较 0.9 与 0.9。
+
+融合结果应保留每个贡献者、匹配关系、未匹配候选和分歧原因。高一致候选可以进入快速审核队列，低一致或高业务风险候选进入强制复核；没有任何 provider 检出的区域仍不能自动成为强负类。人工已审核字段具有最高优先级，融合器只能追加新 proposal，不能静默覆盖、删除或降级人工结论。
+
 视频标注先对相邻帧去重或聚类，选择多样 anchor frame，审核 anchor 后使用 tracker、光流或分割传播。身份切换、突变、低置信区间和片段边界进入人工队列，不能把传播结果无条件扩展到整段视频。
 
 主动学习队列不应只选择最低置信样本，否则会被大量相似模糊帧淹没。可组合：
@@ -318,6 +322,7 @@ CVAT、Label Studio、FiftyOne 或自研平台只是审核和展示适配器，c
   \item 按 session 分组生成 train/validation/test；
   \item 运行完全重复、感知哈希和 group 泄漏检查；
   \item 双人复核一小部分样本并记录分歧；
+  \item 在 reviewed gold seed 上校准至少一个预标注 provider，记录逐类 Precision/Recall、accept/edit/reject 和人工小时；
   \item 输出数据卡：用途、来源、覆盖、限制、许可和不建议用途；
   \item 冻结 \texttt{v001}，后续修正通过新版本完成。
 \end{enumerate}

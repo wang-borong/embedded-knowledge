@@ -183,6 +183,18 @@ Task Adapter 根据 Model Manifest 选择适用分支：
 
 确认维度、归一化、距离方向、零向量和阈值。持久化向量绑定模型、预处理和解释版本，升级时定义重建或双版本策略。
 
+\subsection{OCR 与序列输出}
+
+确认词表及其摘要、token 顺序、blank/end/pad 语义、最大长度、字符编码和 decoder 版本。CTC、attention 或自回归输出的 greedy/beam search 属于参考解释的一部分；Unicode normalization、词典和格式校验属于后续规则，必须分别报告模型原始文本与规则处理结果。测试空文本、重复 token、非法 ID、截断、超长序列和多语言字符，不能让未知 token 变成越界索引或静默丢失。
+
+\subsection{异常图与稠密连续量}
+
+异常 heatmap、深度、视差、光流和其他连续输出需要声明 value domain、单位、scale/offset、invalid mask、插值和坐标系。阈值化区域只是一个消费者视图，raw map 与参考统计仍应可复现。测试全 invalid、极值、NaN/Inf、边界 resize 和物理范围；不能只对“成功估计”的像素求均值后掩盖大量无结果。
+
+\subsection{跟踪与有状态消费者}
+
+检测框、Embedding 或运动向量可以是模型输出，但跨帧 association、track ID、age、lost/reacquire 和 reset 属于有状态算法层。状态必须按 source/stream、model generation 和 calibration generation 隔离；摄像头重连、时间倒退、模型切换或长时间断帧时执行显式 reset，不能把旧轨迹与新序列拼接。
+
 \section{标量参考路径与契约测试}
 
 生产优化前先写容易审查的 scalar/reference decoder，并用自造 tensor fixture 测试：

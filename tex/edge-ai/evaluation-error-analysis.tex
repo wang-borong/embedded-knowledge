@@ -264,11 +264,21 @@ failure gallery 用于解释，不替代完整固定集指标。
 
 综合分只用于排序已经通过全部硬门槛的候选。若 candidate 提升总体 AP 却降低关键类 Recall，默认保留 incumbent。
 
-\section{统计不确定性与多 Seed}
+\section{预测证据、配对统计与多 Seed}
 
-接近门槛的差异可能来自测试支持不足或训练方差。可使用 bootstrap 置信区间、配对样本分析和多 seed 评估。视频数据应按 group 重采样，而不是把相关帧当独立样本。
+评估报告应能从汇总指标回到每个样本。保存逐样本 prediction manifest，至少绑定 sample/group ID、artifact/配置摘要、预处理与后处理版本、raw/semantic 输出位置、运行时状态和错误原因。解码失败、timeout 或无输出必须形成显式记录，不能从分母中静默消失。预测缓存只有在模型、数据、预处理、后处理和运行时身份全部匹配时才可复用。
 
-多 seed 的目标不是追求某一次最好结果，而是确认改动在合理波动内具有稳定收益。若成本无法支持完整多 seed，至少报告限制，并对关键切片增加样本或做配对错误分析。
+候选与 incumbent 应在同一 sample ID 上做配对比较。对于可按样本或 group 分解的指标，先检查每个 group 的变化；对于 AP、事件指标等需要全局重算的指标，则以 subject、sequence、site 或 session 为单位有放回抽样，在每个 bootstrap 样本上重新计算
+
+\begin{equation}
+  \Delta_b=M(\text{candidate};S_b)-M(\text{incumbent};S_b).
+\end{equation}
+
+$\Delta_b$ 的分布可给出配对差值的置信区间\cite{bootstrap-methods}。比较两个各自置信区间是否重叠，不等价于直接检验配对差值；相关视频帧也不能作为独立抽样单位。报告应同时给出点估计、区间、支持 group 数和预先声明的实际容差。区间跨越回退门或支持太少时，结论应为 needs-evidence，而不是挑选有利 seed。
+
+大量类别和切片会增加偶然“显著改善”的机会。硬门槛与主要切片应在查看候选前注册；事后发现的切片标为 exploratory，并在新数据或下一轮固定协议中确认。统计显著不自动等于产品价值，极小但稳定的变化仍要与 latency、功耗、标注和维护成本比较。
+
+训练 seed 和测试样本不确定性是两类来源。多 seed 用于确认训练改动是否稳定，group bootstrap 用于估计当前评估集合对部署总体的抽样不确定性，不能把所有 run 与样本混在一次无结构重采样中。若成本无法支持完整多 seed，至少报告限制，并对关键切片增加独立 group 或做配对错误分析。
 
 \section{实践：发布评估报告}
 
@@ -279,7 +289,7 @@ failure gallery 用于解释，不替代完整固定集指标。
   \item 输出总体与每类指标、支持量和混淆/PR；
   \item 定义至少五个部署困难切片；
   \item 构造 near/far OOD 与 corruption 集，报告误拒、检出和 risk--coverage；
-  \item 生成配对 FP/FN 变化和 failure gallery；
+  \item 保存逐样本 prediction manifest，生成配对 FP/FN、group-aware 区间和 failure gallery；
   \item 测量 reference runtime 延迟和内存；
   \item 按预注册门槛给出 promote/reject/needs-evidence；
   \item 明确未执行的量化、板端、功耗和长稳层级。
